@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cart — Lumear</title>
+
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Exact "Maroon + Beige" palette: 62191C · 873632 · 9E7161 · CAAE9F · E0CFC2
+                        cream:  { 50:'#FBF5F1', 100:'#F3E4DA', 200:'#E0CFC2', 300:'#CAAE9F' },
+                        sand:   { 400:'#CAAE9F', 500:'#9E7161' },
+                        maroon: {
+                            950:'#3D0F11', 900:'#62191C', 800:'#62191C',
+                            700:'#873632', 600:'#873632', 500:'#9E7161',
+                            400:'#9E7161', 300:'#B99184',
+                        },
+                        gold:   { 500:'#9E7161', 400:'#CAAE9F', 300:'#E0CFC2' },
+                    },
+                    fontFamily: {
+                        display: ['"Fraunces"', 'serif'],
+                        body: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        soft: '0 12px 32px -12px rgba(46, 10, 19, 0.18)',
+                        lift: '0 20px 40px -16px rgba(46, 10, 19, 0.28)',
+                    },
+                    keyframes: {
+                        rise:    { '0%': { opacity: 0, transform: 'translateY(14px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+                        marquee: { '0%': { transform: 'translateX(0)' }, '100%': { transform: 'translateX(-50%)' } },
+                    },
+                    animation: {
+                        rise: 'rise .6s cubic-bezier(.16,1,.3,1) both',
+                        marquee: 'marquee 28s linear infinite',
+                    },
+                },
+            },
+        }
+    </script>
+
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        html { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-display { font-family: 'Fraunces', serif; }
+        ::-webkit-scrollbar { display: none; }
+        * { scrollbar-width: none; -ms-overflow-style: none; }
+        [x-cloak] { display: none !important; }
+
+        /* Underline-grow link, used sparingly for the one "signature" interaction */
+        .link-grow { position: relative; }
+        .link-grow::after {
+            content: ''; position: absolute; left: 0; bottom: -2px; width: 0; height: 1.5px;
+            background: currentColor; transition: width .35s cubic-bezier(.16,1,.3,1);
+        }
+        .link-grow:hover::after { width: 100%; }
+
+        /* Soft focus ring in-brand, keeps keyboard accessibility visible */
+        :focus-visible { outline: 2px solid #8B2635; outline-offset: 2px; }
+    </style>
+
+    </head>
+<body class="bg-cream-100 text-maroon-900 antialiased">
+
+    <header x-data="{ mega: false, account: false, notif: false, lang: false, currentLang: 'English', identity: localStorage.getItem('lumear_identity') || 'Guest' }" class="sticky top-0 z-50">
+
+    
+    <div class="bg-maroon-950 text-cream-200/70 text-xs">
+        <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-9">
+
+            <div class="flex items-center gap-5">
+                <a href="#" class="link-grow hover:text-cream-100">Seller Centre</a>
+                <a href="#" class="link-grow hover:text-cream-100">Start Selling</a>
+                <a href="#" class="link-grow hover:text-cream-100">Download</a>
+                <div class="flex items-center gap-2">
+                    <span>Follow us on</span>
+                    <a href="#" class="w-5 h-5 rounded-full bg-cream-100/10 grid place-items-center hover:bg-cream-100/20 transition-colors" title="Facebook">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M22 12a10 10 0 10-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0022 12z"/></svg>
+                    </a>
+                    <a href="#" class="w-5 h-5 rounded-full bg-cream-100/10 grid place-items-center hover:bg-cream-100/20 transition-colors" title="Instagram">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2 0 1.9.2 2.3.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1.1.4 2.3.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c0 1.2-.2 1.9-.4 2.3-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1.1.4-2.3.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2 0-1.9-.2-2.3-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1.1-.4-2.3-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c0-1.2.2-1.9.4-2.3.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1.1-.4 2.3-.4 1.3-.1 1.7-.1 4.9-.1M12 0C8.7 0 8.3 0 7 .1c-1.3.1-2.2.2-3 .5-.8.3-1.5.7-2.2 1.4C1.1 2.7.7 3.4.4 4.2c-.3.8-.5 1.7-.5 3C0 8.3 0 8.7 0 12s0 3.7.1 5c.1 1.3.2 2.2.5 3 .3.8.7 1.5 1.4 2.2.7.7 1.4 1.1 2.2 1.4.8.3 1.7.5 3 .5C8.3 24 8.7 24 12 24s3.7 0 5-.1c1.3-.1 2.2-.2 3-.5.8-.3 1.5-.7 2.2-1.4.7-.7 1.1-1.4 1.4-2.2.3-.8.5-1.7.5-3 .1-1.3.1-1.7.1-5s0-3.7-.1-5c-.1-1.3-.2-2.2-.5-3-.3-.8-.7-1.5-1.4-2.2C21.3 1.1 20.6.7 19.8.4c-.8-.3-1.7-.5-3-.5C15.7 0 15.3 0 12 0zm0 5.8A6.2 6.2 0 1012 18.2 6.2 6.2 0 0012 5.8zm0 10.2a4 4 0 110-8 4 4 0 010 8zm6.4-10.4a1.4 1.4 0 11-2.9 0 1.4 1.4 0 012.9 0z"/></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-5">
+
+                
+                <div class="relative">
+                    <button @click="notif = !notif; account = false; lang = false" class="flex items-center gap-1.5 hover:text-cream-100 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                        </svg>
+                        Notifications
+                    </button>
+                    <div x-cloak x-show="notif" @click.outside="notif = false"
+                         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                         class="absolute right-0 mt-3 w-80 bg-cream-50 rounded-lg shadow-lift border border-sand-400/40 overflow-hidden text-left">
+                        <p class="px-4 py-3 text-[11px] font-semibold text-maroon-900/50 uppercase tracking-wide border-b border-sand-400/30">Recently Received</p>
+                        <div class="max-h-72 overflow-y-auto divide-y divide-sand-400/20">
+                                                            <a href="#" class="flex items-start gap-3 px-4 py-3 hover:bg-sand-400/15 transition-colors">
+                                    <span class="text-lg shrink-0">🚚</span>
+                                    <span>
+                                        <span class="block text-xs font-semibold text-maroon-900">Your order has shipped</span>
+                                        <span class="block text-[11px] text-maroon-900/50 mt-0.5 leading-relaxed">Handwoven Rattan Pet Bed is on its way — arriving in 2–3 days.</span>
+                                    </span>
+                                </a>
+                                                            <a href="#" class="flex items-start gap-3 px-4 py-3 hover:bg-sand-400/15 transition-colors">
+                                    <span class="text-lg shrink-0">⚡</span>
+                                    <span>
+                                        <span class="block text-xs font-semibold text-maroon-900">Flash Deals start in 1 hour</span>
+                                        <span class="block text-[11px] text-maroon-900/50 mt-0.5 leading-relaxed">Up to 40% off Home &amp; Garden — set a reminder.</span>
+                                    </span>
+                                </a>
+                                                            <a href="#" class="flex items-start gap-3 px-4 py-3 hover:bg-sand-400/15 transition-colors">
+                                    <span class="text-lg shrink-0">🎟️</span>
+                                    <span>
+                                        <span class="block text-xs font-semibold text-maroon-900">You have a ₱100 voucher</span>
+                                        <span class="block text-[11px] text-maroon-900/50 mt-0.5 leading-relaxed">Use it on any order above ₱500 before it expires.</span>
+                                    </span>
+                                </a>
+                                                    </div>
+                        <a href="#" class="block text-center text-xs font-semibold text-maroon-700 py-2.5 border-t border-sand-400/30 hover:bg-sand-400/15 transition-colors">View All</a>
+                    </div>
+                </div>
+
+                <a href="#" class="hover:text-cream-100 transition-colors">Help</a>
+
+                
+                <div class="relative">
+                    <button @click="lang = !lang; account = false; notif = false" class="flex items-center gap-1.5 hover:text-cream-100 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 014 9 15 15 0 01-4 9 15 15 0 01-4-9 15 15 0 014-9z"/>
+                        </svg>
+                        <span x-text="currentLang"></span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 transition-transform" :class="lang && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-cloak x-show="lang" @click.outside="lang = false"
+                         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                         class="absolute right-0 mt-3 w-40 bg-cream-50 rounded-lg shadow-lift border border-sand-400/40 py-1.5 overflow-hidden text-left">
+                                                    <button @click="currentLang = 'English'; lang = false"
+                                    class="w-full text-left px-4 py-2 text-sm transition-colors"
+                                    :class="currentLang === 'English' ? 'text-maroon-700 font-bold bg-sand-400/15' : 'text-maroon-900/70 hover:bg-sand-400/15'">
+                                English
+                            </button>
+                                                    <button @click="currentLang = '简体中文'; lang = false"
+                                    class="w-full text-left px-4 py-2 text-sm transition-colors"
+                                    :class="currentLang === '简体中文' ? 'text-maroon-700 font-bold bg-sand-400/15' : 'text-maroon-900/70 hover:bg-sand-400/15'">
+                                简体中文
+                            </button>
+                                                    <button @click="currentLang = 'Filipino'; lang = false"
+                                    class="w-full text-left px-4 py-2 text-sm transition-colors"
+                                    :class="currentLang === 'Filipino' ? 'text-maroon-700 font-bold bg-sand-400/15' : 'text-maroon-900/70 hover:bg-sand-400/15'">
+                                Filipino
+                            </button>
+                                            </div>
+                </div>
+
+                
+                <div class="relative">
+                    <button @click="account = !account; notif = false; lang = false" class="flex items-center gap-2 hover:text-cream-100 transition-colors">
+                        <span class="w-5 h-5 rounded-full bg-cream-100/20 grid place-items-center text-[10px] font-bold overflow-hidden">🧑</span>
+                        <span x-text="identity"></span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 transition-transform" :class="account && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-cloak x-show="account" @click.outside="account = false"
+                         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                         class="absolute right-0 mt-3 w-48 bg-cream-50 rounded-lg shadow-lift border border-sand-400/40 py-2 overflow-hidden text-left">
+                        <a href="http://127.0.0.1:8000/account" class="block px-4 py-2.5 text-sm text-maroon-900 hover:bg-sand-400/20">My Account</a>
+                        <a href="http://127.0.0.1:8000/orders" class="block px-4 py-2.5 text-sm text-maroon-900 hover:bg-sand-400/20">My Purchase</a>
+                        <hr class="border-sand-400/40 my-1">
+                        <a href="http://127.0.0.1:8000" @click="localStorage.removeItem('lumear_identity')" class="block px-4 py-2.5 text-sm text-maroon-700 font-semibold hover:bg-sand-400/20">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="bg-maroon-700">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 h-[72px] flex items-center gap-6 md:gap-10">
+
+            <a href="http://127.0.0.1:8000/home" class="shrink-0 flex items-center gap-2">
+                <img src="http://127.0.0.1:8000/images/lumear-logo.png" alt="Lumear" class="w-9 h-9 rounded-md object-contain">
+                <span class="font-display italic text-2xl tracking-tight text-cream-50 hidden sm:inline">Lumear</span>
+            </a>
+
+            <div class="flex-1 max-w-2xl">
+                <form action="http://127.0.0.1:8000/search" method="GET" class="flex h-11 rounded-md bg-cream-50 overflow-hidden shadow-sm">
+                    <input
+                        type="text" name="q" placeholder="Search for anything — from cat food to circuit boards"
+                        class="flex-1 min-w-0 px-4 text-sm text-maroon-900 placeholder:text-maroon-900/40 outline-none"
+                    >
+                    <button type="submit" class="w-12 shrink-0 bg-maroon-800 text-cream-50 grid place-items-center hover:bg-maroon-950 transition-colors duration-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M18 10.5a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z"/>
+                        </svg>
+                    </button>
+                </form>
+                <div class="hidden md:flex gap-3 mt-1.5 text-[11px] text-cream-100/60">
+                                            <a href="#" class="hover:text-cream-50 link-grow">Flash Deals</a>
+                                            <a href="#" class="hover:text-cream-50 link-grow">Rattan Home</a>
+                                            <a href="#" class="hover:text-cream-50 link-grow">Wireless Earbuds</a>
+                                            <a href="#" class="hover:text-cream-50 link-grow">Gift Sets</a>
+                                    </div>
+            </div>
+
+            <a href="http://127.0.0.1:8000/cart" class="group relative shrink-0 flex items-center gap-2 text-cream-50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 group-hover:-translate-y-0.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l3.6-7.4H5.4M7 13L5.4 5.6M7 13l-2.2 4.4A1 1 0 005.7 19H18M9 21a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z"/>
+                </svg>
+                <span class="absolute -top-2 -right-2.5 w-5 h-5 min-w-[20px] px-1 rounded-full bg-cream-50 text-maroon-800 text-[10px] font-bold grid place-items-center">3</span>
+            </a>
+        </div>
+    </div>
+
+    
+    <div class="bg-cream-100 border-b border-sand-400/50">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 relative">
+            <button @click="mega = !mega" class="flex items-center gap-2 py-2.5 text-sm font-bold text-maroon-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                ALL CATEGORIES
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform duration-200" :class="mega && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-cloak x-show="mega" @click.outside="mega = false"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 class="absolute left-0 right-0 top-full bg-cream-50 border border-sand-400/40 rounded-b-lg shadow-lift z-40 p-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-4">
+                                            <a href="http://127.0.0.1:8000/category/pet-supplies" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🐾</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Pet Supplies</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/kids-and-baby" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🍼</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Kids &amp; Baby</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/electronics-and-gadgets" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🔌</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Electronics &amp; Gadgets</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/home-and-garden" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🌿</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Home &amp; Garden</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/womens-apparel" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">👗</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Women&#039;s Apparel</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/sports-and-outdoors" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🏸</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Sports &amp; Outdoors</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/mens-apparel" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">👔</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Men&#039;s Apparel</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/health-and-beauty" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">💄</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Health &amp; Beauty</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/books-and-media" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">📚</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Books &amp; Media</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/food-and-gourmet" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🍯</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Food &amp; Gourmet</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/furniture-and-office-equipment" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🪑</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Furniture &amp; Office Equipment</span>
+                        </a>
+                                            <a href="http://127.0.0.1:8000/category/jewelry-and-watches" class="flex items-center gap-3 group py-1.5">
+                            <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">💍</span>
+                            <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Jewelry &amp; Watches</span>
+                        </a>
+                                    </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+<a href="http://127.0.0.1:8000/chat"
+   class="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-maroon-700 text-cream-50 pl-4 pr-5 h-12 rounded-full shadow-lift hover:bg-maroon-600 transition-colors duration-200">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8-1.06 0-2.077-.16-3.02-.457L3 21l1.457-4.98A7.94 7.94 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+    </svg>
+    <span class="text-sm font-semibold">Chat</span>
+    <span class="w-5 h-5 rounded-full bg-cream-50 text-maroon-800 text-[10px] font-bold grid place-items-center">2</span>
+</a>
+    <main>
+        
+        
+
+<div x-data="cartPage()" class="max-w-6xl mx-auto px-4 md:px-6 pt-8 pb-24">
+    <h1 class="font-display text-3xl text-maroon-900 mb-8">My Cart</h1>
+
+    <div class="grid lg:grid-cols-3 gap-8">
+
+        
+        <div class="lg:col-span-2 space-y-6">
+                            <div class="bg-cream-50 border border-sand-400/40 rounded-lg overflow-hidden">
+                    <div class="flex items-center gap-3 px-5 py-4 border-b border-sand-400/30">
+                        <input type="checkbox" x-model="shopChecked[0]" @change="toggleShop(0)"
+                               class="w-4 h-4 rounded accent-maroon-700">
+                        <span class="text-sm font-semibold text-maroon-900">🏪 Terra &amp; Twine Home</span>
+                    </div>
+
+                                            <div class="flex items-center gap-4 px-5 py-5 border-b border-sand-400/20 last:border-b-0">
+                            <input type="checkbox" x-model="itemChecked['0-0']" @change="recalc()" class="w-4 h-4 rounded accent-maroon-700">
+                            <div class="w-16 h-16 rounded-xl bg-sand-400/25 grid place-items-center text-2xl shrink-0">🐶</div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-maroon-900 truncate">Handwoven Rattan Pet Bed, Medium</p>
+                                <p class="text-xs text-maroon-900/45 mt-1">Natural / Medium</p>
+                            </div>
+                            <div class="flex items-center border border-sand-400/60 rounded-md overflow-hidden shrink-0">
+                                <button @click="changeQty('0-0', -1)" class="w-8 h-8 grid place-items-center hover:bg-sand-400/25 transition-colors text-sm">−</button>
+                                <span class="w-9 text-center text-sm" x-text="qty['0-0'] ?? 1"></span>
+                                <button @click="changeQty('0-0', 1)" class="w-8 h-8 grid place-items-center hover:bg-sand-400/25 transition-colors text-sm">+</button>
+                            </div>
+                            <span class="w-20 text-right font-display text-maroon-700 font-semibold shrink-0">₱899</span>
+                            <button class="text-maroon-900/30 hover:text-maroon-600 transition-colors shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                                            <div class="flex items-center gap-4 px-5 py-5 border-b border-sand-400/20 last:border-b-0">
+                            <input type="checkbox" x-model="itemChecked['0-1']" @change="recalc()" class="w-4 h-4 rounded accent-maroon-700">
+                            <div class="w-16 h-16 rounded-xl bg-gold-500/15 grid place-items-center text-2xl shrink-0">🥣</div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-maroon-900 truncate">Ceramic Pet Feeding Bowl Set</p>
+                                <p class="text-xs text-maroon-900/45 mt-1">Charcoal</p>
+                            </div>
+                            <div class="flex items-center border border-sand-400/60 rounded-md overflow-hidden shrink-0">
+                                <button @click="changeQty('0-1', -1)" class="w-8 h-8 grid place-items-center hover:bg-sand-400/25 transition-colors text-sm">−</button>
+                                <span class="w-9 text-center text-sm" x-text="qty['0-1'] ?? 2"></span>
+                                <button @click="changeQty('0-1', 1)" class="w-8 h-8 grid place-items-center hover:bg-sand-400/25 transition-colors text-sm">+</button>
+                            </div>
+                            <span class="w-20 text-right font-display text-maroon-700 font-semibold shrink-0">₱390</span>
+                            <button class="text-maroon-900/30 hover:text-maroon-600 transition-colors shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                                    </div>
+                            <div class="bg-cream-50 border border-sand-400/40 rounded-lg overflow-hidden">
+                    <div class="flex items-center gap-3 px-5 py-4 border-b border-sand-400/30">
+                        <input type="checkbox" x-model="shopChecked[1]" @change="toggleShop(1)"
+                               class="w-4 h-4 rounded accent-maroon-700">
+                        <span class="text-sm font-semibold text-maroon-900">🏪 Northline Electronics</span>
+                    </div>
+
+                                            <div class="flex items-center gap-4 px-5 py-5 border-b border-sand-400/20 last:border-b-0">
+                            <input type="checkbox" x-model="itemChecked['1-0']" @change="recalc()" class="w-4 h-4 rounded accent-maroon-700">
+                            <div class="w-16 h-16 rounded-xl bg-maroon-700/10 grid place-items-center text-2xl shrink-0">🎧</div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-maroon-900 truncate">Wireless Noise-Cancel Earbuds</p>
+                                <p class="text-xs text-maroon-900/45 mt-1">Matte Black</p>
+                            </div>
+                            <div class="flex items-center border border-sand-400/60 rounded-md overflow-hidden shrink-0">
+                                <button @click="changeQty('1-0', -1)" class="w-8 h-8 grid place-items-center hover:bg-sand-400/25 transition-colors text-sm">−</button>
+                                <span class="w-9 text-center text-sm" x-text="qty['1-0'] ?? 1"></span>
+                                <button @click="changeQty('1-0', 1)" class="w-8 h-8 grid place-items-center hover:bg-sand-400/25 transition-colors text-sm">+</button>
+                            </div>
+                            <span class="w-20 text-right font-display text-maroon-700 font-semibold shrink-0">₱1,299</span>
+                            <button class="text-maroon-900/30 hover:text-maroon-600 transition-colors shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                                    </div>
+                    </div>
+
+        
+        <div class="lg:col-span-1">
+            <div class="sticky top-28 bg-cream-50 border border-sand-400/40 rounded-lg p-6 space-y-5">
+
+                <div>
+                    <label class="text-xs font-semibold text-maroon-900/60 uppercase tracking-wide">Voucher code</label>
+                    <div class="flex gap-2 mt-2">
+                        <input type="text" placeholder="e.g. LUMEAR50" class="flex-1 h-11 rounded-md bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-500 transition-colors">
+                        <button class="px-5 rounded-md bg-maroon-700 text-cream-50 text-sm font-semibold hover:bg-maroon-600 transition-colors">Apply</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2.5 text-sm border-t border-sand-400/30 pt-5">
+                    <div class="flex justify-between text-maroon-900/60"><span>Subtotal</span><span x-text="'₱' + subtotal.toLocaleString()"></span></div>
+                    <div class="flex justify-between text-maroon-900/60"><span>Shipping fee</span><span>₱120</span></div>
+                    <div class="flex justify-between text-maroon-600"><span>Voucher discount</span><span>−₱0</span></div>
+                </div>
+
+                <div class="flex justify-between items-baseline border-t border-sand-400/30 pt-4">
+                    <span class="text-sm font-semibold text-maroon-900">Total</span>
+                    <span class="font-display text-2xl text-maroon-700 font-semibold" x-text="'₱' + (subtotal + 120).toLocaleString()"></span>
+                </div>
+
+                <button class="w-full py-4 rounded-md bg-maroon-700 text-cream-50 font-bold text-sm tracking-wide hover:bg-maroon-600 hover:shadow-lift transition-all duration-200">
+                    PLACE ORDER (<span x-text="selectedCount"></span>)
+                </button>
+                <p class="text-[11px] text-center text-maroon-900/40">Payment method and address confirmed at checkout</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </main>
+
+    <footer class="hidden md:block bg-maroon-950 text-cream-100/70 mt-20">
+    <div class="max-w-7xl mx-auto px-6 py-14 grid grid-cols-4 gap-10">
+        <div class="col-span-1">
+            <span class="font-display italic text-2xl text-cream-50">Lumear</span>
+            <p class="text-sm mt-3 leading-relaxed max-w-[26ch]">A marketplace for the everyday and the extraordinary — twelve worlds of goods, one cart.</p>
+        </div>
+        <div>
+            <h4 class="text-cream-50 text-sm font-semibold mb-3">Customer Care</h4>
+            <ul class="space-y-2 text-sm">
+                <li><a href="#" class="link-grow hover:text-cream-50">Help Center</a></li>
+                <li><a href="#" class="link-grow hover:text-cream-50">Track My Order</a></li>
+                <li><a href="#" class="link-grow hover:text-cream-50">Returns & Refunds</a></li>
+                <li><a href="#" class="link-grow hover:text-cream-50">Contact Us</a></li>
+            </ul>
+        </div>
+        <div>
+            <h4 class="text-cream-50 text-sm font-semibold mb-3">About Lumear</h4>
+            <ul class="space-y-2 text-sm">
+                <li><a href="#" class="link-grow hover:text-cream-50">Our Story</a></li>
+                <li><a href="#" class="link-grow hover:text-cream-50">Sell on Lumear</a></li>
+                <li><a href="#" class="link-grow hover:text-cream-50">Careers</a></li>
+            </ul>
+        </div>
+        <div>
+            <h4 class="text-cream-50 text-sm font-semibold mb-3">Payments We Accept</h4>
+            <div class="flex flex-wrap gap-2 text-xs">
+                                    <span class="px-2.5 py-1 rounded-md bg-cream-100/10 border border-cream-100/10">Cash On Delivery</span>
+                                    <span class="px-2.5 py-1 rounded-md bg-cream-100/10 border border-cream-100/10">GCash</span>
+                            </div>
+        </div>
+    </div>
+    <div class="border-t border-cream-100/10 py-5 text-center text-xs text-cream-100/40">
+        © 2026 Lumear. Built for the final project, not for production &mdash; yet.
+    </div>
+</footer>
+    <script>
+    function cartPage() {
+        const prices = { '0-0': 899, '0-1': 390, '1-0': 1299 };
+        const baseQty = { '0-0': 1, '0-1': 2, '1-0': 1 };
+        return {
+            itemChecked: { '0-0': true, '0-1': true, '1-0': true },
+            shopChecked: { 0: true, 1: true },
+            qty: { ...baseQty },
+            subtotal: 0,
+            selectedCount: 0,
+            init() { this.recalc() },
+            changeQty(key, delta) {
+                this.qty[key] = Math.max(1, (this.qty[key] ?? baseQty[key]) + delta);
+                this.recalc();
+            },
+            toggleShop(shopIndex) {
+                Object.keys(prices).forEach(k => { if (k.startsWith(shopIndex + '-')) this.itemChecked[k] = this.shopChecked[shopIndex]; });
+                this.recalc();
+            },
+            recalc() {
+                let sum = 0, count = 0;
+                Object.keys(prices).forEach(k => {
+                    if (this.itemChecked[k]) { sum += prices[k] * (this.qty[k] ?? baseQty[k]); count++; }
+                });
+                this.subtotal = sum;
+                this.selectedCount = count;
+            }
+        }
+    }
+</script>
+</body>
+</html>

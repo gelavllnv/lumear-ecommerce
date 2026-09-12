@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create your account — Lumear</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Exact "Maroon + Beige" palette: 62191C · 873632 · 9E7161 · CAAE9F · E0CFC2
+                        cream:  { 50:'#FBF5F1', 100:'#F3E4DA', 200:'#E0CFC2', 300:'#CAAE9F' },
+                        sand:   { 400:'#CAAE9F', 500:'#9E7161' },
+                        maroon: { 950:'#3D0F11', 900:'#62191C', 800:'#62191C', 700:'#873632', 600:'#873632', 500:'#9E7161', 400:'#9E7161' },
+                        gold:   { 500:'#9E7161', 400:'#CAAE9F' },
+                    },
+                    fontFamily: {
+                        display: ['"Fraunces"', 'serif'],
+                        body: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    boxShadow: { soft: '0 12px 32px -12px rgba(46,10,19,.18)', lift: '0 24px 60px -16px rgba(15,3,6,.45)' },
+                },
+            },
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        html { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-display { font-family: 'Fraunces', serif; }
+        ::-webkit-scrollbar { display: none; }
+        * { scrollbar-width: none; -ms-overflow-style: none; }
+        [x-cloak] { display: none !important; }
+
+        /* Keep Chrome/Safari autofill on-palette instead of their default blue tint */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #62191C;
+            -webkit-box-shadow: 0 0 0px 1000px #F3E4DA inset;
+            box-shadow: 0 0 0px 1000px #F3E4DA inset;
+            transition: background-color 9999s ease-in-out 0s;
+        }
+        .link-grow { position: relative; }
+        .link-grow::after { content:''; position:absolute; left:0; bottom:-2px; width:0; height:1.5px; background:currentColor; transition:width .3s cubic-bezier(.16,1,.3,1); }
+        .link-grow:hover::after { width:100%; }
+
+        /* Texture: faint dot grid over the maroon field, Shopee-esque without copying its orange */
+        .dot-field {
+            background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+            background-size: 22px 22px;
+        }
+    </style>
+</head>
+<body class="bg-cream-50 antialiased">
+
+<div class="min-h-screen flex flex-col">
+
+    
+    <div class="h-16 shrink-0 bg-cream-50 border-b border-sand-400/40 flex items-center justify-between px-6 md:px-10">
+        <div class="flex items-center gap-3">
+            <a href="http://127.0.0.1:8000" class="flex items-center gap-2">
+                <img src="http://127.0.0.1:8000/images/lumear-logo.png" alt="Lumear" class="w-8 h-8 rounded-full object-contain">
+                <span class="font-display italic text-lg text-maroon-800">Lumear</span>
+            </a>
+            <span class="text-sand-400 text-lg font-light">|</span>
+            <span class="text-maroon-900/70 text-sm">Sign Up</span>
+        </div>
+        <a href="#" class="text-sm text-maroon-700 font-medium link-grow">Need help?</a>
+    </div>
+
+    
+    <div class="flex-1 relative overflow-hidden dot-field bg-gradient-to-br from-maroon-800 via-maroon-900 to-maroon-950">
+
+        <div class="absolute -top-32 -left-32 w-[30rem] h-[30rem] rounded-full bg-maroon-700/40 blur-3xl"></div>
+        <div class="absolute -bottom-40 -right-20 w-[26rem] h-[26rem] rounded-full bg-gold-500/10 blur-3xl"></div>
+
+        <div class="relative z-10 h-full flex items-center justify-center px-6 md:px-12 py-10">
+            <div class="w-full max-w-6xl flex items-center justify-between gap-10">
+                <div x-data="authCarousel()" x-init="start()" class="hidden lg:flex flex-col items-center justify-center relative z-10 w-[420px] shrink-0">
+
+    <div class="relative w-72 h-[420px]">
+        <template x-for="(slide, i) in slides" :key="i">
+            <div x-show="active === i"
+                 x-transition:enter="transition ease-out duration-500"
+                 x-transition:enter-start="opacity-0 translate-y-3"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="absolute inset-0">
+
+                
+                <div class="w-full h-full rounded-[2.5rem] bg-cream-50/95 border-[6px] border-maroon-950/40 shadow-lift overflow-hidden flex flex-col">
+                    <div class="h-6 flex items-center justify-center shrink-0">
+                        <div class="w-16 h-1.5 rounded-full bg-maroon-900/15"></div>
+                    </div>
+                    <div class="flex-1 grid place-items-center text-7xl" x-text="slide.emoji"></div>
+                    <div class="px-6 pb-8">
+                        <div class="h-2 w-3/4 rounded-full bg-maroon-900/10 mb-2"></div>
+                        <div class="h-2 w-1/2 rounded-full bg-maroon-900/10"></div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <div class="mt-8 text-center">
+        <template x-for="(slide, i) in slides" :key="'t'+i">
+            <div x-show="active === i">
+                <p class="font-display italic text-2xl text-cream-50" x-text="slide.title"></p>
+                <p class="text-sm text-cream-100/60 mt-2 max-w-[26ch] mx-auto" x-text="slide.copy"></p>
+            </div>
+        </template>
+    </div>
+
+    <div class="flex items-center gap-2 mt-6">
+        <template x-for="(slide, i) in slides" :key="'d'+i">
+            <button @click="active = i" class="h-1.5 rounded-full transition-all duration-300" :class="active === i ? 'w-6 bg-gold-400' : 'w-1.5 bg-cream-50/30'"></button>
+        </template>
+    </div>
+</div>
+
+<script>
+    function authCarousel() {
+        return {
+            active: 0,
+            slides: [
+                { emoji: '🚚', title: 'Free shipping', copy: 'On your first order across every category, every week.' },
+                { emoji: '⚡', title: 'Flash deals', copy: 'New drops every hour — limited stock, real savings.' },
+                { emoji: '🛍️', title: '12 categories', copy: 'From pet bowls to gold hoops, all under one roof.' },
+                { emoji: '📦', title: 'Live tracking', copy: 'Watch your order move from shop to doorstep.' },
+            ],
+            start() {
+                setInterval(() => { this.active = (this.active + 1) % this.slides.length }, 4000);
+            }
+        }
+    }
+</script>
+                <div class="w-full max-w-[420px] shrink-0 ml-auto">
+                    <div class="bg-cream-50 rounded-lg shadow-lift p-8 md:p-9">
+                        <div x-data="registerWizard()">
+
+    <h1 class="font-display text-[26px] text-maroon-900 leading-tight">Create your account</h1>
+    <p class="text-sm text-maroon-900/50 mt-1.5">Already registered? <a href="http://127.0.0.1:8000" class="text-maroon-700 font-bold link-grow">Log in</a></p>
+
+    
+    
+    
+    <div class="flex items-center mt-7 mb-7">
+                    <div class="flex items-center flex-1">
+                <div class="flex flex-col items-center gap-1.5 shrink-0">
+                    <div class="w-8 h-8 rounded-full grid place-items-center text-xs font-bold transition-colors duration-300"
+                         :class="step >= 1 ? 'bg-maroon-700 text-cream-50' : 'bg-sand-400/30 text-maroon-900/40'">
+                        <template x-if="step > 1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        </template>
+                        <template x-if="step <= 1"><span>1</span></template>
+                    </div>
+                    <span class="text-[10px] font-medium text-maroon-900/45 whitespace-nowrap">Personal</span>
+                </div>
+                                    <div class="flex-1 h-0.5 mx-1.5 -mt-4 rounded-full transition-colors duration-300" :class="step > 1 ? 'bg-maroon-700' : 'bg-sand-400/30'"></div>
+                            </div>
+                    <div class="flex items-center flex-1">
+                <div class="flex flex-col items-center gap-1.5 shrink-0">
+                    <div class="w-8 h-8 rounded-full grid place-items-center text-xs font-bold transition-colors duration-300"
+                         :class="step >= 2 ? 'bg-maroon-700 text-cream-50' : 'bg-sand-400/30 text-maroon-900/40'">
+                        <template x-if="step > 2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        </template>
+                        <template x-if="step <= 2"><span>2</span></template>
+                    </div>
+                    <span class="text-[10px] font-medium text-maroon-900/45 whitespace-nowrap">Address</span>
+                </div>
+                                    <div class="flex-1 h-0.5 mx-1.5 -mt-4 rounded-full transition-colors duration-300" :class="step > 2 ? 'bg-maroon-700' : 'bg-sand-400/30'"></div>
+                            </div>
+                    <div class="flex items-center ">
+                <div class="flex flex-col items-center gap-1.5 shrink-0">
+                    <div class="w-8 h-8 rounded-full grid place-items-center text-xs font-bold transition-colors duration-300"
+                         :class="step >= 3 ? 'bg-maroon-700 text-cream-50' : 'bg-sand-400/30 text-maroon-900/40'">
+                        <template x-if="step > 3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        </template>
+                        <template x-if="step <= 3"><span>3</span></template>
+                    </div>
+                    <span class="text-[10px] font-medium text-maroon-900/45 whitespace-nowrap">Verify</span>
+                </div>
+                            </div>
+            </div>
+
+    
+    <form method="POST" action="http://127.0.0.1:8000/register" enctype="multipart/form-data" @submit.prevent="submitted = true">
+        <input type="hidden" name="_token" value="xVBh9aO8vINNSqfPcdz8NTq1Ww4uigTrYbhqyqSu" autocomplete="off">
+        
+        <div x-show="step === 1" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-3" x-transition:enter-end="opacity-100 translate-x-0" class="space-y-3.5">
+
+            <div class="grid grid-cols-2 gap-3.5">
+                <input type="text" name="first_name" required placeholder="First name*"
+                       class="h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors">
+                <input type="text" name="last_name" required placeholder="Last name*"
+                       class="h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3.5">
+                <input type="text" name="middle_initial" maxlength="4" placeholder="M.I."
+                       class="h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors">
+                <select name="sex" required class="h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors text-maroon-900/70">
+                    <option value="">Sex*</option><option>Female</option><option>Male</option>
+                </select>
+            </div>
+
+            <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-maroon-900/35">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </span>
+                <input type="email" name="email" required placeholder="Email*"
+                       class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 pl-11 pr-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors">
+            </div>
+
+            
+            <div class="flex rounded-xl border border-sand-400/50 bg-sand-400/15 overflow-hidden focus-within:border-maroon-600 focus-within:bg-cream-50 transition-colors">
+                <span class="flex items-center gap-1.5 px-3.5 text-sm text-maroon-900/60 border-r border-sand-400/50 shrink-0">🇵🇭 +63</span>
+                <input type="text" name="contact_no" required placeholder="9XX XXX XXXX"
+                       class="flex-1 h-11 bg-transparent px-3.5 text-sm outline-none min-w-0">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3.5">
+                <div>
+                    <input type="date" name="birthday" required x-model="birthday" @change="computeAge"
+                           class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-3.5 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors text-maroon-900/70">
+                    <span class="text-[10px] text-maroon-900/40 ml-1">Birthday*</span>
+                </div>
+                <div>
+                    <input type="text" :value="age" disabled placeholder="Age"
+                           class="w-full h-11 rounded-xl bg-sand-400/25 border border-sand-400/50 px-3.5 text-sm text-maroon-900/50">
+                    <span class="text-[10px] text-maroon-900/40 ml-1">Auto-generated</span>
+                </div>
+            </div>
+
+            <button type="button" @click="step = 2" class="w-full h-12 rounded-xl bg-maroon-700 text-cream-50 font-bold text-sm tracking-wide hover:bg-maroon-600 hover:shadow-lift transition-all duration-300 mt-2">
+                CONTINUE
+            </button>
+        </div>
+
+        
+        <div x-init="loadProvinces()"
+             x-show="step === 2" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-3" x-transition:enter-end="opacity-100 translate-x-0" class="space-y-3.5">
+
+            <div>
+                <select name="province_code" x-model="selectedProvinceCode" @change="onProvinceChange()" required
+                        class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors text-maroon-900/70">
+                    <option value="">Province*</option>
+                    <template x-for="p in provinces" :key="p.code">
+                        <option :value="p.code" x-text="p.name"></option>
+                    </template>
+                </select>
+                <p x-show="loadingProvinces" class="text-[11px] text-maroon-900/40 mt-1">Loading provinces…</p>
+                <p x-show="errorProvinces" x-text="errorProvinces" class="text-[11px] text-maroon-600 mt-1"></p>
+                <input type="hidden" name="province" :value="provinces.find(p => p.code === selectedProvinceCode)?.name || ''">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3.5">
+                <div>
+                    <select name="municipality_code" x-model="selectedMunicipalityCode" @change="onMunicipalityChange()" required :disabled="!selectedProvinceCode"
+                            class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors text-maroon-900/70 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <option value="">Municipality/City*</option>
+                        <template x-for="m in municipalities" :key="m.code">
+                            <option :value="m.code" x-text="m.name"></option>
+                        </template>
+                    </select>
+                    <p x-show="loadingMunicipalities" class="text-[11px] text-maroon-900/40 mt-1">Loading…</p>
+                    <p x-show="errorMunicipalities" x-text="errorMunicipalities" class="text-[11px] text-maroon-600 mt-1"></p>
+                    <input type="hidden" name="municipality" :value="municipalities.find(m => m.code === selectedMunicipalityCode)?.name || ''">
+                </div>
+                <div>
+                    <select name="barangay" required :disabled="!selectedMunicipalityCode"
+                            class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors text-maroon-900/70 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <option value="">Barangay*</option>
+                        <template x-for="b in barangays" :key="b.code">
+                            <option :value="b.name" x-text="b.name"></option>
+                        </template>
+                    </select>
+                    <p x-show="loadingBarangays" class="text-[11px] text-maroon-900/40 mt-1">Loading…</p>
+                    <p x-show="errorBarangays" x-text="errorBarangays" class="text-[11px] text-maroon-600 mt-1"></p>
+                </div>
+            </div>
+
+            <input type="text" name="street" required placeholder="Street*"
+                   class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors">
+            <input type="text" name="house_number" required placeholder="House / unit no.*"
+                   class="w-full h-11 rounded-xl bg-sand-400/15 border border-sand-400/50 px-4 text-sm outline-none focus:border-maroon-600 focus:bg-cream-50 transition-colors">
+
+            <div class="flex gap-3 pt-1">
+                <button type="button" @click="step = 1" class="flex-1 h-12 rounded-xl border border-sand-400/60 text-maroon-800 font-bold text-sm hover:bg-sand-400/15 transition-colors">BACK</button>
+                <button type="button" @click="step = 3" class="flex-1 h-12 rounded-xl bg-maroon-700 text-cream-50 font-bold text-sm tracking-wide hover:bg-maroon-600 hover:shadow-lift transition-all duration-300">CONTINUE</button>
+            </div>
+        </div>
+
+        
+        <div x-show="step === 3" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-3" x-transition:enter-end="opacity-100 translate-x-0">
+
+            <label class="block border-2 border-dashed border-sand-400/60 rounded-2xl p-7 text-center cursor-pointer hover:border-maroon-500 transition-colors duration-300" x-data="{ fileName: '' }">
+                <input type="file" name="valid_id" required class="hidden" accept="image/*,.pdf" @change="fileName = $event.target.files[0]?.name">
+                <span class="text-3xl block mb-2">🪪</span>
+                <span class="text-sm font-semibold text-maroon-800" x-text="fileName || 'Upload a valid government ID'"></span>
+                <span class="block text-xs text-maroon-900/40 mt-1">JPG, PNG, or PDF — max 5MB</span>
+            </label>
+
+            <div class="bg-sand-400/15 border border-sand-400/40 rounded-xl p-3.5 mt-4 flex gap-2.5">
+                <span class="text-base shrink-0">⏳</span>
+                <p class="text-xs text-maroon-900/60 leading-relaxed">After you submit, an administrator reviews your details. We'll email you once your account is approved.</p>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button type="button" @click="step = 2" class="flex-1 h-12 rounded-xl border border-sand-400/60 text-maroon-800 font-bold text-sm hover:bg-sand-400/15 transition-colors">BACK</button>
+                
+                <button type="submit" class="flex-1 h-12 rounded-xl bg-maroon-700 text-cream-50 font-bold text-sm tracking-wide hover:bg-maroon-600 hover:shadow-lift transition-all duration-300">SUBMIT</button>
+            </div>
+        </div>
+    </form>
+
+    
+    <div x-show="submitted" x-cloak
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-maroon-950/60 p-6">
+        <div @click.outside="null" x-show="submitted"
+             x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+             class="bg-cream-50 rounded-lg shadow-lift max-w-sm w-full p-8 text-center">
+            <div class="w-14 h-14 rounded-full bg-maroon-700/10 grid place-items-center mx-auto mb-5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-maroon-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <h2 class="font-display text-2xl text-maroon-900">Registration Submitted</h2>
+            <p class="text-sm text-maroon-900/60 mt-3 leading-relaxed">
+                After submitting your registration, please wait for the administrator's approval, which will be sent to your email.
+            </p>
+            <a href="http://127.0.0.1:8000" class="block mt-7 h-12 rounded-xl bg-maroon-700 text-cream-50 font-bold text-sm tracking-wide leading-[3rem] hover:bg-maroon-600 transition-colors duration-200">
+                BACK TO LOG IN
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    function registerWizard() {
+        return {
+            step: 1,
+            birthday: '',
+            age: '—',
+            submitted: false,
+
+            computeAge() {
+                if (!this.birthday) { this.age = '—'; return; }
+                const dob = new Date(this.birthday);
+                const diff = Date.now() - dob.getTime();
+                this.age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
+            },
+
+            // ---- PH address cascade, backed by the free PSGC API (psgc.gitlab.io) ----
+            // Province -> its cities/municipalities -> the chosen one's barangays.
+            // No API key, no manual dataset to maintain — it's the official PSGC dataset
+            // served as static JSON. If a field name below ever comes back undefined,
+            // check the current shape at https://psgc.gitlab.io/api/ (schema has shifted
+            // slightly between versions, but .code and .name have been stable).
+            provinces: [],
+            municipalities: [],
+            barangays: [],
+            selectedProvinceCode: '',
+            selectedMunicipalityCode: '',
+            loadingProvinces: false,
+            loadingMunicipalities: false,
+            loadingBarangays: false,
+            errorProvinces: '',
+            errorMunicipalities: '',
+            errorBarangays: '',
+
+            async loadProvinces() {
+                if (this.provinces.length) return; // already loaded
+                this.loadingProvinces = true; this.errorProvinces = '';
+                try {
+                    const res = await fetch('https://psgc.gitlab.io/api/provinces/');
+                    if (!res.ok) throw new Error('bad response');
+                    this.provinces = (await res.json()).sort((a, b) => a.name.localeCompare(b.name));
+                } catch (e) {
+                    this.errorProvinces = "Couldn't load provinces — check your connection and reopen this step.";
+                } finally {
+                    this.loadingProvinces = false;
+                }
+            },
+
+            async onProvinceChange() {
+                this.municipalities = [];
+                this.barangays = [];
+                this.selectedMunicipalityCode = '';
+                if (!this.selectedProvinceCode) return;
+                this.loadingMunicipalities = true; this.errorMunicipalities = '';
+                try {
+                    const res = await fetch(`https://psgc.gitlab.io/api/provinces/${this.selectedProvinceCode}/cities-municipalities/`);
+                    if (!res.ok) throw new Error('bad response');
+                    this.municipalities = (await res.json()).sort((a, b) => a.name.localeCompare(b.name));
+                } catch (e) {
+                    this.errorMunicipalities = "Couldn't load municipalities/cities.";
+                } finally {
+                    this.loadingMunicipalities = false;
+                }
+            },
+
+            async onMunicipalityChange() {
+                this.barangays = [];
+                if (!this.selectedMunicipalityCode) return;
+                this.loadingBarangays = true; this.errorBarangays = '';
+                try {
+                    const res = await fetch(`https://psgc.gitlab.io/api/cities-municipalities/${this.selectedMunicipalityCode}/barangays/`);
+                    if (!res.ok) throw new Error('bad response');
+                    this.barangays = (await res.json()).sort((a, b) => a.name.localeCompare(b.name));
+                } catch (e) {
+                    this.errorBarangays = "Couldn't load barangays.";
+                } finally {
+                    this.loadingBarangays = false;
+                }
+            },
+        }
+    }
+</script>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
