@@ -109,7 +109,7 @@
             <div class="flex-1 max-w-2xl">
                 <form action="{{ url('/search') }}" method="GET" class="flex h-11 rounded-md bg-cream-50 overflow-hidden shadow-sm">
                     <input
-                        type="text" name="q" placeholder="Search for anything — from cat food to circuit boards"
+                        type="text" name="q" value="{{ request('q') }}" placeholder="Search for anything — from cat food to circuit boards"
                         class="flex-1 min-w-0 px-4 text-sm text-maroon-900 placeholder:text-maroon-900/40 outline-none"
                     >
                     <button type="submit" class="w-12 shrink-0 bg-maroon-800 text-cream-50 grid place-items-center hover:bg-maroon-950 transition-colors duration-200">
@@ -119,8 +119,8 @@
                     </button>
                 </form>
                 <div class="hidden md:flex gap-3 mt-1.5 text-[11px] text-cream-100/60">
-                    @foreach (['Flash Deals', 'Rattan Home', 'Wireless Earbuds', 'Gift Sets'] as $tag)
-                        <a href="#" class="hover:text-cream-50 link-grow">{{ $tag }}</a>
+                    @foreach (['Dog Food', 'Skincare', 'Office Chairs', 'Rings'] as $tag)
+                        <a href="{{ url('/search') }}?q={{ urlencode($tag) }}" class="hover:text-cream-50 link-grow">{{ $tag }}</a>
                     @endforeach
                 </div>
             </div>
