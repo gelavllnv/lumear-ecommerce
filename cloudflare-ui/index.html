@@ -29,7 +29,7 @@
     </style>
 <script id="browser-logger-active">
 (function() {
-    const ENDPOINT = 'http://127.0.0.1:8000/_boost/browser-logs';
+    const ENDPOINT = '/_boost/browser-logs';
     const logQueue = [];
     let flushTimeout = null;
     const captureTypes = ["error","warning","info","log","debug","table"];
@@ -259,15 +259,15 @@
     
 <header class="absolute inset-x-0 top-0 z-20 text-white">
     <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-        <a href="http://127.0.0.1:8000" class="font-display text-2xl italic tracking-tight" aria-label="Lumear home">Lumear</a>
+        <a href="" class="font-display text-2xl italic tracking-tight" aria-label="Lumear home">Lumear</a>
         <div class="hidden items-center gap-7 text-xs font-medium md:flex">
             <a href="#collection" class="transition hover:text-sand">Collection</a>
             <a href="#story" class="transition hover:text-sand">Our story</a>
-            <a href="http://127.0.0.1:8000/home" class="transition hover:text-sand">Marketplace</a>
+            <a href="/home" class="transition hover:text-sand">Marketplace</a>
         </div>
         <div class="flex items-center gap-4 text-xs font-semibold">
-            <a href="http://127.0.0.1:8000/login" class="hidden sm:inline hover:text-sand">Log in</a>
-            <a href="http://127.0.0.1:8000/home" class="border border-white/70 bg-wine px-4 py-2.5 transition hover:bg-white hover:text-ink">Shop now</a>
+            <a href="/login" class="hidden sm:inline hover:text-sand">Log in</a>
+            <a href="/home" class="border border-white/70 bg-wine px-4 py-2.5 transition hover:bg-white hover:text-ink">Shop now</a>
         </div>
     </nav>
 </header>
@@ -282,7 +282,7 @@
                 <h1 class="font-display text-5xl leading-[.9] tracking-tight sm:text-7xl">Things made<br><em class="text-[#e6c78f]">to be kept.</em></h1>
                 <p class="mt-7 max-w-sm text-sm leading-6 text-white/80">Lumear brings together objects of quiet beauty - pieces chosen for craftsmanship, longevity, and the feeling they add to everyday life.</p>
                 <div class="mt-8 flex items-center gap-5">
-                    <a href="http://127.0.0.1:8000/home" class="bg-wine px-5 py-3 text-xs font-bold uppercase tracking-wide transition hover:bg-white hover:text-ink">Explore the collection</a>
+                    <a href="/home" class="bg-wine px-5 py-3 text-xs font-bold uppercase tracking-wide transition hover:bg-white hover:text-ink">Explore the collection</a>
                     <a href="#story" class="text-xs font-semibold underline underline-offset-4 transition hover:text-sand">Our story</a>
                 </div>
             </div>
@@ -300,11 +300,11 @@
                 <p class="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-wine">Featured products</p>
                 <h2 class="font-display text-4xl leading-none sm:text-5xl">Curated for<br><em class="text-wine">quiet luxury.</em></h2>
             </div>
-            <a href="http://127.0.0.1:8000/home" class="text-xs font-bold uppercase tracking-wide text-wine underline underline-offset-4">Browse the full marketplace →</a>
+            <a href="/home" class="text-xs font-bold uppercase tracking-wide text-wine underline underline-offset-4">Browse the full marketplace →</a>
         </div>
 
         <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
-                            <a href="http://127.0.0.1:8000/product/cloud-wool-cardigan" class="product-card group block">
+                            <a href="/product/cloud-wool-cardigan" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/cardigan.jpg" alt="Cloud Wool Cardigan" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Fashion</span>
@@ -314,7 +314,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱2,680</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/solenne-leather-bag" class="product-card group block">
+                            <a href="/product/solenne-leather-bag" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/bag.jpg" alt="Solenne Leather Bag" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">New</span>
@@ -324,7 +324,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱4,200</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/form-kitchen-set" class="product-card group block">
+                            <a href="/product/form-kitchen-set" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/kitchen.jpg" alt="Form Kitchen Set" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Appliances</span>
@@ -334,7 +334,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱2,950</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/arden-floor-lamp" class="product-card group block">
+                            <a href="/product/arden-floor-lamp" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/lamp.jpg" alt="Arden Floor Lamp" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Home &amp; decor</span>
@@ -344,7 +344,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱7,850</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/ritual-skin-set" class="product-card group block">
+                            <a href="/product/ritual-skin-set" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/skincare.jpg" alt="Ritual Skin Set" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Wellness</span>
@@ -354,7 +354,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱6,480</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/cara-ceramic-vessel" class="product-card group block">
+                            <a href="/product/cara-ceramic-vessel" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/ceramics.jpg" alt="Cara Ceramic Vessel" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Home &amp; decor</span>
@@ -364,7 +364,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱4,280</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/sol-shade-frames" class="product-card group block">
+                            <a href="/product/sol-shade-frames" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/sunglasses.jpg" alt="Sol Shade Frames" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Accessories</span>
@@ -374,7 +374,7 @@
                         <span class="shrink-0 text-xs text-ink/65">₱3,950</span>
                     </div>
                 </a>
-                            <a href="http://127.0.0.1:8000/product/mira-espresso-maker" class="product-card group block">
+                            <a href="/product/mira-espresso-maker" class="product-card group block">
                     <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
                         <img src="/images/landing/coffee.jpg" alt="Mira Espresso Maker" class="product-image h-full w-full object-cover">
                         <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Appliances</span>
@@ -396,7 +396,7 @@
                 <p class="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-wine">Our point of view</p>
                 <h2 class="font-display text-4xl leading-tight sm:text-5xl">Objects chosen for<br>the stories they’ll<br><em class="text-wine">gather over time.</em></h2>
                 <p class="mt-6 text-sm leading-6 text-ink/70">We believe the things in your home should earn their place. Discover a more thoughtful way to shop with Lumear.</p>
-                <a href="http://127.0.0.1:8000/home" class="mt-8 inline-block border-b border-ink pb-1 text-xs font-bold uppercase tracking-wide">Discover the marketplace →</a>
+                <a href="/home" class="mt-8 inline-block border-b border-ink pb-1 text-xs font-bold uppercase tracking-wide">Discover the marketplace →</a>
             </div>
         </div>
     </section>
@@ -410,7 +410,7 @@
         </div>
         <div class="md:pt-6">
             <p class="max-w-sm text-sm leading-6">New arrivals, behind the scenes, and ideas for making the everyday feel considered.</p>
-            <form class="mt-6 flex max-w-sm border-b border-white/40" action="http://127.0.0.1:8000/home">
+            <form class="mt-6 flex max-w-sm border-b border-white/40" action="/home">
                 <label for="email" class="sr-only">Email address</label>
                 <input id="email" type="email" placeholder="your@email.com" class="w-full bg-transparent py-3 text-sm text-white placeholder:text-white/45 focus:outline-none">
                 <button class="text-xs font-bold text-white">Subscribe ↗</button>
@@ -421,4 +421,6 @@
 </footer>
 </body>
 </html>
+
+
 
