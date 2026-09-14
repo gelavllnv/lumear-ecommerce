@@ -1,232 +1,423 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" class="scroll-smooth">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log in — Lumear</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Lumear - beautifully considered pieces for everyday life.">
+    <title>Lumear - Things made to be kept</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        // Exact "Maroon + Beige" palette: 62191C · 873632 · 9E7161 · CAAE9F · E0CFC2
-                        cream:  { 50:'#FBF5F1', 100:'#F3E4DA', 200:'#E0CFC2', 300:'#CAAE9F' },
-                        sand:   { 400:'#CAAE9F', 500:'#9E7161' },
-                        maroon: { 950:'#3D0F11', 900:'#62191C', 800:'#62191C', 700:'#873632', 600:'#873632', 500:'#9E7161', 400:'#9E7161' },
-                        gold:   { 500:'#9E7161', 400:'#CAAE9F' },
-                    },
-                    fontFamily: {
-                        display: ['"Fraunces"', 'serif'],
-                        body: ['"Plus Jakarta Sans"', 'sans-serif'],
-                    },
-                    boxShadow: { soft: '0 12px 32px -12px rgba(46,10,19,.18)', lift: '0 24px 60px -16px rgba(15,3,6,.45)' },
+                    colors: { ink: '#3a0e17', wine: '#8f142e', paper: '#f7eedc', sand: '#e8d5af' },
+                    fontFamily: { display: ['Playfair Display', 'serif'], body: ['DM Sans', 'sans-serif'] },
                 },
             },
-        }
+        };
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        html { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .font-display { font-family: 'Fraunces', serif; }
-        ::-webkit-scrollbar { display: none; }
-        * { scrollbar-width: none; -ms-overflow-style: none; }
-        [x-cloak] { display: none !important; }
-
-        /* Keep Chrome/Safari autofill on-palette instead of their default blue tint */
-        input:-webkit-autofill,
-        input:-webkit-autofill:hover,
-        input:-webkit-autofill:focus {
-            -webkit-text-fill-color: #62191C;
-            -webkit-box-shadow: 0 0 0px 1000px #F3E4DA inset;
-            box-shadow: 0 0 0px 1000px #F3E4DA inset;
-            transition: background-color 9999s ease-in-out 0s;
-        }
-        .link-grow { position: relative; }
-        .link-grow::after { content:''; position:absolute; left:0; bottom:-2px; width:0; height:1.5px; background:currentColor; transition:width .3s cubic-bezier(.16,1,.3,1); }
-        .link-grow:hover::after { width:100%; }
-
-        /* Texture: faint dot grid over the maroon field, Shopee-esque without copying its orange */
-        .dot-field {
-            background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
-            background-size: 22px 22px;
-        }
+        body { font-family: 'DM Sans', sans-serif; }
+        .font-display { font-family: 'Playfair Display', serif; }
+        .product-image { transition: transform 600ms cubic-bezier(.16, 1, .3, 1); }
+        .product-card:hover .product-image { transform: scale(1.045); }
+        :focus-visible { outline: 2px solid #8f142e; outline-offset: 3px; }
     </style>
-</head>
-<body class="bg-cream-50 antialiased">
+<script id="browser-logger-active">
+(function() {
+    const ENDPOINT = 'http://127.0.0.1:8000/_boost/browser-logs';
+    const logQueue = [];
+    let flushTimeout = null;
+    const captureTypes = ["error","warning","info","log","debug","table"];
 
-<div class="min-h-screen flex flex-col">
+    console.log('🔍 Browser logger active (MCP server detected). Posting to: ' + ENDPOINT);
 
-    
-    <div class="h-16 shrink-0 bg-cream-50 border-b border-sand-400/40 flex items-center justify-between px-6 md:px-10">
-        <div class="flex items-center gap-3">
-            <a href="http://127.0.0.1:8000" class="flex items-center gap-2">
-                <img src="http://127.0.0.1:8000/images/lumear-logo.png" alt="Lumear" class="w-8 h-8 rounded-full object-contain">
-                <span class="font-display italic text-lg text-maroon-800">Lumear</span>
-            </a>
-            <span class="text-sand-400 text-lg font-light">|</span>
-            <span class="text-maroon-900/70 text-sm">Log In</span>
-        </div>
-        <a href="#" class="text-sm text-maroon-700 font-medium link-grow">Need help?</a>
-    </div>
+    // Store original console methods
+    const originalConsole = {
+        log: console.log,
+        debug: console.debug,
+        info: console.info,
+        error: console.error,
+        warn: console.warn,
+        table: console.table
+    };
 
-    
-    <div class="flex-1 relative overflow-hidden dot-field bg-gradient-to-br from-maroon-800 via-maroon-900 to-maroon-950">
-
-        <div class="absolute -top-32 -left-32 w-[30rem] h-[30rem] rounded-full bg-maroon-700/40 blur-3xl"></div>
-        <div class="absolute -bottom-40 -right-20 w-[26rem] h-[26rem] rounded-full bg-gold-500/10 blur-3xl"></div>
-
-        <div class="relative z-10 h-full flex items-center justify-center px-6 md:px-12 py-10">
-            <div class="w-full max-w-6xl flex items-center justify-between gap-10">
-                <div x-data="authCarousel()" x-init="start()" class="hidden lg:flex flex-col items-center justify-center relative z-10 w-[420px] shrink-0">
-
-    <div class="relative w-72 h-[420px]">
-        <template x-for="(slide, i) in slides" :key="i">
-            <div x-show="active === i"
-                 x-transition:enter="transition ease-out duration-500"
-                 x-transition:enter-start="opacity-0 translate-y-3"
-                 x-transition:enter-end="opacity-100 translate-y-0"
-                 x-transition:leave="transition ease-in duration-200"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0"
-                 class="absolute inset-0">
-
-                
-                <div class="w-full h-full rounded-[2.5rem] bg-cream-50/95 border-[6px] border-maroon-950/40 shadow-lift overflow-hidden flex flex-col">
-                    <div class="h-6 flex items-center justify-center shrink-0">
-                        <div class="w-16 h-1.5 rounded-full bg-maroon-900/15"></div>
-                    </div>
-                    <div class="flex-1 grid place-items-center text-7xl" x-text="slide.emoji"></div>
-                    <div class="px-6 pb-8">
-                        <div class="h-2 w-3/4 rounded-full bg-maroon-900/10 mb-2"></div>
-                        <div class="h-2 w-1/2 rounded-full bg-maroon-900/10"></div>
-                    </div>
-                </div>
-            </div>
-        </template>
-    </div>
-
-    <div class="mt-8 text-center">
-        <template x-for="(slide, i) in slides" :key="'t'+i">
-            <div x-show="active === i">
-                <p class="font-display italic text-2xl text-cream-50" x-text="slide.title"></p>
-                <p class="text-sm text-cream-100/60 mt-2 max-w-[26ch] mx-auto" x-text="slide.copy"></p>
-            </div>
-        </template>
-    </div>
-
-    <div class="flex items-center gap-2 mt-6">
-        <template x-for="(slide, i) in slides" :key="'d'+i">
-            <button @click="active = i" class="h-1.5 rounded-full transition-all duration-300" :class="active === i ? 'w-6 bg-gold-400' : 'w-1.5 bg-cream-50/30'"></button>
-        </template>
-    </div>
-</div>
-
-<script>
-    function authCarousel() {
-        return {
-            active: 0,
-            slides: [
-                { emoji: '🚚', title: 'Free shipping', copy: 'On your first order across every category, every week.' },
-                { emoji: '⚡', title: 'Flash deals', copy: 'New drops every hour — limited stock, real savings.' },
-                { emoji: '🛍️', title: '12 categories', copy: 'From pet bowls to gold hoops, all under one roof.' },
-                { emoji: '📦', title: 'Live tracking', copy: 'Watch your order move from shop to doorstep.' },
-            ],
-            start() {
-                setInterval(() => { this.active = (this.active + 1) % this.slides.length }, 4000);
+    // Walk own enumerable keys so JSON.stringify cannot auto-invoke a proxy fake toJSON (e.g. Livewire's `$wire`) and fire a real request.
+    function toSafeValue(value, seen) {
+        if (value === null || typeof value !== 'object') {
+            return value;
+        }
+        if (value instanceof Error) {
+            return { name: value.name, message: value.message, stack: value.stack };
+        }
+        // Date has no own enumerable keys, so the walk below would collapse it to {}.
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+        if (seen.has(value)) {
+            return '[Circular]';
+        }
+        seen.add(value);
+        if (Array.isArray(value)) {
+            return value.map((item) => toSafeValue(item, seen));
+        }
+        const plain = {};
+        for (const key of Object.keys(value)) {
+            if (key === 'toJSON') continue;
+            try {
+                plain[key] = toSafeValue(value[key], seen);
+            } catch (e) {
+                plain[key] = '[Unreadable]';
             }
         }
+        return plain;
     }
+
+    // Helper to safely stringify values
+    function safeStringify(obj) {
+        return JSON.stringify(toSafeValue(obj, new WeakSet()));
+    }
+
+    // Normalize log type for consistency (e.g., 'warn' to 'warning')
+    function normalizeType(type) {
+        return type === 'warn' ? 'warning' : type;
+    }
+
+    // Determine if a log type should be captured based on configured levels
+    function shouldCapture(type) {
+        return captureTypes.includes(normalizeType(type));
+    }
+
+    // Batch and send logs
+    function flushLogs() {
+        if (logQueue.length === 0) return;
+
+        const batch = logQueue.splice(0, logQueue.length);
+
+        fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ logs: batch })
+        }).catch(err => {
+            // Silently fail to avoid infinite loops
+            originalConsole.error('Failed to send logs:', err);
+        });
+    }
+
+    // Debounced flush (100ms)
+    function scheduleFlush() {
+        if (flushTimeout) clearTimeout(flushTimeout);
+        flushTimeout = setTimeout(flushLogs, 100);
+    }
+
+    // Intercept console methods
+    ['log', 'debug', 'info', 'error', 'warn', 'table'].forEach(method => {
+        console[method] = function(...args) {
+            // Call original method
+            originalConsole[method].apply(console, args);
+
+            // Capture log data
+            try {
+                if (!shouldCapture(method)) {
+                    return;
+                }
+
+                logQueue.push({
+                    type: method,
+                    timestamp: new Date().toISOString(),
+                    data: args.map(arg => {
+                        try {
+                            return typeof arg === 'object' ? JSON.parse(safeStringify(arg)) : arg;
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }),
+                    url: window.location.href,
+                    userAgent: navigator.userAgent
+                });
+
+                scheduleFlush();
+            } catch (e) {
+                // Fail silently
+            }
+        };
+    });
+
+    // Global error handlers for uncaught errors
+    const originalOnError = window.onerror;
+    window.onerror = function boostErrorHandler(errorMsg, url, lineNumber, colNumber, error) {
+        try {
+            if (shouldCapture('error')) {
+                logQueue.push({
+                    type: 'uncaught_error',
+                    timestamp: new Date().toISOString(),
+                    data: [{
+                        message: errorMsg,
+                        filename: url,
+                        lineno: lineNumber,
+                        colno: colNumber,
+                        error: error ? {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        } : null
+                    }],
+                    url: window.location.href,
+                    userAgent: navigator.userAgent
+                });
+
+                scheduleFlush();
+            }
+
+        } catch (e) {
+            // Fail silently
+        }
+
+        // Call original handler if it exists
+        if (originalOnError && typeof originalOnError === 'function') {
+            return originalOnError(errorMsg, url, lineNumber, colNumber, error);
+        }
+
+        // Let the error continue to propagate
+        return false;
+    }
+    window.addEventListener('error', (event) => {
+        try {
+            if (!shouldCapture('error')) {
+                return false;
+            }
+
+            logQueue.push({
+                type: 'window_error',
+                timestamp: new Date().toISOString(),
+                data: [{
+                    message: event.message,
+                    filename: event.filename,
+                    lineno: event.lineno,
+                    colno: event.colno,
+                    error: event.error ? {
+                        name: event.error.name,
+                        message: event.error.message,
+                        stack: event.error.stack
+                    } : null
+                }],
+                url: window.location.href,
+                userAgent: navigator.userAgent
+            });
+
+            scheduleFlush();
+        } catch (e) {
+            // Fail silently
+        }
+
+        // Let the error continue to propagate
+        return false;
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+        try {
+            if (!shouldCapture('error')) {
+                return false;
+            }
+
+            logQueue.push({
+                type: 'error',
+                timestamp: new Date().toISOString(),
+                data: [{
+                    message: 'Unhandled Promise Rejection',
+                    reason: toSafeValue(event.reason, new WeakSet())
+                }],
+                url: window.location.href,
+                userAgent: navigator.userAgent
+            });
+
+            scheduleFlush();
+        } catch (e) {
+            // Fail silently
+        }
+
+        // Let the rejection continue to propagate
+        return false;
+    });
+
+    // Flush on page unload
+    window.addEventListener('beforeunload', () => {
+        if (logQueue.length > 0) {
+            navigator.sendBeacon(ENDPOINT, JSON.stringify({ logs: logQueue }));
+        }
+    });
+})();
 </script>
-                <div class="w-full max-w-[420px] shrink-0 ml-auto">
-                    <div class="bg-cream-50 rounded-lg shadow-lift p-8 md:p-9">
-                        <div x-data="{ showPw: false, identity: '' }">
-
-    <h1 class="font-display text-[26px] text-maroon-900 leading-tight">Log In</h1>
-
+</head>
+<body class="bg-paper text-ink antialiased">
     
-    <form method="POST" action="http://127.0.0.1:8000/login" class="mt-7 space-y-4"
-          @submit.prevent="localStorage.setItem('lumear_identity', identity); window.location.href = 'http://127.0.0.1:8000/home'">
-        <input type="hidden" name="_token" value="91s5i9S3ao2uWpwd9sHEVkFoaSnSq6p6TBnMpUu1" autocomplete="off">
-        
-        <div class="relative">
-            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-maroon-900/35">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-            </span>
-            <input type="text" name="login" x-model="identity" required placeholder="Email or contact number"
-                   class="w-full h-12 rounded-xl bg-sand-400/15 border border-sand-400/50 pl-11 pr-4 text-sm outline-none
-                          focus:border-maroon-600 focus:bg-cream-50 transition-colors duration-200">
+<header class="absolute inset-x-0 top-0 z-20 text-white">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
+        <a href="http://127.0.0.1:8000" class="font-display text-2xl italic tracking-tight" aria-label="Lumear home">Lumear</a>
+        <div class="hidden items-center gap-7 text-xs font-medium md:flex">
+            <a href="#collection" class="transition hover:text-sand">Collection</a>
+            <a href="#story" class="transition hover:text-sand">Our story</a>
+            <a href="http://127.0.0.1:8000/home" class="transition hover:text-sand">Marketplace</a>
         </div>
-
-        
-        <div class="flex items-center gap-3">
-            <div class="relative flex-1 min-w-0">
-                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-maroon-900/35">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v4h8z"/>
-                    </svg>
-                </span>
-                <input :type="showPw ? 'text' : 'password'" name="password" required placeholder="Password"
-                       class="w-full h-12 rounded-xl bg-sand-400/15 border border-sand-400/50 pl-11 pr-11 text-sm outline-none
-                              focus:border-maroon-600 focus:bg-cream-50 transition-colors duration-200">
-                <button type="button" @click="showPw = !showPw" class="absolute right-4 top-1/2 -translate-y-1/2 text-maroon-900/35 hover:text-maroon-700 transition-colors">
-                    <svg x-show="!showPw" xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    <svg x-show="showPw" x-cloak xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12c1.292 4.338 5.31 7.5 10.066 7.5.847 0 1.67-.105 2.454-.303M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
-                    </svg>
-                </button>
-            </div>
-            <a href="#" class="text-xs text-maroon-700 font-semibold link-grow shrink-0">Forgot?</a>
+        <div class="flex items-center gap-4 text-xs font-semibold">
+            <a href="http://127.0.0.1:8000/login" class="hidden sm:inline hover:text-sand">Log in</a>
+            <a href="http://127.0.0.1:8000/home" class="border border-white/70 bg-wine px-4 py-2.5 transition hover:bg-white hover:text-ink">Shop now</a>
         </div>
+    </nav>
+</header>
 
-        <button type="submit" class="w-full h-12 rounded-xl bg-maroon-700 text-cream-50 font-bold text-sm tracking-wide hover:bg-maroon-600 hover:shadow-lift transition-all duration-300">
-            LOG IN
-        </button>
-
-        <label class="flex items-center gap-2 text-xs text-maroon-900/55 pt-1">
-            <input type="checkbox" checked class="w-4 h-4 rounded accent-maroon-700">
-            Stay signed in
-            <span title="Keeps you logged in on this device until you log out manually." class="text-maroon-900/30 cursor-help">ⓘ</span>
-        </label>
-    </form>
-
-    <div class="flex items-center gap-3 my-6">
-        <div class="flex-1 h-px bg-sand-400/40"></div>
-        <span class="text-[11px] text-maroon-900/40 font-medium">OR</span>
-        <div class="flex-1 h-px bg-sand-400/40"></div>
-    </div>
-
-    
-    <button type="button" @click="localStorage.setItem('lumear_identity', 'Google Account'); window.location.href = 'http://127.0.0.1:8000/home'"
-            class="w-full h-12 rounded-xl border border-sand-400/60 flex items-center justify-center gap-2.5 text-sm font-semibold text-maroon-800 hover:border-maroon-600 hover:bg-sand-400/15 transition-colors duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.47a5.54 5.54 0 01-2.4 3.63v3h3.87c2.27-2.09 3.56-5.17 3.56-8.66z"/>
-            <path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.94-2.93l-3.87-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.28v3.09A12 12 0 0012 24z"/>
-            <path fill="#FBBC05" d="M5.27 14.26a7.2 7.2 0 010-4.52V6.65H1.28a12 12 0 000 10.7l3.99-3.09z"/>
-            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0A12 12 0 001.28 6.65l3.99 3.09C6.22 6.86 8.87 4.75 12 4.75z"/>
-        </svg>
-        Continue with Google
-    </button>
-
-    <p class="text-center text-sm text-maroon-900/60 mt-7">
-        New to Lumear? <a href="http://127.0.0.1:8000/register" class="text-maroon-700 font-bold link-grow">Sign up</a>
-    </p>
-</div>
-                    </div>
+<main>
+    <section class="relative isolate min-h-[650px] overflow-hidden bg-ink sm:min-h-[730px]">
+        <img src="http://127.0.0.1:8000/images/landing/hero.jpg" alt="A carefully curated rail of clothing" class="absolute inset-0 -z-20 h-full w-full object-cover object-right">
+        <div class="absolute inset-0 -z-10 bg-gradient-to-r from-[#340b16]/95 via-[#4e1825]/72 to-transparent"></div>
+        <div class="mx-auto flex min-h-[650px] max-w-7xl items-center px-5 pb-16 pt-28 sm:min-h-[730px] sm:px-8 lg:px-12">
+            <div class="max-w-xl text-white">
+                <p class="mb-5 text-[10px] font-bold uppercase tracking-[0.24em] text-sand">Since 2026 - thoughtfully curated</p>
+                <h1 class="font-display text-5xl leading-[.9] tracking-tight sm:text-7xl">Things made<br><em class="text-[#e6c78f]">to be kept.</em></h1>
+                <p class="mt-7 max-w-sm text-sm leading-6 text-white/80">Lumear brings together objects of quiet beauty - pieces chosen for craftsmanship, longevity, and the feeling they add to everyday life.</p>
+                <div class="mt-8 flex items-center gap-5">
+                    <a href="http://127.0.0.1:8000/home" class="bg-wine px-5 py-3 text-xs font-bold uppercase tracking-wide transition hover:bg-white hover:text-ink">Explore the collection</a>
+                    <a href="#story" class="text-xs font-semibold underline underline-offset-4 transition hover:text-sand">Our story</a>
                 </div>
             </div>
         </div>
-    </div>
-</div>
+        <a href="#collection" class="absolute bottom-7 left-5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/75 sm:left-8 lg:left-12">Scroll to explore ↓</a>
+    </section>
 
+    <div class="bg-wine py-3 text-center text-[10px] font-bold uppercase tracking-[0.16em] text-white">
+        New arrivals every Friday <span class="mx-5 text-sand">✦</span> 30-day returns, no questions <span class="mx-5 text-sand">✦</span> Sustainably sourced
+    </div>
+
+    <section id="collection" class="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-12 lg:py-28">
+        <div class="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+                <p class="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-wine">Featured products</p>
+                <h2 class="font-display text-4xl leading-none sm:text-5xl">Curated for<br><em class="text-wine">quiet luxury.</em></h2>
+            </div>
+            <a href="http://127.0.0.1:8000/home" class="text-xs font-bold uppercase tracking-wide text-wine underline underline-offset-4">Browse the full marketplace →</a>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+                            <a href="http://127.0.0.1:8000/product/cloud-wool-cardigan" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/cardigan.jpg" alt="Cloud Wool Cardigan" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Fashion</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Cloud Wool Cardigan</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱2,680</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/solenne-leather-bag" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/bag.jpg" alt="Solenne Leather Bag" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">New</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Solenne Leather Bag</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱4,200</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/form-kitchen-set" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/kitchen.jpg" alt="Form Kitchen Set" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Appliances</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Form Kitchen Set</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱2,950</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/arden-floor-lamp" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/lamp.jpg" alt="Arden Floor Lamp" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Home &amp; decor</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Arden Floor Lamp</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱7,850</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/ritual-skin-set" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/skincare.jpg" alt="Ritual Skin Set" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Wellness</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Ritual Skin Set</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱6,480</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/cara-ceramic-vessel" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/ceramics.jpg" alt="Cara Ceramic Vessel" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Home &amp; decor</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Cara Ceramic Vessel</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱4,280</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/sol-shade-frames" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/sunglasses.jpg" alt="Sol Shade Frames" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Accessories</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Sol Shade Frames</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱3,950</span>
+                    </div>
+                </a>
+                            <a href="http://127.0.0.1:8000/product/mira-espresso-maker" class="product-card group block">
+                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
+                        <img src="http://127.0.0.1:8000/images/landing/coffee.jpg" alt="Mira Espresso Maker" class="product-image h-full w-full object-cover">
+                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">Appliances</span>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 pt-3">
+                        <h3 class="text-xs font-medium leading-5 sm:text-sm">Mira Espresso Maker</h3>
+                        <span class="shrink-0 text-xs text-ink/65">₱1,750</span>
+                    </div>
+                </a>
+                    </div>
+    </section>
+
+    <section id="story" class="grid bg-[#ead8b5] md:grid-cols-2">
+        <div class="min-h-80 overflow-hidden md:min-h-[520px]">
+            <img src="http://127.0.0.1:8000/images/landing/story.jpg" alt="A wall of collected art and objects" class="h-full w-full object-cover">
+        </div>
+        <div class="flex items-center px-8 py-20 sm:px-16 lg:px-24">
+            <div class="max-w-md">
+                <p class="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-wine">Our point of view</p>
+                <h2 class="font-display text-4xl leading-tight sm:text-5xl">Objects chosen for<br>the stories they’ll<br><em class="text-wine">gather over time.</em></h2>
+                <p class="mt-6 text-sm leading-6 text-ink/70">We believe the things in your home should earn their place. Discover a more thoughtful way to shop with Lumear.</p>
+                <a href="http://127.0.0.1:8000/home" class="mt-8 inline-block border-b border-ink pb-1 text-xs font-bold uppercase tracking-wide">Discover the marketplace →</a>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="bg-[#350a14] text-white/70">
+    <div class="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-2 lg:px-12">
+        <div>
+            <p class="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-sand">A little note, now and then</p>
+            <h2 class="font-display text-4xl leading-none text-white sm:text-5xl">For homes in the<br>making.</h2>
+        </div>
+        <div class="md:pt-6">
+            <p class="max-w-sm text-sm leading-6">New arrivals, behind the scenes, and ideas for making the everyday feel considered.</p>
+            <form class="mt-6 flex max-w-sm border-b border-white/40" action="http://127.0.0.1:8000/home">
+                <label for="email" class="sr-only">Email address</label>
+                <input id="email" type="email" placeholder="your@email.com" class="w-full bg-transparent py-3 text-sm text-white placeholder:text-white/45 focus:outline-none">
+                <button class="text-xs font-bold text-white">Subscribe ↗</button>
+            </form>
+        </div>
+    </div>
+    <div class="border-t border-white/10 px-5 py-5 text-center text-[10px] text-white/45 sm:px-8">© 2026 Lumear. All rights reserved.</div>
+</footer>
 </body>
 </html>
