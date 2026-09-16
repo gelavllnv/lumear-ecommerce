@@ -177,10 +177,10 @@
                     <div x-cloak x-show="account" @click.outside="account = false"
                          x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
                          class="absolute right-0 mt-3 w-48 bg-cream-50 rounded-lg shadow-lift border border-sand-400/40 py-2 overflow-hidden text-left">
-                        <a href="http://127.0.0.1:8000/account" class="block px-4 py-2.5 text-sm text-maroon-900 hover:bg-sand-400/20">My Account</a>
-                        <a href="http://127.0.0.1:8000/orders" class="block px-4 py-2.5 text-sm text-maroon-900 hover:bg-sand-400/20">My Purchase</a>
+                        <a href="/account/" class="block px-4 py-2.5 text-sm text-maroon-900 hover:bg-sand-400/20">My Account</a>
+                        <a href="/orders/" class="block px-4 py-2.5 text-sm text-maroon-900 hover:bg-sand-400/20">My Purchase</a>
                         <hr class="border-sand-400/40 my-1">
-                        <a href="http://127.0.0.1:8000" @click="localStorage.removeItem('lumear_identity')" class="block px-4 py-2.5 text-sm text-maroon-700 font-semibold hover:bg-sand-400/20">Logout</a>
+                        <a href="/login/" @click="localStorage.removeItem('lumear_identity')" class="block px-4 py-2.5 text-sm text-maroon-700 font-semibold hover:bg-sand-400/20">Logout</a>
                     </div>
                 </div>
             </div>
@@ -191,13 +191,13 @@
     <div class="bg-maroon-700">
         <div class="max-w-7xl mx-auto px-4 md:px-6 h-[72px] flex items-center gap-6 md:gap-10">
 
-            <a href="http://127.0.0.1:8000/home" class="shrink-0 flex items-center gap-2">
-                <img src="http://127.0.0.1:8000/images/lumear-logo.png" alt="Lumear" class="w-9 h-9 rounded-md object-contain">
+            <a href="/home/" class="shrink-0 flex items-center gap-2">
+                <img src="/images/lumear-logo.png/" alt="Lumear" class="w-9 h-9 rounded-md object-contain">
                 <span class="font-display italic text-2xl tracking-tight text-cream-50 hidden sm:inline">Lumear</span>
             </a>
 
             <div class="flex-1 max-w-2xl">
-                <form action="http://127.0.0.1:8000/search" method="GET" class="flex h-11 rounded-md bg-cream-50 overflow-hidden shadow-sm">
+                <form action="/search/" method="GET" class="flex h-11 rounded-md bg-cream-50 overflow-hidden shadow-sm">
                     <input
                         type="text" name="q" placeholder="Search for anything — from cat food to circuit boards"
                         class="flex-1 min-w-0 px-4 text-sm text-maroon-900 placeholder:text-maroon-900/40 outline-none"
@@ -216,7 +216,7 @@
                                     </div>
             </div>
 
-            <a href="http://127.0.0.1:8000/cart" class="group relative shrink-0 flex items-center gap-2 text-cream-50">
+            <a href="/cart/" class="group relative shrink-0 flex items-center gap-2 text-cream-50">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 group-hover:-translate-y-0.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l3.6-7.4H5.4M7 13L5.4 5.6M7 13l-2.2 4.4A1 1 0 005.7 19H18M9 21a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z"/>
                 </svg>
@@ -244,51 +244,51 @@
                  x-transition:enter-end="opacity-100 translate-y-0"
                  class="absolute left-0 right-0 top-full bg-cream-50 border border-sand-400/40 rounded-b-lg shadow-lift z-40 p-6">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-4">
-                                            <a href="http://127.0.0.1:8000/category/pet-supplies" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/pet-supplies/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🐾</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Pet Supplies</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/kids-and-baby" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/kids-and-baby/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🍼</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Kids &amp; Baby</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/electronics-and-gadgets" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/electronics-and-gadgets/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🔌</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Electronics &amp; Gadgets</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/home-and-garden" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/home-and-garden/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🌿</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Home &amp; Garden</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/womens-apparel" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/womens-apparel/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">👗</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Women&#039;s Apparel</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/sports-and-outdoors" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/sports-and-outdoors/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🏸</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Sports &amp; Outdoors</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/mens-apparel" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/mens-apparel/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">👔</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Men&#039;s Apparel</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/health-and-beauty" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/health-and-beauty/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">💄</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Health &amp; Beauty</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/books-and-media" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/books-and-media/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">📚</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Books &amp; Media</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/food-and-gourmet" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/food-and-gourmet/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🍯</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Food &amp; Gourmet</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/furniture-and-office-equipment" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/furniture-and-office-equipment/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">🪑</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Furniture &amp; Office Equipment</span>
                         </a>
-                                            <a href="http://127.0.0.1:8000/category/jewelry-and-watches" class="flex items-center gap-3 group py-1.5">
+                                            <a href="/category/jewelry-and-watches/" class="flex items-center gap-3 group py-1.5">
                             <span class="w-9 h-9 rounded-md bg-sand-400/25 grid place-items-center text-lg group-hover:bg-maroon-700 group-hover:text-cream-50 transition-colors duration-200">💍</span>
                             <span class="text-sm text-maroon-800 group-hover:text-maroon-600 link-grow">Jewelry &amp; Watches</span>
                         </a>
@@ -299,7 +299,7 @@
 </header>
 
 
-<a href="http://127.0.0.1:8000/chat"
+<a href="/chat/"
    class="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-maroon-700 text-cream-50 pl-4 pr-5 h-12 rounded-full shadow-lift hover:bg-maroon-600 transition-colors duration-200">
     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
         <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8-1.06 0-2.077-.16-3.02-.457L3 21l1.457-4.98A7.94 7.94 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
