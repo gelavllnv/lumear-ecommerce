@@ -1,60 +1,435 @@
 <?php
-// Paste into routes/web.php (adjust to Route::resource/controllers once you wire real logic)
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Http;
 
-// Root now serves the login page — this is what makes the login page the landing page.
-Route::get('/', fn () => view('buyer.auth.login'))->name('login');
-Route::get('/register', fn () => view('buyer.auth.register'))->name('register');
 
-// The shop itself moved to /home since / is taken by login.
-Route::get('/home',    fn () => view('buyer.home'))->name('home');
-Route::get('/product/{slug}', fn ($slug) => view('buyer.products.show'));
+/*
+|--------------------------------------------------------------------------
+| BUYER AUTHENTICATION ROUTES
+|--------------------------------------------------------------------------
+*/
+
+// Buyer Login / Landing Page
+Route::get('/', function () {
+
+    return view('buyer.auth.login');
+
+})->name('login');
+
+
+// Buyer Registration
+Route::get('/register', function () {
+
+    return view('buyer.auth.register');
+
+})->name('register');
+
+
+/*
+|--------------------------------------------------------------------------
+| BUYER SHOP ROUTES
+|--------------------------------------------------------------------------
+*/
+
+// Buyer Home
+Route::get('/home', function () {
+
+    return view('buyer.home');
+
+})->name('home');
+
+
+// Product Details
+Route::get('/product/{slug}', function ($slug) {
+
+    return view('buyer.products.show');
+
+});
+
+
+// Product Category
 Route::get('/category/{slug}', function ($slug) {
-    $category = \App\Support\BuyerCategories::find($slug);
+
+    $category =
+        \App\Support\BuyerCategories::find($slug);
+
+
     abort_if(!$category, 404);
+
+
     return view('buyer.category.show', [
+
         'category' => $category,
-        'products' => \App\Support\BuyerProducts::forCategory($slug),
+
+        'products' =>
+            \App\Support\BuyerProducts::forCategory(
+                $slug
+            ),
+
     ]);
+
 });
-Route::get('/cart',    fn () => view('buyer.cart'));
-Route::get('/orders',  fn () => view('buyer.orders.index'));
-Route::get('/chat',    fn () => view('buyer.chat'));
-Route::get('/account', fn () => view('buyer.account'));
+
+
+// Buyer Cart
+Route::get('/cart', function () {
+
+    return view('buyer.cart');
+
+});
+
+
+// Buyer Orders
+Route::get('/orders', function () {
+
+    return view('buyer.orders.index');
+
+});
+
+
+// Buyer Chat
+Route::get('/chat', function () {
+
+    return view('buyer.chat');
+
+});
+
+
+// Buyer Account
+Route::get('/account', function () {
+
+    return view('buyer.account');
+
+});
+
+
+// Buyer Search
 Route::get('/search', function () {
-    $query = request('q', '');
+
+    $query =
+        request('q', '');
+
+
     return view('buyer.search', [
+
         'query' => $query,
-        'products' => \App\Support\BuyerProducts::search($query),
+
+        'products' =>
+            \App\Support\BuyerProducts::search(
+                $query
+            ),
+
     ]);
+
 });
 
-// POST handlers for the auth forms — wire these to real controllers, then send the user
-// to route('home') on success instead of just returning a view:
-// Route::post('/register', [RegisteredBuyerController::class, 'store']);
-// Route::post('/login',    [AuthenticatedSessionController::class, 'store']);
 
-// -----------------------------------------------------------------------------------
-// IMPORTANT — this is the quick version for a project with no auth wired up yet.
-// Right now anyone can still type /home, /cart, etc. straight into the address bar
-// and skip login entirely, since nothing is actually checking whether they're signed in.
-//
-// Once you build real authentication (Laravel Breeze/Fortify, or your own guard),
-// swap the block above for something like this instead, so guests are FORCED
-// through login rather than just defaulting there:
-//
-// Route::get('/', fn () => redirect()->route('login'));
-//
-// Route::middleware('auth')->group(function () {
-//     Route::get('/home',    fn () => view('buyer.home'))->name('home');
-//     Route::get('/cart',    fn () => view('buyer.cart'));
-//     Route::get('/orders',  fn () => view('buyer.orders.index'));
-//     Route::get('/chat',    fn () => view('buyer.chat'));
-//     Route::get('/account', fn () => view('buyer.account'));
-// });
-//
-// That "auth" middleware is what actually redirects a not-logged-in visitor back to
-// /login if they try to reach a protected page directly — the current version above
-// just puts login at the front door, it doesn't lock the other doors yet.
-// -----------------------------------------------------------------------------------
+/*
+|--------------------------------------------------------------------------
+| LOGISTICS / SORTING CENTER ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('logistics')
+    ->name('logistics.')
+    ->group(function () {
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Logistics Authentication
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/login', function () {
+
+            return view(
+                'logistics.auth.login'
+            );
+
+        })->name('login');
+
+
+
+        Route::get('/register', function () {
+
+            return view(
+                'logistics.auth.register'
+            );
+
+        })->name('register');
+
+
+
+        Route::get('/pending', function () {
+
+            return view(
+                'logistics.auth.pending'
+            );
+
+        })->name('pending');
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Logistics Dashboard
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/dashboard', function () {
+
+            return view(
+                'logistics.dashboard'
+            );
+
+        })->name('dashboard');
+
+        Route::get('/pickup-requests', function () {
+
+            return view(
+                'logistics.pickup.index'
+            );
+
+        })->name('pickup.index');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PHILIPPINE ADDRESS API
+        |--------------------------------------------------------------------------
+        |
+        | Browser
+        |    ↓
+        | Laravel
+        |    ↓
+        | PSGC Cloud
+        |
+        */
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Provinces
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/address/provinces',
+            function () {
+
+                try {
+
+                    $response =
+                        Http::timeout(15)
+                            ->acceptJson()
+                            ->get(
+                                'https://psgc.cloud/api/v2/provinces'
+                            );
+
+
+                    if ($response->failed()) {
+
+                        return response()->json(
+                            [
+                                'success' => false,
+
+                                'message' =>
+                                    'Unable to load provinces.',
+                            ],
+                            500
+                        );
+
+                    }
+
+
+                    return response()->json(
+                        $response->json()
+                    );
+
+
+                } catch (\Exception $exception) {
+
+                    return response()->json(
+                        [
+                            'success' => false,
+
+                            'message' =>
+                                'Address service is unavailable.',
+
+                            'error' =>
+                                $exception->getMessage(),
+                        ],
+                        500
+                    );
+
+                }
+
+            }
+        )->name('address.provinces');
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Cities / Municipalities
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/address/provinces/{province}/cities-municipalities',
+            function ($province) {
+
+                try {
+
+                    $response =
+                        Http::timeout(15)
+                            ->acceptJson()
+                            ->get(
+                                'https://psgc.cloud/api/v2/provinces/'
+                                . urlencode($province)
+                                . '/cities-municipalities'
+                            );
+
+
+                    if ($response->failed()) {
+
+                        return response()->json(
+                            [
+                                'success' => false,
+
+                                'message' =>
+                                    'Unable to load cities and municipalities.',
+                            ],
+                            500
+                        );
+
+                    }
+
+
+                    return response()->json(
+                        $response->json()
+                    );
+
+
+                } catch (\Exception $exception) {
+
+                    return response()->json(
+                        [
+                            'success' => false,
+
+                            'message' =>
+                                'Address service is unavailable.',
+
+                            'error' =>
+                                $exception->getMessage(),
+                        ],
+                        500
+                    );
+
+                }
+
+            }
+        )->name(
+            'address.cities-municipalities'
+        );
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Barangays
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/address/cities-municipalities/{municipality}/barangays',
+            function ($municipality) {
+
+                try {
+
+                    $response =
+                        Http::timeout(15)
+                            ->acceptJson()
+                            ->get(
+                                'https://psgc.cloud/api/v2/cities-municipalities/'
+                                . urlencode($municipality)
+                                . '/barangays'
+                            );
+
+
+                    if ($response->failed()) {
+
+                        return response()->json(
+                            [
+                                'success' => false,
+
+                                'message' =>
+                                    'Unable to load barangays.',
+                            ],
+                            500
+                        );
+
+                    }
+
+
+                    return response()->json(
+                        $response->json()
+                    );
+
+
+                } catch (\Exception $exception) {
+
+                    return response()->json(
+                        [
+                            'success' => false,
+
+                            'message' =>
+                                'Address service is unavailable.',
+
+                            'error' =>
+                                $exception->getMessage(),
+                        ],
+                        500
+                    );
+
+                }
+
+            }
+        )->name('address.barangays');
+
+
+    });
+
+
+/*
+|--------------------------------------------------------------------------
+| DEVELOPMENT NOTE
+|--------------------------------------------------------------------------
+|
+| Buyer and Logistics authentication are still temporary.
+|
+| Current Logistics modules:
+|
+| ✓ Login
+| ✓ Registration
+| ✓ Philippine address API
+| ✓ Pending Approval
+| ✓ Dashboard
+|
+| Next modules:
+|
+| - Pickup Requests
+| - Incoming Parcels
+| - Parcel Sorting
+| - Delivery Assignment
+| - Delivery Monitoring
+| - Rider Applications
+| - Rider Management
+| - Messages
+| - Reports
+| - Account Management
+|
+*/

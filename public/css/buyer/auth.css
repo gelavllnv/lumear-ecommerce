@@ -1,0 +1,1578 @@
+/* =========================================================
+   LUMEAR - BUYER AUTHENTICATION
+   File: public/css/buyer/auth.css
+   ========================================================= */
+
+
+/* =========================================================
+   1. RESET
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    min-height: 100vh;
+
+    font-family: "Plus Jakarta Sans", Arial, sans-serif;
+
+    background: #f8f1eb;
+    color: #62191c;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+button,
+a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+
+/* =========================================================
+   2. AUTH PAGE
+   ========================================================= */
+
+.auth-page {
+    min-height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+
+    background:
+        radial-gradient(
+            circle at 10% 15%,
+            rgba(202, 174, 159, 0.18),
+            transparent 28%
+        ),
+        radial-gradient(
+            circle at 90% 85%,
+            rgba(135, 54, 50, 0.08),
+            transparent 25%
+        ),
+        #fbf7f3;
+}
+
+
+/* =========================================================
+   3. NAVIGATION
+   ========================================================= */
+
+.auth-nav {
+    position: relative;
+    z-index: 50;
+
+    width: 100%;
+    height: 76px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 6%;
+
+    background: rgba(255, 250, 245, 0.92);
+
+    border-bottom:
+        1px solid rgba(98, 25, 28, 0.08);
+
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+}
+
+
+/* =========================================================
+   4. LUMEAR BRAND
+   ========================================================= */
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+
+    gap: 11px;
+}
+
+.auth-brand-logo {
+    width: 39px;
+    height: 39px;
+
+    object-fit: contain;
+}
+
+.auth-brand-name {
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    font-size: 23px;
+    font-style: italic;
+
+    color: #62191c;
+}
+
+.auth-page-name {
+    margin-left: 6px;
+    padding-left: 17px;
+
+    border-left:
+        1px solid rgba(98, 25, 28, 0.2);
+
+    font-size: 13px;
+    font-weight: 500;
+
+    color: #9e7161;
+}
+
+
+/* =========================================================
+   5. LOGISTICS PORTAL
+   ========================================================= */
+
+.logistics-portal {
+    min-width: 184px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 11px;
+
+    padding: 7px 11px 7px 8px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.12);
+
+    border-radius: 12px;
+
+    background:
+        rgba(255, 255, 255, 0.5);
+
+    color: #62191c;
+
+    transition:
+        background 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        transform 0.25s ease;
+}
+
+
+/* Logistics icon */
+
+.logistics-portal-icon {
+    width: 38px;
+    height: 38px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 9px;
+
+    background: #f1dfd4;
+    color: #873632;
+
+    transition:
+        background 0.25s ease,
+        color 0.25s ease,
+        transform 0.25s ease;
+}
+
+.logistics-portal-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+
+/* Logistics text */
+
+.logistics-portal-text {
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+
+    line-height: 1.15;
+}
+
+.logistics-portal-label {
+    margin-bottom: 3px;
+
+    color: #a27c70;
+
+    font-size: 8px;
+    font-weight: 700;
+
+    letter-spacing: 0.8px;
+
+    text-transform: uppercase;
+}
+
+.logistics-portal-title {
+    color: #62191c;
+
+    font-size: 12px;
+    font-weight: 800;
+}
+
+
+/* Logistics arrow */
+
+.logistics-portal-arrow {
+    width: 15px;
+    height: 15px;
+
+    flex-shrink: 0;
+
+    color: #b28c80;
+
+    transition:
+        transform 0.25s ease,
+        color 0.25s ease;
+}
+
+
+/* Logistics hover */
+
+.logistics-portal:hover {
+    background: #ffffff;
+
+    border-color:
+        rgba(98, 25, 28, 0.22);
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 8px 24px
+        rgba(98, 25, 28, 0.09);
+}
+
+.logistics-portal:hover
+.logistics-portal-icon {
+    background: #62191c;
+    color: #ffffff;
+
+    transform: scale(1.04);
+}
+
+.logistics-portal:hover
+.logistics-portal-arrow {
+    color: #62191c;
+
+    transform: translateX(3px);
+}
+
+.logistics-portal:active {
+    transform: translateY(0);
+}
+
+
+/* =========================================================
+   6. MAIN AUTH SECTION
+   ========================================================= */
+
+.auth-main {
+    flex: 1;
+
+    width: 100%;
+    max-width: 1450px;
+
+    margin: auto;
+
+    padding: 55px 7%;
+
+    display: grid;
+
+    grid-template-columns:
+        1.05fr 0.95fr;
+
+    align-items: center;
+
+    gap: 8%;
+}
+
+
+/* =========================================================
+   7. LEFT SHOWCASE
+   ========================================================= */
+
+.auth-showcase {
+    position: relative;
+
+    min-height: 600px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    animation:
+        showcaseEnter
+        0.9s ease both;
+}
+
+
+/* Small label */
+
+.showcase-label {
+    width: fit-content;
+
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    margin-bottom: 22px;
+
+    padding: 8px 13px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.12);
+
+    border-radius: 100px;
+
+    background:
+        rgba(255, 255, 255, 0.55);
+
+    color: #873632;
+
+    font-size: 11px;
+    font-weight: 700;
+
+    letter-spacing: 1px;
+
+    text-transform: uppercase;
+}
+
+.showcase-label-dot {
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+
+    background: #873632;
+
+    box-shadow:
+        0 0 0 5px
+        rgba(135, 54, 50, 0.1);
+
+    animation:
+        pulseDot 2s infinite;
+}
+
+
+/* Main title */
+
+.showcase-title {
+    max-width: 690px;
+
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    font-size:
+        clamp(48px, 5.2vw, 76px);
+
+    font-weight: 400;
+
+    line-height: 0.99;
+
+    letter-spacing: -2px;
+
+    color: #62191c;
+}
+
+.showcase-title span {
+    position: relative;
+
+    color: #9e7161;
+
+    font-style: italic;
+}
+
+
+/* Description */
+
+.showcase-description {
+    max-width: 560px;
+
+    margin-top: 25px;
+
+    color: #84655b;
+
+    font-size: 15px;
+
+    line-height: 1.8;
+}
+
+
+/* =========================================================
+   8. SHOWCASE FEATURES
+   ========================================================= */
+
+.showcase-features {
+    display: flex;
+    flex-wrap: wrap;
+
+    gap: 12px;
+
+    margin-top: 31px;
+}
+
+.feature-pill {
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+
+    padding: 10px 14px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.1);
+
+    border-radius: 12px;
+
+    background:
+        rgba(255, 255, 255, 0.55);
+
+    color: #74484a;
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.feature-icon {
+    width: 27px;
+    height: 27px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 8px;
+
+    background: #f1dfd4;
+
+    color: #873632;
+}
+
+.feature-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+
+/* =========================================================
+   9. FLOATING PRODUCT CARDS
+   ========================================================= */
+
+.floating-area {
+    position: relative;
+
+    width: 100%;
+    max-width: 570px;
+
+    height: 195px;
+
+    margin-top: 42px;
+}
+
+.product-float {
+    position: absolute;
+
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 11px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.08);
+
+    border-radius: 17px;
+
+    background:
+        rgba(255, 255, 255, 0.78);
+
+    box-shadow:
+        0 18px 45px
+        rgba(98, 25, 28, 0.1);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    transition:
+        margin 0.15s linear;
+}
+
+.product-float-image {
+    width: 56px;
+    height: 56px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 12px;
+
+    background:
+        linear-gradient(
+            145deg,
+            #f3e4da,
+            #e0cfc2
+        );
+
+    font-size: 25px;
+}
+
+.product-float-info small {
+    display: block;
+
+    margin-bottom: 4px;
+
+    color: #b08a7b;
+
+    font-size: 9px;
+    font-weight: 700;
+
+    letter-spacing: 0.8px;
+
+    text-transform: uppercase;
+}
+
+.product-float-info strong {
+    display: block;
+
+    color: #62191c;
+
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    font-size: 15px;
+    font-weight: 400;
+}
+
+.product-float-info span {
+    display: block;
+
+    margin-top: 3px;
+
+    color: #9e7161;
+
+    font-size: 10px;
+}
+
+
+/* Floating card positions */
+
+.product-float.one {
+    top: 0;
+    left: 0;
+
+    animation:
+        floatOne
+        5s ease-in-out infinite;
+}
+
+.product-float.two {
+    top: 40px;
+    left: 205px;
+
+    animation:
+        floatTwo
+        6s ease-in-out infinite;
+}
+
+.product-float.three {
+    top: 115px;
+    left: 80px;
+
+    animation:
+        floatThree
+        5.5s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   10. RIGHT LOGIN SIDE
+   ========================================================= */
+
+.auth-form-side {
+    width: 100%;
+
+    display: flex;
+    justify-content: flex-end;
+
+    animation:
+        formEnter
+        0.8s 0.08s ease both;
+}
+
+
+/* =========================================================
+   11. LOGIN CARD
+   ========================================================= */
+
+.auth-card {
+    position: relative;
+
+    width: 100%;
+    max-width: 475px;
+
+    padding: 43px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.09);
+
+    border-radius: 25px;
+
+    background:
+        rgba(255, 253, 250, 0.91);
+
+    box-shadow:
+        0 30px 80px
+        rgba(98, 25, 28, 0.12),
+        0 2px 8px
+        rgba(98, 25, 28, 0.04);
+
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+
+    overflow: hidden;
+}
+
+
+/* Top accent */
+
+.auth-card::before {
+    content: "";
+
+    position: absolute;
+
+    top: 0;
+    left: 10%;
+    right: 10%;
+
+    height: 3px;
+
+    border-radius:
+        0 0 5px 5px;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            #9e7161,
+            #62191c,
+            #9e7161,
+            transparent
+        );
+}
+
+
+/* Login heading */
+
+.auth-heading {
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    font-size: 36px;
+
+    font-weight: 400;
+
+    color: #62191c;
+}
+
+.auth-subheading {
+    margin-top: 7px;
+
+    color: #9a7a70;
+
+    font-size: 13px;
+
+    line-height: 1.6;
+}
+
+
+/* =========================================================
+   12. FORM
+   ========================================================= */
+
+.login-form {
+    margin-top: 30px;
+}
+
+.form-group {
+    margin-bottom: 17px;
+}
+
+.form-label {
+    display: block;
+
+    margin:
+        0 0 8px 3px;
+
+    color: #704548;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.input-wrapper {
+    position: relative;
+}
+
+
+/* Input icons */
+
+.input-icon {
+    position: absolute;
+
+    top: 50%;
+    left: 16px;
+
+    width: 18px;
+    height: 18px;
+
+    transform:
+        translateY(-50%);
+
+    color: #b38d80;
+
+    pointer-events: none;
+
+    transition:
+        color 0.25s ease;
+}
+
+
+/* Inputs */
+
+.form-input {
+    width: 100%;
+    height: 54px;
+
+    padding:
+        0 47px;
+
+    border:
+        1px solid #e3cfc2;
+
+    border-radius: 13px;
+
+    outline: none;
+
+    background: #fffaf6;
+
+    color: #62191c;
+
+    font-size: 13px;
+
+    transition:
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        background 0.25s ease;
+}
+
+.form-input::placeholder {
+    color: #bca197;
+}
+
+.form-input:hover {
+    border-color: #c7a596;
+}
+
+.form-input:focus {
+    border-color: #873632;
+
+    background: #ffffff;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(135, 54, 50, 0.08);
+}
+
+.input-wrapper:focus-within
+.input-icon {
+    color: #873632;
+}
+
+
+/* =========================================================
+   13. PASSWORD TOGGLE
+   ========================================================= */
+
+.password-toggle {
+    position: absolute;
+
+    top: 50%;
+    right: 15px;
+
+    width: 31px;
+    height: 31px;
+
+    display: grid;
+    place-items: center;
+
+    transform:
+        translateY(-50%);
+
+    border: 0;
+
+    border-radius: 8px;
+
+    background: transparent;
+
+    color: #b08b80;
+
+    cursor: pointer;
+
+    transition:
+        color 0.2s ease,
+        background 0.2s ease;
+}
+
+.password-toggle:hover {
+    color: #62191c;
+
+    background: #f3e4da;
+}
+
+.password-toggle svg {
+    width: 18px;
+    height: 18px;
+}
+
+
+/* =========================================================
+   14. FORM OPTIONS
+   ========================================================= */
+
+.form-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin:
+        3px 1px 22px;
+
+    font-size: 11px;
+}
+
+.remember-option {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    color: #947268;
+
+    cursor: pointer;
+}
+
+.remember-option input {
+    width: 15px;
+    height: 15px;
+
+    accent-color: #873632;
+}
+
+
+/* Forgot password */
+
+.forgot-link {
+    position: relative;
+
+    color: #873632;
+
+    font-weight: 700;
+}
+
+.forgot-link::after {
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+    bottom: -3px;
+
+    width: 0;
+    height: 1px;
+
+    background: #873632;
+
+    transition:
+        width 0.25s ease;
+}
+
+.forgot-link:hover::after {
+    width: 100%;
+}
+
+
+/* =========================================================
+   15. LOGIN BUTTON
+   ========================================================= */
+
+.login-button {
+    position: relative;
+
+    width: 100%;
+    height: 54px;
+
+    border: none;
+
+    border-radius: 13px;
+
+    overflow: hidden;
+
+    background:
+        linear-gradient(
+            135deg,
+            #62191c,
+            #873632
+        );
+
+    color: #fffaf6;
+
+    font-size: 12px;
+    font-weight: 800;
+
+    letter-spacing: 0.7px;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 10px 25px
+        rgba(98, 25, 28, 0.2);
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+
+/* Shine animation */
+
+.login-button::before {
+    content: "";
+
+    position: absolute;
+
+    top: 0;
+    left: -100%;
+
+    width: 80%;
+    height: 100%;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.2),
+            transparent
+        );
+
+    transform:
+        skewX(-20deg);
+
+    transition:
+        left 0.65s ease;
+}
+
+.login-button:hover {
+    transform:
+        translateY(-2px);
+
+    box-shadow:
+        0 15px 32px
+        rgba(98, 25, 28, 0.28);
+}
+
+.login-button:hover::before {
+    left: 130%;
+}
+
+.login-button:active {
+    transform:
+        translateY(0);
+}
+
+.login-button:disabled {
+    cursor: wait;
+
+    opacity: 0.85;
+}
+
+
+/* =========================================================
+   16. DIVIDER
+   ========================================================= */
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+
+    gap: 13px;
+
+    margin:
+        25px 0;
+}
+
+.auth-divider-line {
+    flex: 1;
+
+    height: 1px;
+
+    background: #eadbd2;
+}
+
+.auth-divider span {
+    color: #b3978e;
+
+    font-size: 9px;
+    font-weight: 700;
+
+    letter-spacing: 1px;
+}
+
+
+/* =========================================================
+   17. GOOGLE BUTTON
+   ========================================================= */
+
+.google-button {
+    width: 100%;
+    height: 52px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 11px;
+
+    border:
+        1px solid #e2cec1;
+
+    border-radius: 13px;
+
+    background: #fffdfb;
+
+    color: #63383a;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        border-color 0.25s ease,
+        background 0.25s ease,
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.google-button:hover {
+    border-color: #c8a89b;
+
+    background: #ffffff;
+
+    transform:
+        translateY(-1px);
+
+    box-shadow:
+        0 8px 20px
+        rgba(98, 25, 28, 0.07);
+}
+
+.google-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+
+/* =========================================================
+   18. SIGN UP
+   ========================================================= */
+
+.signup-text {
+    margin-top: 26px;
+
+    text-align: center;
+
+    color: #98766c;
+
+    font-size: 12px;
+}
+
+.signup-text a {
+    position: relative;
+
+    margin-left: 3px;
+
+    color: #62191c;
+
+    font-weight: 800;
+}
+
+.signup-text a::after {
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+    bottom: -3px;
+
+    width: 100%;
+    height: 1px;
+
+    background: #62191c;
+
+    transform:
+        scaleX(0);
+
+    transform-origin: right;
+
+    transition:
+        transform 0.25s ease;
+}
+
+.signup-text a:hover::after {
+    transform:
+        scaleX(1);
+
+    transform-origin: left;
+}
+
+
+/* =========================================================
+   19. SECURITY NOTE
+   ========================================================= */
+
+.security-note {
+    margin-top: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 6px;
+
+    color: #b0958c;
+
+    font-size: 9px;
+}
+
+.security-note svg {
+    width: 12px;
+    height: 12px;
+}
+
+
+/* =========================================================
+   20. BACKGROUND DECORATIONS
+   ========================================================= */
+
+.background-decoration {
+    position: fixed;
+
+    border-radius: 50%;
+
+    pointer-events: none;
+
+    filter: blur(2px);
+
+    z-index: 0;
+}
+
+.decoration-one {
+    width: 330px;
+    height: 330px;
+
+    top: 14%;
+    left: -170px;
+
+    border:
+        1px solid
+        rgba(98, 25, 28, 0.06);
+}
+
+.decoration-two {
+    width: 500px;
+    height: 500px;
+
+    right: -300px;
+    bottom: -260px;
+
+    border:
+        1px solid
+        rgba(135, 54, 50, 0.07);
+}
+
+
+/* =========================================================
+   21. BROWSER AUTOFILL
+   ========================================================= */
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-text-fill-color:
+        #62191c;
+
+    -webkit-box-shadow:
+        0 0 0 1000px
+        #fffaf6 inset;
+
+    box-shadow:
+        0 0 0 1000px
+        #fffaf6 inset;
+}
+
+
+/* =========================================================
+   22. ANIMATIONS
+   ========================================================= */
+
+@keyframes showcaseEnter {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateX(-25px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateX(0);
+    }
+
+}
+
+
+@keyframes formEnter {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(20px)
+            scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+    }
+
+}
+
+
+@keyframes pulseDot {
+
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 4px
+            rgba(135, 54, 50, 0.1);
+    }
+
+    50% {
+        box-shadow:
+            0 0 0 8px
+            rgba(135, 54, 50, 0.02);
+    }
+
+}
+
+
+@keyframes floatOne {
+
+    0%,
+    100% {
+        transform:
+            translateY(0)
+            rotate(-2deg);
+    }
+
+    50% {
+        transform:
+            translateY(-9px)
+            rotate(-1deg);
+    }
+
+}
+
+
+@keyframes floatTwo {
+
+    0%,
+    100% {
+        transform:
+            translateY(0)
+            rotate(2deg);
+    }
+
+    50% {
+        transform:
+            translateY(9px)
+            rotate(1deg);
+    }
+
+}
+
+
+@keyframes floatThree {
+
+    0%,
+    100% {
+        transform:
+            translateY(0)
+            rotate(1deg);
+    }
+
+    50% {
+        transform:
+            translateY(-7px)
+            rotate(0deg);
+    }
+
+}
+
+
+/* =========================================================
+   23. TABLET
+   ========================================================= */
+
+@media (max-width: 1050px) {
+
+    .auth-main {
+        grid-template-columns:
+            1fr 0.9fr;
+
+        gap: 5%;
+
+        padding-left: 5%;
+        padding-right: 5%;
+    }
+
+    .showcase-title {
+        font-size: 53px;
+    }
+
+    .floating-area {
+        transform:
+            scale(0.9);
+
+        transform-origin:
+            left top;
+    }
+
+}
+
+
+/* =========================================================
+   24. SMALL TABLET
+   ========================================================= */
+
+@media (max-width: 850px) {
+
+    .auth-main {
+        grid-template-columns: 1fr;
+
+        padding-top: 45px;
+        padding-bottom: 45px;
+    }
+
+    .auth-showcase {
+        min-height: auto;
+
+        text-align: center;
+
+        align-items: center;
+
+        margin-bottom: 35px;
+    }
+
+    .showcase-title {
+        max-width: 580px;
+
+        font-size: 50px;
+    }
+
+    .showcase-description {
+        max-width: 500px;
+    }
+
+    .showcase-features {
+        justify-content: center;
+    }
+
+    .floating-area {
+        display: none;
+    }
+
+    .auth-form-side {
+        justify-content: center;
+    }
+
+}
+
+
+/* =========================================================
+   25. MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    /* Navigation */
+
+    .auth-nav {
+        height: 67px;
+
+        padding:
+            0 18px;
+    }
+
+
+    /* Brand */
+
+    .auth-brand-logo {
+        width: 33px;
+        height: 33px;
+    }
+
+    .auth-brand-name {
+        font-size: 20px;
+    }
+
+    .auth-page-name {
+        display: none;
+    }
+
+
+    /* Logistics becomes icon-only */
+
+    .logistics-portal {
+        min-width: auto;
+
+        padding: 5px;
+
+        border-radius: 10px;
+    }
+
+    .logistics-portal-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .logistics-portal-text,
+    .logistics-portal-arrow {
+        display: none;
+    }
+
+
+    /* Main */
+
+    .auth-main {
+        padding:
+            33px 18px 45px;
+    }
+
+
+    /* Showcase */
+
+    .auth-showcase {
+        margin-bottom: 27px;
+    }
+
+    .showcase-label {
+        margin-bottom: 15px;
+    }
+
+    .showcase-title {
+        font-size: 39px;
+
+        letter-spacing: -1px;
+    }
+
+    .showcase-description {
+        margin-top: 16px;
+
+        font-size: 13px;
+
+        line-height: 1.7;
+    }
+
+    .showcase-features {
+        margin-top: 21px;
+    }
+
+    .feature-pill {
+        font-size: 10px;
+    }
+
+
+    /* Login card */
+
+    .auth-card {
+        padding:
+            31px 23px;
+
+        border-radius: 20px;
+    }
+
+    .auth-heading {
+        font-size: 31px;
+    }
+
+}
+
+
+/* =========================================================
+   26. REDUCED MOTION ACCESSIBILITY
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration:
+            0.01ms !important;
+
+        animation-iteration-count:
+            1 !important;
+
+        scroll-behavior:
+            auto !important;
+
+        transition-duration:
+            0.01ms !important;
+    }
+
+}

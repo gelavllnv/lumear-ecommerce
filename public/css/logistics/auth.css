@@ -1,0 +1,2101 @@
+/* =========================================================
+   LUMEAR LOGISTICS
+   Authentication / Registration
+
+   Improved typography version:
+   - Larger labels
+   - Larger descriptions
+   - Better contrast
+   - More readable form text
+   ========================================================= */
+
+
+/* =========================================================
+   1. RESET
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    min-height: 100vh;
+
+    font-family:
+        "Plus Jakarta Sans",
+        Arial,
+        sans-serif;
+
+    color: #542326;
+    background: #f8f3ee;
+
+    /* Improves text rendering */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button,
+input,
+select {
+    font: inherit;
+}
+
+
+/* =========================================================
+   2. PAGE
+   ========================================================= */
+
+.logistics-auth-page {
+    position: relative;
+
+    min-height: 100vh;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(
+            circle at 10% 20%,
+            rgba(202, 174, 159, 0.20),
+            transparent 27%
+        ),
+        radial-gradient(
+            circle at 90% 80%,
+            rgba(98, 25, 28, 0.07),
+            transparent 25%
+        ),
+        #fbf8f4;
+}
+
+
+/* =========================================================
+   3. NAVIGATION
+   ========================================================= */
+
+.logistics-auth-nav {
+    position: relative;
+    z-index: 20;
+
+    height: 76px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 6%;
+
+    border-bottom:
+        1px solid rgba(98, 25, 28, 0.10);
+
+    background:
+        rgba(255, 252, 248, 0.92);
+
+    backdrop-filter: blur(15px);
+}
+
+
+/* =========================================================
+   4. BRAND
+   ========================================================= */
+
+.logistics-brand {
+    display: flex;
+    align-items: center;
+
+    gap: 11px;
+}
+
+.logistics-brand-logo {
+    width: 40px;
+    height: 40px;
+
+    object-fit: contain;
+}
+
+.logistics-brand-text {
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+}
+
+.logistics-brand-name {
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    font-size: 24px;
+    font-style: italic;
+
+    color: #62191c;
+}
+
+.logistics-brand-module {
+    padding-left: 12px;
+
+    border-left:
+        1px solid rgba(98, 25, 28, 0.22);
+
+    color: #7d4b46;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    letter-spacing: 0.4px;
+
+    text-transform: uppercase;
+}
+
+
+/* Return to marketplace */
+
+.marketplace-link {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    padding: 10px 13px;
+
+    border-radius: 9px;
+
+    color: #744740;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    transition:
+        background 0.2s ease,
+        color 0.2s ease;
+}
+
+.marketplace-link svg {
+    width: 17px;
+    height: 17px;
+
+    transition:
+        transform 0.2s ease;
+}
+
+.marketplace-link:hover {
+    color: #62191c;
+
+    background:
+        rgba(98, 25, 28, 0.06);
+}
+
+.marketplace-link:hover svg {
+    transform: translateX(-3px);
+}
+
+
+/* =========================================================
+   5. MAIN
+   ========================================================= */
+
+.logistics-auth-main {
+    position: relative;
+    z-index: 5;
+
+    width: 100%;
+}
+
+
+/* =========================================================
+   6. LOGIN LAYOUT
+   ========================================================= */
+
+.login-layout {
+    width: 100%;
+    max-width: 1420px;
+
+    min-height:
+        calc(100vh - 76px);
+
+    margin: auto;
+
+    padding: 55px 7%;
+
+    display: grid;
+
+    grid-template-columns:
+        1.1fr 0.9fr;
+
+    align-items: center;
+
+    gap: 9%;
+}
+
+
+/* =========================================================
+   7. LOGIN INTRO
+   ========================================================= */
+
+.logistics-intro {
+    animation:
+        enterLeft 0.8s ease both;
+}
+
+
+/* Portal badge */
+
+.portal-badge {
+    width: fit-content;
+
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+
+    margin-bottom: 22px;
+
+    padding: 8px 13px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.13);
+
+    border-radius: 100px;
+
+    background:
+        rgba(255, 255, 255, 0.65);
+
+    color: #873632;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    letter-spacing: 1px;
+}
+
+.portal-badge-icon {
+    width: 24px;
+    height: 24px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: #f0ddd2;
+}
+
+.portal-badge-icon svg {
+    width: 13px;
+    height: 13px;
+}
+
+
+/* Main intro title */
+
+.intro-title {
+    max-width: 650px;
+
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    font-size:
+        clamp(48px, 5vw, 72px);
+
+    font-weight: 400;
+
+    line-height: 1;
+
+    letter-spacing: -2px;
+
+    color: #62191c;
+}
+
+.intro-title span {
+    display: block;
+
+    color: #9e7161;
+
+    font-style: italic;
+}
+
+
+/* Intro description */
+
+.intro-description {
+    max-width: 590px;
+
+    margin-top: 23px;
+
+    color: #79534b;
+
+    font-size: 16px;
+
+    line-height: 1.75;
+}
+
+
+/* =========================================================
+   8. LOGIN FEATURES
+   ========================================================= */
+
+.intro-features {
+    margin-top: 32px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 14px;
+}
+
+.intro-feature {
+    max-width: 500px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 14px;
+}
+
+.intro-feature-icon {
+    width: 42px;
+    height: 42px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.10);
+
+    border-radius: 11px;
+
+    background:
+        rgba(255, 255, 255, 0.75);
+
+    color: #873632;
+}
+
+.intro-feature-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.intro-feature strong {
+    display: block;
+
+    margin-bottom: 3px;
+
+    color: #5d3538;
+
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.intro-feature span {
+    color: #8d6960;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   9. OPERATIONS PREVIEW
+   ========================================================= */
+
+.operations-preview {
+    max-width: 570px;
+
+    margin-top: 37px;
+
+    padding: 18px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.09);
+
+    border-radius: 16px;
+
+    background:
+        rgba(255, 255, 255, 0.62);
+
+    box-shadow:
+        0 15px 45px
+        rgba(98, 25, 28, 0.06);
+
+    backdrop-filter: blur(12px);
+}
+
+.operations-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 19px;
+
+    color: #664044;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    letter-spacing: 0.7px;
+
+    text-transform: uppercase;
+}
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+
+    gap: 7px;
+
+    color: #705c56;
+
+    font-size: 10px;
+}
+
+.live-indicator i {
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+
+    background: #64835e;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(100, 131, 94, 0.1);
+
+    animation:
+        statusPulse 2s infinite;
+}
+
+.operation-flow {
+    display: flex;
+    align-items: center;
+}
+
+.operation-step {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    opacity: 0.68;
+}
+
+.operation-step.active {
+    opacity: 1;
+}
+
+.operation-step > span {
+    width: 30px;
+    height: 30px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 7px;
+
+    background: #efe1d8;
+
+    color: #873632;
+
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.operation-step.active > span {
+    background: #62191c;
+    color: white;
+}
+
+.operation-step strong {
+    display: block;
+
+    color: #5c373a;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.operation-step small {
+    display: block;
+
+    margin-top: 2px;
+
+    color: #8d7168;
+
+    font-size: 9px;
+}
+
+.flow-line {
+    width: 22px;
+    height: 1px;
+
+    margin: 0 7px;
+
+    background: #cdb5aa;
+}
+
+
+/* =========================================================
+   10. LOGIN FORM AREA
+   ========================================================= */
+
+.logistics-form-area {
+    display: flex;
+    justify-content: flex-end;
+
+    animation:
+        enterRight 0.8s ease both;
+}
+
+
+/* =========================================================
+   11. LOGIN CARD
+   ========================================================= */
+
+.logistics-card {
+    width: 100%;
+    max-width: 465px;
+
+    padding: 42px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.10);
+
+    border-radius: 23px;
+
+    background:
+        rgba(255, 253, 250, 0.95);
+
+    box-shadow:
+        0 30px 80px
+        rgba(98, 25, 28, 0.11);
+}
+
+
+/* Small headings */
+
+.card-eyebrow,
+.section-eyebrow {
+    color: #8c5b50;
+
+    font-size: 10px;
+    font-weight: 800;
+
+    letter-spacing: 1.2px;
+}
+
+.card-header h2 {
+    margin-top: 9px;
+
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    color: #62191c;
+
+    font-size: 36px;
+
+    font-weight: 400;
+}
+
+.card-header p {
+    margin-top: 8px;
+
+    color: #805d54;
+
+    font-size: 14px;
+
+    line-height: 1.6;
+}
+
+.logistics-form {
+    margin-top: 30px;
+}
+
+
+/* =========================================================
+   12. FORM CONTROLS
+   ========================================================= */
+
+.form-group {
+    margin-bottom: 19px;
+}
+
+.form-group label,
+.label-row label {
+    display: block;
+
+    margin:
+        0 0 8px 2px;
+
+    color: #5d3639;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.form-group label b {
+    color: #8d252a;
+}
+
+.label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.label-row a {
+    margin-bottom: 8px;
+
+    color: #873632;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.input-container {
+    position: relative;
+}
+
+.field-icon {
+    position: absolute;
+
+    top: 50%;
+    left: 15px;
+
+    width: 18px;
+    height: 18px;
+
+    transform:
+        translateY(-50%);
+
+    color: #9b6e62;
+
+    pointer-events: none;
+}
+
+.input-container input {
+    padding-left: 44px !important;
+    padding-right: 44px !important;
+}
+
+
+/* Main inputs */
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    height: 54px;
+
+    padding: 0 15px;
+
+    border:
+        1px solid #d8bdb0;
+
+    border-radius: 11px;
+
+    outline: none;
+
+    background: #fffaf6;
+
+    color: #4e292c;
+
+    font-size: 13px;
+    font-weight: 500;
+
+    transition:
+        border 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+}
+
+.form-group input::placeholder {
+    color: #9d8279;
+    opacity: 1;
+}
+
+.form-group select {
+    color: #67484a;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #873632;
+
+    background: #ffffff;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(135, 54, 50, 0.08);
+}
+
+
+/* =========================================================
+   13. PASSWORD
+   ========================================================= */
+
+.password-button {
+    position: absolute;
+
+    top: 50%;
+    right: 12px;
+
+    width: 32px;
+    height: 32px;
+
+    transform:
+        translateY(-50%);
+
+    display: grid;
+    place-items: center;
+
+    border: 0;
+
+    border-radius: 7px;
+
+    background: transparent;
+
+    color: #92665c;
+
+    cursor: pointer;
+}
+
+.password-button:hover {
+    background: #f3e5dc;
+
+    color: #62191c;
+}
+
+.password-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+
+/* =========================================================
+   14. REMEMBER ME
+   ========================================================= */
+
+.remember-row {
+    width: fit-content;
+
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+
+    margin-bottom: 22px;
+
+    color: #75524b;
+
+    font-size: 12px;
+
+    cursor: pointer;
+}
+
+.remember-row input {
+    width: 15px;
+    height: 15px;
+
+    accent-color: #62191c;
+}
+
+
+/* =========================================================
+   15. BUTTONS
+   ========================================================= */
+
+.primary-button,
+.submit-application-button {
+    width: 100%;
+    height: 54px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 10px;
+
+    border: 0;
+
+    border-radius: 11px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #62191c,
+            #873632
+        );
+
+    color: white;
+
+    font-size: 12px;
+    font-weight: 800;
+
+    letter-spacing: 0.2px;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 10px 24px
+        rgba(98, 25, 28, 0.18);
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.primary-button svg,
+.submit-application-button svg {
+    width: 16px;
+    height: 16px;
+
+    transition:
+        transform 0.2s ease;
+}
+
+.primary-button:hover,
+.submit-application-button:hover {
+    transform:
+        translateY(-2px);
+
+    box-shadow:
+        0 14px 30px
+        rgba(98, 25, 28, 0.25);
+}
+
+.primary-button:hover svg,
+.submit-application-button:hover svg {
+    transform:
+        translateX(3px);
+}
+
+
+/* =========================================================
+   16. REGISTRATION CALLOUT ON LOGIN
+   ========================================================= */
+
+.registration-callout {
+    margin-top: 25px;
+
+    padding-top: 22px;
+
+    border-top:
+        1px solid #dfcbc1;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 15px;
+}
+
+.registration-callout strong {
+    display: block;
+
+    color: #5d373a;
+
+    font-size: 12px;
+}
+
+.registration-callout span {
+    display: block;
+
+    margin-top: 4px;
+
+    color: #84655d;
+
+    font-size: 10px;
+}
+
+.secondary-button {
+    padding: 10px 15px;
+
+    border:
+        1px solid #cba99a;
+
+    border-radius: 8px;
+
+    color: #713b3e;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    transition:
+        background 0.2s ease,
+        border 0.2s ease;
+}
+
+.secondary-button:hover {
+    border-color: #873632;
+
+    background: #f7ebe4;
+}
+
+
+/* =========================================================
+   17. SECURE NOTE
+   ========================================================= */
+
+.secure-note {
+    margin-top: 20px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 7px;
+
+    color: #846a62;
+
+    font-size: 10px;
+}
+
+.secure-note svg {
+    width: 13px;
+    height: 13px;
+}
+
+
+/* =========================================================
+   18. REGISTRATION PAGE
+   ========================================================= */
+
+.registration-layout {
+    width: 100%;
+    max-width: 1180px;
+
+    margin: auto;
+
+    padding:
+        55px 6%
+        80px;
+}
+
+
+/* =========================================================
+   19. REGISTRATION HEADING
+   ========================================================= */
+
+.registration-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+
+    gap: 30px;
+
+    margin-bottom: 34px;
+
+    animation:
+        enterLeft 0.7s ease both;
+}
+
+.registration-heading h1 {
+    margin-top: 10px;
+
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    color: #62191c;
+
+    font-size:
+        clamp(40px, 4vw, 55px);
+
+    font-weight: 400;
+
+    line-height: 1.05;
+}
+
+.registration-heading h1 span {
+    color: #9e7161;
+
+    font-style: italic;
+}
+
+.registration-heading p {
+    max-width: 660px;
+
+    margin-top: 14px;
+
+    color: #795850;
+
+    font-size: 13px;
+
+    line-height: 1.7;
+}
+
+
+/* Registration progress */
+
+.registration-progress {
+    min-width: 245px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 14px;
+
+    border:
+        1px solid #dcc8bd;
+
+    border-radius: 12px;
+
+    background:
+        rgba(255, 255, 255, 0.68);
+}
+
+.progress-number {
+    width: 38px;
+    height: 38px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 9px;
+
+    background: #62191c;
+
+    color: white;
+
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.registration-progress strong {
+    display: block;
+
+    color: #5e393c;
+
+    font-size: 11px;
+}
+
+.registration-progress span {
+    display: block;
+
+    margin-top: 3px;
+
+    color: #856a62;
+
+    font-size: 9px;
+}
+
+
+/* =========================================================
+   20. REGISTRATION FORM
+   ========================================================= */
+
+.registration-form {
+    display: flex;
+    flex-direction: column;
+
+    gap: 19px;
+
+    animation:
+        enterUp 0.8s ease both;
+}
+
+.registration-section {
+    padding: 32px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.10);
+
+    border-radius: 17px;
+
+    background:
+        rgba(255, 253, 250, 0.93);
+
+    box-shadow:
+        0 12px 35px
+        rgba(98, 25, 28, 0.04);
+}
+
+
+/* Section heading */
+
+.section-title {
+    display: flex;
+    align-items: center;
+
+    gap: 13px;
+
+    margin-bottom: 27px;
+
+    padding-bottom: 20px;
+
+    border-bottom:
+        1px solid #dfcbc1;
+}
+
+.section-number {
+    width: 40px;
+    height: 40px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 9px;
+
+    background: #f0dfd5;
+
+    color: #873632;
+
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.section-title h2 {
+    color: #583337;
+
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.section-title p {
+    margin-top: 4px;
+
+    color: #80635b;
+
+    font-size: 10px;
+
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   21. FORM GRID
+   ========================================================= */
+
+.form-grid {
+    display: grid;
+
+    gap: 17px;
+}
+
+.three-columns {
+    grid-template-columns:
+        repeat(3, 1fr);
+}
+
+.two-columns {
+    grid-template-columns:
+        repeat(2, 1fr);
+}
+
+
+/* =========================================================
+   22. AGE FIELD
+   ========================================================= */
+
+.age-input {
+    position: relative;
+}
+
+.age-input input {
+    padding-right: 70px;
+}
+
+.age-input span {
+    position: absolute;
+
+    top: 50%;
+    right: 12px;
+
+    transform:
+        translateY(-50%);
+
+    padding: 5px 7px;
+
+    border-radius: 5px;
+
+    background: #e9d8cf;
+
+    color: #724d46;
+
+    font-size: 8px;
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   23. API NOTICE
+   ========================================================= */
+
+.api-notice {
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+
+    margin-top: 5px;
+
+    padding: 12px 14px;
+
+    border-radius: 8px;
+
+    background: #f4e7df;
+
+    color: #76574f;
+
+    font-size: 10px;
+
+    line-height: 1.5;
+}
+
+.api-notice svg {
+    width: 16px;
+    height: 16px;
+
+    flex-shrink: 0;
+
+    color: #873632;
+}
+
+
+/* =========================================================
+   24. FILE UPLOAD
+   ========================================================= */
+
+.upload-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, 1fr);
+
+    gap: 17px;
+}
+
+.upload-box {
+    min-height: 150px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    padding: 22px;
+
+    border:
+        1px dashed #cda99a;
+
+    border-radius: 12px;
+
+    background: #fffaf7;
+
+    text-align: center;
+
+    cursor: pointer;
+
+    transition:
+        border 0.2s ease,
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.upload-box:hover {
+    border-color: #873632;
+
+    background: #faf0ea;
+
+    transform:
+        translateY(-2px);
+}
+
+.upload-box input {
+    display: none;
+}
+
+.upload-icon {
+    width: 39px;
+    height: 39px;
+
+    display: grid;
+    place-items: center;
+
+    margin-bottom: 10px;
+
+    border-radius: 9px;
+
+    background: #ecd8cd;
+
+    color: #873632;
+}
+
+.upload-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.upload-box strong {
+    color: #593437;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.upload-box span {
+    margin-top: 5px;
+
+    color: #80665e;
+
+    font-size: 9px;
+}
+
+
+/* =========================================================
+   25. REGISTRATION SUBMIT AREA
+   ========================================================= */
+
+.registration-submit {
+    padding: 25px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.10);
+
+    border-radius: 15px;
+
+    background:
+        rgba(255, 253, 250, 0.93);
+}
+
+.approval-notice {
+    display: flex;
+    align-items: flex-start;
+
+    gap: 13px;
+
+    padding-bottom: 21px;
+
+    margin-bottom: 21px;
+
+    border-bottom:
+        1px solid #dfcbc1;
+}
+
+.approval-icon {
+    width: 39px;
+    height: 39px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 9px;
+
+    background: #ecd8cd;
+
+    color: #873632;
+}
+
+.approval-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.approval-notice strong {
+    display: block;
+
+    margin-bottom: 5px;
+
+    color: #593437;
+
+    font-size: 12px;
+}
+
+.approval-notice p {
+    max-width: 720px;
+
+    color: #795d55;
+
+    font-size: 10px;
+
+    line-height: 1.6;
+}
+
+
+/* Registration actions */
+
+.registration-actions {
+    display: flex;
+    justify-content: flex-end;
+
+    gap: 11px;
+}
+
+.cancel-button {
+    height: 48px;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 20px;
+
+    border:
+        1px solid #cdb0a3;
+
+    border-radius: 10px;
+
+    color: #704b45;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.cancel-button:hover {
+    background: #f7ece6;
+}
+
+.submit-application-button {
+    width: auto;
+
+    height: 48px;
+
+    padding: 0 23px;
+}
+
+
+/* =========================================================
+   26. PENDING APPROVAL PAGE
+   ========================================================= */
+
+.status-page {
+    min-height:
+        calc(100vh - 76px);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 50px 20px;
+}
+
+.status-card {
+    width: 100%;
+    max-width: 600px;
+
+    padding: 45px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.10);
+
+    border-radius: 22px;
+
+    background:
+        rgba(255, 253, 250, 0.95);
+
+    box-shadow:
+        0 30px 80px
+        rgba(98, 25, 28, 0.1);
+
+    text-align: center;
+
+    animation:
+        enterUp 0.7s ease both;
+}
+
+.status-icon {
+    width: 64px;
+    height: 64px;
+
+    display: grid;
+    place-items: center;
+
+    margin:
+        0 auto 19px;
+
+    border-radius: 18px;
+
+    background: #f0dfd5;
+
+    color: #873632;
+}
+
+.status-icon svg {
+    width: 30px;
+    height: 30px;
+}
+
+.status-label {
+    color: #87594f;
+
+    font-size: 10px;
+    font-weight: 800;
+
+    letter-spacing: 1.2px;
+}
+
+.status-card h1 {
+    max-width: 480px;
+
+    margin:
+        10px auto 0;
+
+    font-family:
+        "DM Serif Display",
+        Georgia,
+        serif;
+
+    color: #62191c;
+
+    font-size: 39px;
+
+    font-weight: 400;
+
+    line-height: 1.1;
+}
+
+.status-card h1 span {
+    color: #9e7161;
+
+    font-style: italic;
+}
+
+.status-description {
+    max-width: 480px;
+
+    margin:
+        16px auto 29px;
+
+    color: #75564f;
+
+    font-size: 12px;
+
+    line-height: 1.7;
+}
+
+
+/* =========================================================
+   27. STATUS PROGRESS
+   ========================================================= */
+
+.status-progress {
+    padding: 23px;
+
+    border:
+        1px solid #dfcbc1;
+
+    border-radius: 13px;
+
+    background: #fffaf7;
+
+    text-align: left;
+}
+
+.status-step {
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    opacity: 0.58;
+}
+
+.status-step.completed,
+.status-step.current {
+    opacity: 1;
+}
+
+.status-step-icon {
+    width: 33px;
+    height: 33px;
+
+    flex-shrink: 0;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 50%;
+
+    background: #e9dbd3;
+
+    color: #76534b;
+
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.status-step.completed
+.status-step-icon {
+    background: #667f62;
+
+    color: white;
+}
+
+.status-step.current
+.status-step-icon {
+    background: #62191c;
+
+    color: white;
+}
+
+.status-step strong {
+    display: block;
+
+    color: #5c373a;
+
+    font-size: 11px;
+}
+
+.status-step span {
+    display: block;
+
+    margin-top: 3px;
+
+    color: #80655d;
+
+    font-size: 9px;
+}
+
+.status-line {
+    width: 1px;
+    height: 18px;
+
+    margin:
+        4px 0
+        4px 16px;
+
+    background: #cdb8ad;
+}
+
+
+/* =========================================================
+   28. STATUS EMAIL MESSAGE
+   ========================================================= */
+
+.status-message {
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    margin-top: 19px;
+
+    padding: 14px;
+
+    border-radius: 10px;
+
+    background: #f1e3db;
+
+    text-align: left;
+}
+
+.status-message svg {
+    width: 21px;
+    height: 21px;
+
+    flex-shrink: 0;
+
+    color: #873632;
+}
+
+.status-message strong {
+    display: block;
+
+    color: #5c373a;
+
+    font-size: 11px;
+}
+
+.status-message span {
+    display: block;
+
+    margin-top: 4px;
+
+    color: #755a52;
+
+    font-size: 9px;
+
+    line-height: 1.5;
+}
+
+.return-login-button {
+    height: 47px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-top: 21px;
+
+    border-radius: 10px;
+
+    background: #62191c;
+
+    color: white;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.return-login-button:hover {
+    background: #873632;
+
+    transform:
+        translateY(-1px);
+}
+
+
+/* =========================================================
+   29. BACKGROUND DECORATIONS
+   ========================================================= */
+
+.background-orb {
+    position: fixed;
+
+    border-radius: 50%;
+
+    pointer-events: none;
+}
+
+.orb-one {
+    width: 420px;
+    height: 420px;
+
+    top: 120px;
+    left: -280px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.07);
+}
+
+.orb-two {
+    width: 500px;
+    height: 500px;
+
+    right: -320px;
+    bottom: -280px;
+
+    border:
+        1px solid rgba(98, 25, 28, 0.07);
+}
+
+
+/* =========================================================
+   30. ANIMATIONS
+   ========================================================= */
+
+@keyframes enterLeft {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateX(0);
+    }
+
+}
+
+
+@keyframes enterRight {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateX(0);
+    }
+
+}
+
+
+@keyframes enterUp {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(15px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0);
+    }
+
+}
+
+
+@keyframes statusPulse {
+
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 3px
+            rgba(100, 131, 94, 0.1);
+    }
+
+    50% {
+        box-shadow:
+            0 0 0 7px
+            rgba(100, 131, 94, 0.02);
+    }
+
+}
+
+
+/* =========================================================
+   31. TABLET
+   ========================================================= */
+
+@media (max-width: 1000px) {
+
+    .login-layout {
+        gap: 5%;
+
+        padding-left: 5%;
+        padding-right: 5%;
+    }
+
+    .operations-preview {
+        display: none;
+    }
+
+}
+
+
+/* =========================================================
+   32. SMALL TABLET
+   ========================================================= */
+
+@media (max-width: 820px) {
+
+    .login-layout {
+        grid-template-columns: 1fr;
+
+        gap: 40px;
+
+        padding-top: 45px;
+        padding-bottom: 60px;
+    }
+
+    .logistics-intro {
+        text-align: center;
+    }
+
+    .portal-badge {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .intro-title {
+        margin: auto;
+
+        font-size: 48px;
+    }
+
+    .intro-description {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .intro-features {
+        display: none;
+    }
+
+    .logistics-form-area {
+        justify-content: center;
+    }
+
+    .registration-heading {
+        align-items: flex-start;
+
+        flex-direction: column;
+    }
+
+    .registration-progress {
+        min-width: 100%;
+    }
+
+    .three-columns {
+        grid-template-columns: 1fr;
+    }
+
+}
+
+
+/* =========================================================
+   33. MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .logistics-auth-nav {
+        height: 67px;
+
+        padding: 0 18px;
+    }
+
+    .logistics-brand-logo {
+        width: 34px;
+        height: 34px;
+    }
+
+    .logistics-brand-name {
+        font-size: 20px;
+    }
+
+    .logistics-brand-module {
+        font-size: 10px;
+    }
+
+    .marketplace-link span {
+        display: none;
+    }
+
+    .marketplace-link {
+        width: 38px;
+        height: 38px;
+
+        justify-content: center;
+
+        padding: 0;
+    }
+
+
+    /* Login */
+
+    .login-layout {
+        min-height:
+            calc(100vh - 67px);
+
+        padding:
+            32px 18px 50px;
+    }
+
+    .intro-title {
+        font-size: 39px;
+    }
+
+    .intro-description {
+        font-size: 13px;
+    }
+
+    .logistics-card {
+        padding:
+            29px 22px;
+    }
+
+    .card-header h2 {
+        font-size: 31px;
+    }
+
+
+    /* Registration */
+
+    .registration-layout {
+        padding:
+            35px 18px 55px;
+    }
+
+    .registration-heading h1 {
+        font-size: 38px;
+    }
+
+    .registration-heading p {
+        font-size: 12px;
+    }
+
+    .registration-section {
+        padding:
+            23px 19px;
+    }
+
+    .two-columns,
+    .upload-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .registration-actions {
+        flex-direction: column-reverse;
+    }
+
+    .cancel-button,
+    .submit-application-button {
+        width: 100%;
+
+        justify-content: center;
+    }
+
+
+    /* Pending */
+
+    .status-page {
+        min-height:
+            calc(100vh - 67px);
+    }
+
+    .status-card {
+        padding:
+            32px 21px;
+    }
+
+    .status-card h1 {
+        font-size: 32px;
+    }
+
+}
+
+
+/* =========================================================
+   34. REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration:
+            0.01ms !important;
+
+        animation-iteration-count:
+            1 !important;
+
+        transition-duration:
+            0.01ms !important;
+    }
+
+}
