@@ -1,0 +1,1 @@
+@extends('layouts.seller') @section('seller-content')<h1 class="text-3xl font-serif">Analytics</h1><div class="mt-5 bg-white rounded p-8 text-stone-500">Sales analytics are calculated from your delivered order items. See Earnings for the current gross, commission, and net totals.</div>@endsection

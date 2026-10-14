@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+        // Windows PHP installations do not always have a CA bundle configured.
+        // Keep TLS verification enabled and point it at the project's trusted bundle.
+        'ca_bundle' => env('GOOGLE_CA_BUNDLE', storage_path('certificates/windows-root-ca-bundle.pem')),
+        'admin_domains' => array_filter(array_map('trim', explode(',', (string) env('ALLOWED_ADMIN_EMAIL_DOMAINS', '')))),
+    ],
+
 ];

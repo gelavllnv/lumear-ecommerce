@@ -1,0 +1,1 @@
+@extends('layouts.seller') @section('seller-content')<h1 class="text-3xl font-serif mb-5">Notifications</h1>@forelse($notifications as $n)<div class="bg-white p-4 rounded mb-3"><b>{{$n->data['title']}}</b><p>{{$n->data['message']}}</p></div>@empty<p>No notifications.</p>@endforelse @endsection

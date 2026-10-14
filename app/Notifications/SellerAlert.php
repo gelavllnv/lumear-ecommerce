@@ -1,0 +1,1 @@
+<?php namespace App\Notifications; use Illuminate\Bus\Queueable; use Illuminate\Notifications\Notification; class SellerAlert extends Notification { use Queueable; public function __construct(public string $title,public string $message){} public function via($n){return ['database'];} public function toArray($n){return ['title'=>$this->title,'message'=>$this->message];} }

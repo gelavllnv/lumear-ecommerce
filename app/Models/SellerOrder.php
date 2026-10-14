@@ -38,4 +38,9 @@ class SellerOrder extends Model
             'logistics_provider_id'
         );
     }
+
+    public function timeline(): HasMany
+    {
+        return $this->hasMany(OrderTimeline::class);
+    }
 }

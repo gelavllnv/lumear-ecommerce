@@ -1,58 +1,130 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Lumear Marketplace
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel multi-vendor marketplace for the Philippines. The active payment method is Cash on Delivery (COD) only; seller withdrawals and refunds are recorded as manual, offline actions.
 
-## About Laravel
+## Phase 1 included
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Buyer, seller, and admin role separation.
+- Email verification and backend-driven Google OAuth with PKCE/state verification.
+- Seller onboarding: store profile, secure KYC upload, and encrypted manual payout details.
+- Products with multiple SKU variants, inventory movement history, and safe stock deduction.
+- COD checkout with row locks, order timeline events, idempotency key support, seller wallet ledger, manual COD release, and payout queue.
+- Admin seller/KYC review, private document downloads, manual payout approval/payment/rejection, and audit logs.
+- Responsive Laravel/Vite UI; Blade markup, CSS, and JavaScript live in separate files.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Local setup
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+1. Copy `.env.example` to `.env`, configure the existing MySQL database, then run:
 
-## Learning Laravel
+   ```powershell
+   composer install
+   npm install
+   php artisan key:generate
+   php artisan migrate
+   php artisan db:seed
+   npm run build
+   php artisan serve
+   ```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+2. Existing records are preserved. The Phase 1 migration is additive; do **not** use `migrate:fresh` on a database containing marketplace data.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+3. To create the first administrator, add a unique email and strong password to `.env`:
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+   ```env
+   ADMIN_NAME="Marketplace Administrator"
+   ADMIN_EMAIL="admin@example.com"
+   ADMIN_PASSWORD="use-a-long-unique-password"
+   ```
 
-## Agentic Development
+   Then run:
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+   ```powershell
+   php artisan db:seed --class=AdminUserSeeder
+   ```
 
-```bash
-composer require laravel/boost --dev
+   Sign in at `/login`. On first login, the administrator is routed to the mandatory TOTP setup page; add the displayed key to an authenticator app, confirm the six-digit code, then continue to `/admin`.
 
-php artisan boost:install
+## Google Sign-In
+
+Google Sign-In is available for **buyers and sellers** after you create an OAuth client in Google Cloud Console. It is deliberately disabled until the credentials below are supplied; this prevents an unsafe or partially configured login flow.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create a project (or choose an existing one), configure the OAuth consent screen, then create an **OAuth client ID** of type **Web application**.
+2. Add this exact Authorized redirect URI for local development: `http://localhost:8000/auth/google/callback`.
+3. Add your deployed HTTPS callback too when publishing, for example: `https://your-domain.com/auth/google/callback`.
+4. Add these values to `.env` (never commit the secret):
+
+```env
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+5. Run `php artisan config:clear` and restart `php artisan serve`.
 
-## Contributing
+The buyer and seller buttons both use this one OAuth client. The selected role is retained securely in the server-side OAuth state, so a public Google login cannot create an admin account.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Windows SSL certificate error
 
-## Code of Conduct
+If the Laravel log says `cURL error 60` while calling `oauth2.googleapis.com`, PHP has no configured certificate authority (CA) bundle. Lumear includes a local CA bundle at `storage/certificates/windows-root-ca-bundle.pem` and keeps SSL verification enabled for the Google token exchange and ID-token verification. Do not disable certificate verification. To use a different managed bundle, set `GOOGLE_CA_BUNDLE` to its absolute path.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Create a Google OAuth Web Application client and set its authorized redirect URI to:
 
-## Security Vulnerabilities
+```text
+http://localhost:8000/auth/google/callback
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Then add these values to `.env`:
 
-## License
+```env
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI="http://localhost:8000/auth/google/callback"
+ALLOWED_ADMIN_EMAIL_DOMAINS="example.com"
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Buyer and seller Google buttons are available on `/login` and `/register`. Public Google sign-in can only create buyer or seller accounts. It never auto-creates an administrator.
+
+## Email verification delivery
+
+Local development defaults to `MAIL_MAILER=log`. This safely writes verification messages to `storage/logs/laravel.log`; it does **not** send mail to an inbox. Configure a real mail provider before expecting verification emails to arrive.
+
+For a Gmail account with an App Password, add the following to `.env` (use your own sending address and App Password; never commit it):
+
+```env
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USERNAME=your-address@gmail.com
+MAIL_PASSWORD=your-16-character-google-app-password
+MAIL_FROM_ADDRESS=your-address@gmail.com
+MAIL_FROM_NAME="Lumear"
+MAIL_TIMEOUT=10
+```
+
+After saving the settings, run `php artisan config:clear`, restart `php artisan serve`, and press **Send another link**. Google App Passwords require two-step verification on the sending Google account. You may use Resend, Postmark, or another transactional email provider instead; select its supported Laravel mailer and use its provider credentials.
+
+## Docker
+
+For a local service stack, first update the database variables in `.env` to the values in `docker-compose.yml`, then run:
+
+```powershell
+docker compose up --build
+docker compose exec app php artisan migrate
+docker compose exec app php artisan db:seed
+```
+
+The storefront is available at `http://localhost:8000`. Docker starts MySQL, Redis, Meilisearch, and MinIO alongside Laravel. Never use the example container passwords outside local development.
+
+## Verification
+
+```powershell
+php artisan test
+npm run build
+```
+
+## Operational notes
+
+- New seller KYC and payout proof files are private; only administrators can download KYC records.
+- Seller payout-account numbers are encrypted by Laravel’s encrypted model cast.
+- COD income initially appears as pending. An admin releases it only after confirmed delivery and courier remittance, then the seller can request a manual payout.
