@@ -1,0 +1,996 @@
+
+/* ==========================================
+   LUMEAR BUYER — MESSAGES
+   ========================================== */
+
+.lmc-page {
+    --lmc-wine: #62191c;
+    --lmc-red: #873632;
+    --lmc-ink: #302321;
+    --lmc-muted: #938175;
+    --lmc-line: #eaded4;
+    --lmc-cream: #faf7f2;
+
+    min-height: 80vh;
+    background: var(--lmc-cream);
+    color: var(--lmc-ink);
+    font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.lmc-page * {
+    box-sizing: border-box;
+}
+
+.lmc-page button {
+    cursor: pointer;
+}
+
+.lmc-page [hidden] {
+    display: none !important;
+}
+
+.lmc-container {
+    max-width: 1390px;
+    margin: auto;
+    padding: 27px 32px 95px;
+}
+
+/* BREADCRUMBS */
+
+.lmc-breadcrumb {
+    display: flex;
+    gap: 11px;
+    align-items: center;
+    margin-bottom: 32px;
+    color: #97877b;
+    font-size: 12px;
+}
+
+.lmc-breadcrumb a:hover {
+    color: var(--lmc-wine);
+}
+
+.lmc-breadcrumb span:last-child {
+    color: var(--lmc-wine);
+    font-weight: 700;
+}
+
+/* PAGE HEADING */
+
+.lmc-page-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.lmc-eyebrow {
+    color: var(--lmc-red);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .17em;
+}
+
+.lmc-page-heading h1 {
+    margin: 9px 0 10px;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(36px, 4vw, 53px);
+    font-weight: 500;
+    letter-spacing: -.04em;
+    line-height: 1.2;
+}
+
+.lmc-page-heading h1 em {
+    color: var(--lmc-red);
+}
+
+.lmc-page-heading p {
+    color: var(--lmc-muted);
+    font-size: 13px;
+    line-height: 1.8;
+}
+
+.lmc-page-decoration {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 8px;
+}
+
+.lmc-page-decoration span:first-child {
+    color: var(--lmc-red);
+    font-size: 25px;
+}
+
+.lmc-page-decoration span:last-child {
+    color: #a38d7d;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .12em;
+}
+
+/* MAIN LAYOUT */
+
+.lmc-layout {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    height: 690px;
+    overflow: hidden;
+    border: 1px solid var(--lmc-line);
+    border-radius: 15px;
+    background: #fffdf9;
+    box-shadow: 0 20px 55px #3b201510;
+}
+
+/* SIDEBAR */
+
+.lmc-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--lmc-line);
+    background: #fffdf9;
+}
+
+.lmc-sidebar-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 26px 22px 19px;
+}
+
+.lmc-sidebar-heading > div > span {
+    color: var(--lmc-red);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .16em;
+}
+
+.lmc-sidebar-heading h2 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 8px;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 27px;
+    font-weight: 500;
+}
+
+.lmc-sidebar-heading h2 small {
+    display: grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 50px;
+    background: #f1e4da;
+    color: var(--lmc-red);
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.lmc-icon-button {
+    display: grid;
+    place-items: center;
+    width: 39px;
+    height: 39px;
+    padding: 0;
+    border: 1px solid var(--lmc-line);
+    border-radius: 9px;
+    background: #fffaf5;
+    color: var(--lmc-wine);
+}
+
+.lmc-icon-button:hover {
+    background: #f4e8df;
+}
+
+.lmc-icon-button svg {
+    width: 19px;
+    height: 19px;
+}
+
+.lmc-sidebar-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    margin: 0 19px 17px;
+    padding: 0 13px;
+    border: 1px solid #e8d9ce;
+    border-radius: 8px;
+    background: #f9f2eb;
+}
+
+.lmc-sidebar-search svg {
+    width: 18px;
+    height: 18px;
+    color: #9c8173;
+    flex-shrink: 0;
+}
+
+.lmc-sidebar-search input {
+    width: 100%;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--lmc-ink);
+    font-size: 11px;
+}
+
+.lmc-sidebar-search input::placeholder {
+    color: #b29f91;
+}
+
+/* FILTERS */
+
+.lmc-sidebar-filters {
+    display: flex;
+    gap: 8px;
+    padding: 0 19px 17px;
+    border-bottom: 1px solid var(--lmc-line);
+}
+
+.lmc-sidebar-filters button {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #8d786b;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.lmc-sidebar-filters button.active {
+    background: var(--lmc-wine);
+    color: #fff;
+}
+
+.lmc-sidebar-filters button span {
+    display: grid;
+    place-items: center;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: #e7d2c4;
+    color: var(--lmc-wine);
+    font-size: 9px;
+}
+
+/* CONVERSATION LIST */
+
+.lmc-conversations {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d7bfb1 transparent;
+}
+
+.lmc-conversation {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 20px 18px;
+    border: none;
+    border-bottom: 1px solid #f1e7de;
+    background: transparent;
+    text-align: left;
+    transition: background .2s;
+}
+
+.lmc-conversation:hover {
+    background: #faf2eb;
+}
+
+.lmc-conversation.active {
+    background: #f3e4d9;
+    box-shadow: inset 3px 0 var(--lmc-wine);
+}
+
+.lmc-conversation-avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: #e9d3c3;
+    color: var(--lmc-wine);
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 22px;
+}
+
+.lmc-conversation-avatar::after {
+    content: "";
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 11px;
+    height: 11px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #8aab82;
+}
+
+.lmc-conversation-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.lmc-conversation-info-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 7px;
+}
+
+.lmc-conversation-info strong {
+    overflow: hidden;
+    color: #4d2725;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.lmc-conversation-time {
+    flex-shrink: 0;
+    color: #b09b8b;
+    font-size: 10px;
+}
+
+.lmc-conversation-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.lmc-conversation-preview p {
+    overflow: hidden;
+    color: #988478;
+    font-size: 11px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.lmc-unread-badge {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--lmc-wine);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.lmc-sidebar-footer {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 18px 20px;
+    border-top: 1px solid var(--lmc-line);
+    background: #fcf6ef;
+}
+
+.lmc-sidebar-footer span {
+    color: var(--lmc-red);
+    font-size: 21px;
+}
+
+.lmc-sidebar-footer p {
+    color: #947d70;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* CHAT PANEL */
+
+.lmc-chat-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: #fffaf5;
+}
+
+.lmc-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-height: 88px;
+    padding: 15px 25px;
+    border-bottom: 1px solid var(--lmc-line);
+    background: #fffdf9;
+}
+
+.lmc-chat-avatar {
+    display: grid;
+    place-items: center;
+    width: 47px;
+    height: 47px;
+    flex-shrink: 0;
+    border-radius: 13px;
+    background: #ead6c8;
+    color: var(--lmc-wine);
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 23px;
+}
+
+.lmc-chat-header-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.lmc-chat-header-info h3 {
+    overflow: hidden;
+    color: #3b2521;
+    font-size: 14px;
+    font-weight: 800;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.lmc-chat-header-info p {
+    margin-top: 6px;
+    color: #8e9f79;
+    font-size: 11px;
+}
+
+.lmc-chat-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lmc-header-shop-button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 15px;
+    border: 1px solid #dec8b8;
+    border-radius: 7px;
+    background: #fff9f3;
+    color: var(--lmc-wine);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.lmc-header-shop-button:hover {
+    background: #f3e5db;
+}
+
+.lmc-back-button {
+    display: none;
+    border: 0;
+    background: transparent;
+    color: var(--lmc-wine);
+    font-size: 25px;
+}
+
+/* MESSAGES */
+
+.lmc-chat-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 28px 28px 22px;
+    background:
+        radial-gradient(circle at 12% 18%, #f3e8dd8a, transparent 33%),
+        radial-gradient(circle at 90% 85%, #f5e9df9c, transparent 35%),
+        #fffaf5;
+    scrollbar-width: thin;
+    scrollbar-color: #dbc5b6 transparent;
+}
+
+.lmc-chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 100%;
+}
+
+.lmc-chat-date {
+    display: flex;
+    justify-content: center;
+    margin: 5px 0 8px;
+}
+
+.lmc-chat-date span {
+    padding: 8px 14px;
+    border: 1px solid #ecded2;
+    border-radius: 30px;
+    background: #fffdf9;
+    color: #a08a7b;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.lmc-message {
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+}
+
+.lmc-message.received {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.lmc-message.sent {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.lmc-message-bubble {
+    padding: 14px 18px;
+    border-radius: 14px;
+    font-size: 12px;
+    line-height: 1.85;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.lmc-message.received .lmc-message-bubble {
+    border-bottom-left-radius: 4px;
+    background: #f0e3d7;
+    color: #513a32;
+}
+
+.lmc-message.sent .lmc-message-bubble {
+    border-bottom-right-radius: 4px;
+    background: var(--lmc-wine);
+    color: #fff;
+}
+
+.lmc-message-meta {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    margin-top: 7px;
+    color: #ad9788;
+    font-size: 10px;
+}
+
+.lmc-message.sent .lmc-message-meta {
+    color: #9e7b70;
+}
+
+.lmc-message-meta .lmc-check {
+    color: #668f69;
+    font-size: 12px;
+}
+
+.lmc-chat-intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 15px 0 23px;
+    text-align: center;
+}
+
+.lmc-chat-intro-avatar {
+    display: grid;
+    place-items: center;
+    width: 65px;
+    height: 65px;
+    border-radius: 18px;
+    background: #e9d3c3;
+    color: var(--lmc-wine);
+    font: 500 31px "Fraunces", Georgia, serif;
+}
+
+.lmc-chat-intro h4 {
+    margin-top: 13px;
+    font: 500 23px "Fraunces", Georgia, serif;
+}
+
+.lmc-chat-intro p {
+    margin-top: 7px;
+    color: #9a8476;
+    font-size: 11px;
+}
+
+/* QUICK REPLIES */
+
+.lmc-quick-replies {
+    padding: 14px 24px 13px;
+    border-top: 1px solid var(--lmc-line);
+    background: #fffdf9;
+}
+
+.lmc-quick-replies > span {
+    color: #ad8e7c;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .13em;
+}
+
+.lmc-quick-reply-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin-top: 10px;
+    scrollbar-width: none;
+}
+
+.lmc-quick-reply-list button {
+    flex-shrink: 0;
+    padding: 9px 12px;
+    border: 1px solid #e3d0c1;
+    border-radius: 30px;
+    background: #fcf7f1;
+    color: var(--lmc-wine);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.lmc-quick-reply-list button:hover {
+    background: #f2e1d5;
+}
+
+/* COMPOSER */
+
+.lmc-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 11px;
+    padding: 15px 24px 12px;
+    background: #fffdf9;
+}
+
+.lmc-composer-input-wrap {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 14px 8px;
+    border: 1px solid #e5d4c6;
+    border-radius: 10px;
+    background: #fcf7f1;
+}
+
+.lmc-composer-input-wrap:focus-within {
+    border-color: var(--lmc-red);
+}
+
+.lmc-composer textarea {
+    display: block;
+    width: 100%;
+    min-height: 24px;
+    max-height: 110px;
+    resize: none;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--lmc-ink);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.lmc-composer textarea::placeholder {
+    color: #b39d8d;
+}
+
+.lmc-composer-tools {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 5px;
+    color: #b5a294;
+    font-size: 9px;
+}
+
+.lmc-send-button {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 10px;
+    background: var(--lmc-wine);
+    color: #fff;
+}
+
+.lmc-send-button:hover {
+    background: #441114;
+}
+
+.lmc-send-button svg {
+    width: 21px;
+    height: 21px;
+}
+
+.lmc-composer-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 15px 13px;
+    background: #fffdf9;
+    color: #ad998b;
+    font-size: 9px;
+}
+
+.lmc-composer-note span {
+    color: var(--lmc-red);
+}
+
+/* BOTTOM BANNER */
+
+.lmc-bottom-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-top: 35px;
+    padding: 31px 37px;
+    border-radius: 11px;
+    background: linear-gradient(110deg, #4b1417, #873632);
+    color: #fff;
+}
+
+.lmc-bottom-banner span {
+    color: #e7bda9;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .16em;
+}
+
+.lmc-bottom-banner h2 {
+    margin: 9px 0;
+    font: 500 26px "Fraunces", Georgia, serif;
+}
+
+.lmc-bottom-banner h2 em {
+    color: #eac5b2;
+}
+
+.lmc-bottom-banner p {
+    color: #e9d0c3;
+    font-size: 11px;
+}
+
+.lmc-bottom-banner a {
+    flex-shrink: 0;
+    padding: 13px 20px;
+    border: 1px solid #ffffff80;
+    border-radius: 7px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.lmc-bottom-banner a:hover {
+    background: #ffffff20;
+}
+
+/* TOAST */
+
+.lmc-toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 500;
+    padding: 14px 20px;
+    border-radius: 8px;
+    background: #2c1c1b;
+    color: #fff;
+    font-size: 12px;
+    opacity: 0;
+    transform: translateY(15px);
+    pointer-events: none;
+    transition: .25s;
+}
+
+.lmc-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 950px) {
+    .lmc-layout {
+        grid-template-columns: 290px minmax(0, 1fr);
+    }
+
+    .lmc-page-decoration {
+        display: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .lmc-container {
+        padding: 20px 15px 60px;
+    }
+
+    .lmc-layout {
+        display: block;
+        height: 680px;
+    }
+
+    .lmc-sidebar {
+        height: 100%;
+        border-right: 0;
+    }
+
+    .lmc-chat-panel {
+        display: none;
+        height: 100%;
+    }
+
+    .lmc-layout.mobile-chat-open .lmc-sidebar {
+        display: none;
+    }
+
+    .lmc-layout.mobile-chat-open .lmc-chat-panel {
+        display: flex;
+    }
+
+    .lmc-back-button {
+        display: block;
+    }
+
+    .lmc-chat-header {
+        padding: 12px 15px;
+    }
+
+    .lmc-header-shop-button {
+        display: none;
+    }
+
+    .lmc-chat-body {
+        padding: 20px 15px;
+    }
+
+    .lmc-message {
+        max-width: 88%;
+    }
+
+    .lmc-composer {
+        padding: 12px;
+    }
+
+    .lmc-quick-replies {
+        padding: 12px;
+    }
+
+    .lmc-bottom-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 26px 23px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lmc-page * {
+        transition: none !important;
+    }
+}
+
+
+/* ==============================================
+   LUMEAR — MESSENGER STYLE CHAT BUBBLES
+   ============================================== */
+
+/* Chat message container */
+.lmc-chat-messages {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+}
+
+/* Full-width row controls left/right alignment */
+.lmc-message {
+    display: flex !important;
+    flex-direction: column !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    gap: 0 !important;
+}
+
+/* Received messages — LEFT */
+.lmc-message.received {
+    align-items: flex-start !important;
+    align-self: stretch !important;
+}
+
+/* Sent messages — RIGHT */
+.lmc-message.sent {
+    align-items: flex-end !important;
+    align-self: stretch !important;
+}
+
+/* Messenger-style bubble */
+.lmc-message-bubble {
+    display: block !important;
+
+    width: fit-content !important;
+    max-width: min(70%, 440px) !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+
+    padding: 9px 13px !important;
+    margin: 0 !important;
+
+    font-family: "Plus Jakarta Sans", sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.5 !important;
+
+    white-space: pre-line !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+
+    text-align: left !important;
+    flex: none !important;
+}
+
+/* Seller messages */
+.lmc-message.received .lmc-message-bubble {
+    background: #f0e3d7 !important;
+    color: #513a32 !important;
+
+    border-radius: 17px 17px 17px 5px !important;
+}
+
+/* Buyer messages */
+.lmc-message.sent .lmc-message-bubble {
+    background: #62191c !important;
+    color: #ffffff !important;
+
+    border-radius: 17px 17px 5px 17px !important;
+}
+
+/* Timestamps */
+.lmc-message-meta {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+
+    width: fit-content !important;
+
+    margin-top: 4px !important;
+    padding: 0 3px !important;
+
+    color: #a89485 !important;
+    font-size: 9px !important;
+}
+
+.lmc-message.received .lmc-message-meta {
+    align-self: flex-start !important;
+}
+
+.lmc-message.sent .lmc-message-meta {
+    align-self: flex-end !important;
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+    .lmc-message-bubble {
+        max-width: 85% !important;
+        font-size: 12px !important;
+    }
+}

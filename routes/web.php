@@ -124,6 +124,10 @@ Route::get('/search', function () {
 
 });
 
+Route::get('/saved', function () {
+    return view('buyer.saved');
+})->name('buyer.saved');
+
 
 /*
 |--------------------------------------------------------------------------

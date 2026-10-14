@@ -1,86 +1,250 @@
+
 @extends('layouts.buyer')
 
 @section('title', 'Messages — Lumear')
 
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/buyer/messages.css') }}?v=4">
+@endpush
+
 @section('content')
 
-@php
-    $threads = [
-        ['shop' => 'Terra & Twine Home', 'last' => 'Your order has been packed and will ship tomorrow!', 'time' => '2m', 'unread' => 2, 'active' => true],
-        ['shop' => 'Northline Electronics', 'last' => 'Thanks for your purchase 🎧', 'time' => '1h', 'unread' => 0, 'active' => false],
-        ['shop' => 'Bloom & Basil', 'last' => 'You: Is this available in a bigger size?', 'time' => '1d', 'unread' => 0, 'active' => false],
-        ['shop' => 'Cornerstone Books', 'last' => 'Glad you enjoyed the bundle!', 'time' => '3d', 'unread' => 0, 'active' => false],
-    ];
+<div class="lmc-page" id="lumearMessages">
 
-    $messages = [
-        ['from' => 'shop', 'text' => 'Hi! Thanks for ordering the Rattan Pet Bed 🐶', 'time' => '10:02 AM'],
-        ['from' => 'me',   'text' => 'Hello, just wanted to check if it comes with a cushion cover?', 'time' => '10:05 AM'],
-        ['from' => 'shop', 'text' => 'Yes it does — machine-washable too. We\'re packing it now.', 'time' => '10:06 AM'],
-        ['from' => 'shop', 'text' => 'Your order has been packed and will ship tomorrow!', 'time' => '10:07 AM'],
-    ];
-@endphp
+    <div class="lmc-container">
 
-<div class="max-w-6xl mx-auto px-4 md:px-6 pt-8 pb-8 h-[calc(100vh-6rem)]">
-    <div class="bg-cream-50 border border-sand-400/40 rounded-lg h-full flex overflow-hidden">
+        {{-- BREADCRUMB --}}
+        <nav class="lmc-breadcrumb">
+            <a href="{{ url('/home') }}">Home</a>
+            <span>/</span>
+            <span>Messages</span>
+        </nav>
 
-        {{-- Thread list --}}
-        <aside class="w-full md:w-80 border-r border-sand-400/30 flex flex-col">
-            <div class="px-5 py-4 border-b border-sand-400/30">
-                <h1 class="font-display text-xl text-maroon-900">Messages</h1>
-            </div>
-            <div class="flex-1 overflow-y-auto">
-                @foreach ($threads as $t)
-                    <button class="w-full flex items-center gap-3 px-5 py-4 border-b border-sand-400/15 text-left transition-colors duration-200 {{ $t['active'] ? 'bg-sand-400/25' : 'hover:bg-sand-400/10' }}">
-                        <span class="w-11 h-11 rounded-full bg-maroon-700/10 grid place-items-center text-lg shrink-0">🏪</span>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between">
-                                <p class="text-sm font-semibold text-maroon-900 truncate">{{ $t['shop'] }}</p>
-                                <span class="text-[11px] text-maroon-900/40 shrink-0 ml-2">{{ $t['time'] }}</span>
-                            </div>
-                            <p class="text-xs text-maroon-900/50 truncate mt-0.5">{{ $t['last'] }}</p>
-                        </div>
-                        @if ($t['unread'])
-                            <span class="w-5 h-5 rounded-full bg-maroon-700 text-cream-50 text-[10px] grid place-items-center shrink-0">{{ $t['unread'] }}</span>
-                        @endif
-                    </button>
-                @endforeach
-            </div>
-        </aside>
-
-        {{-- Active thread --}}
-        <section class="hidden md:flex flex-1 flex-col">
-            <div class="flex items-center gap-3 px-6 py-4 border-b border-sand-400/30">
-                <span class="w-10 h-10 rounded-full bg-maroon-700/10 grid place-items-center text-lg">🏪</span>
-                <div>
-                    <p class="text-sm font-semibold text-maroon-900">Terra & Twine Home</p>
-                    <p class="text-[11px] text-maroon-600">Active now</p>
-                </div>
+        {{-- PAGE HEADING --}}
+        <div class="lmc-page-heading">
+            <div>
+                <span class="lmc-eyebrow">YOUR CONVERSATIONS</span>
+                <h1>Let's <em>connect.</em></h1>
+                <p>
+                    Questions about your finds? Your conversations
+                    are all in one place.
+                </p>
             </div>
 
-            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-                @foreach ($messages as $m)
-                    <div class="flex {{ $m['from'] === 'me' ? 'justify-end' : 'justify-start' }}">
-                        <div class="max-w-xs">
-                            <div class="{{ $m['from'] === 'me' ? 'bg-maroon-700 text-cream-50' : 'bg-sand-400/25 text-maroon-900' }} rounded-lg px-4 py-2.5 text-sm leading-relaxed">
-                                {{ $m['text'] }}
-                            </div>
-                            <p class="text-[10px] text-maroon-900/35 mt-1 {{ $m['from'] === 'me' ? 'text-right' : '' }}">{{ $m['time'] }}</p>
-                        </div>
+            <div class="lmc-page-decoration">
+                <span>✦</span>
+                <span>GOOD CONVERSATIONS START HERE</span>
+            </div>
+        </div>
+
+        {{-- MAIN MESSAGING INTERFACE --}}
+        <div class="lmc-layout">
+
+            {{-- LEFT SIDEBAR --}}
+            <aside class="lmc-sidebar" id="lmcSidebar">
+
+                <div class="lmc-sidebar-heading">
+                    <div>
+                        <span>INBOX</span>
+                        <h2>Messages <small id="lmcConversationCount">0</small></h2>
                     </div>
-                @endforeach
+
+                    <button
+                        type="button"
+                        class="lmc-icon-button"
+                        id="lmcNewConversation"
+                        title="Start a conversation"
+                        aria-label="Start a conversation"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.7"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L10 16l-4 1 1-4 9.5-9.5Z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                {{-- SEARCH --}}
+                <div class="lmc-sidebar-search">
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round">
+                        <circle cx="10.8" cy="10.8" r="6.5"/>
+                        <path d="m16 16 4.5 4.5"/>
+                    </svg>
+
+                    <input
+                        type="search"
+                        id="lmcSearch"
+                        placeholder="Search conversations..."
+                        autocomplete="off"
+                    >
+                </div>
+
+                {{-- FILTERS --}}
+                <div class="lmc-sidebar-filters">
+                    <button type="button" class="active" data-filter="all">
+                        All Messages
+                    </button>
+
+                    <button type="button" data-filter="unread">
+                        Unread
+                        <span id="lmcUnreadCount">0</span>
+                    </button>
+                </div>
+
+                {{-- CONVERSATION LIST --}}
+                <div class="lmc-conversations" id="lmcConversationList"></div>
+
+                <div class="lmc-sidebar-footer">
+                    <span>✧</span>
+                    <p>Stay connected with the shops you love.</p>
+                </div>
+
+            </aside>
+
+            {{-- RIGHT CHAT PANEL --}}
+            <section class="lmc-chat-panel" id="lmcChatPanel">
+
+                {{-- CHAT HEADER --}}
+                <div class="lmc-chat-header">
+
+                    <button
+                        type="button"
+                        class="lmc-back-button"
+                        id="lmcBackButton"
+                        aria-label="Back to conversations"
+                    >
+                        ←
+                    </button>
+
+                    <div class="lmc-chat-avatar" id="lmcChatAvatar">T</div>
+
+                    <div class="lmc-chat-header-info">
+                        <h3 id="lmcChatName">Select a conversation</h3>
+                        <p id="lmcChatStatus">Your messages will appear here.</p>
+                    </div>
+
+                    <div class="lmc-chat-header-actions">
+                        <button
+                            type="button"
+                            id="lmcShopDetails"
+                            class="lmc-header-shop-button"
+                        >
+                            Shop Info
+                            <span>↗</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            class="lmc-icon-button"
+                            id="lmcChatOptions"
+                            aria-label="Conversation information"
+                            title="Conversation information"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="1.8"
+                                 stroke-linecap="round">
+                                <circle cx="12" cy="12" r="9"/>
+                                <path d="M12 11v5M12 8h.01"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                </div>
+
+                {{-- CHAT MESSAGES --}}
+                <div class="lmc-chat-body" id="lmcChatBody">
+                    <div class="lmc-chat-messages" id="lmcMessagesList"></div>
+                </div>
+
+                {{-- QUICK REPLIES --}}
+                <div class="lmc-quick-replies" id="lmcQuickReplies">
+                    <span>QUICK REPLIES</span>
+
+                    <div class="lmc-quick-reply-list">
+                        <button type="button" data-reply="Is this item still available?">
+                            Product availability
+                        </button>
+
+                        <button type="button" data-reply="May I ask for an update on my order?">
+                            Order update
+                        </button>
+
+                        <button type="button" data-reply="How long does shipping usually take?">
+                            Shipping inquiry
+                        </button>
+                    </div>
+                </div>
+
+                {{-- MESSAGE COMPOSER --}}
+                <form class="lmc-composer" id="lmcMessageForm">
+
+                    <div class="lmc-composer-input-wrap">
+
+                        <textarea
+                            id="lmcMessageInput"
+                            rows="1"
+                            maxlength="2000"
+                            placeholder="Write your message..."
+                            aria-label="Write your message"
+                        ></textarea>
+
+                        <div class="lmc-composer-tools">
+                            <span id="lmcCharacterCount">0 / 2000</span>
+                        </div>
+
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="lmc-send-button"
+                        id="lmcSendButton"
+                        aria-label="Send message"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round"
+                             stroke-linejoin="round">
+                            <path d="m22 2-7 20-4-9-9-4 20-7Z"/>
+                            <path d="M22 2 11 13"/>
+                        </svg>
+                    </button>
+
+                </form>
+
+                <div class="lmc-composer-note">
+                    <span>✦</span>
+                    Messages are saved in this browser for demonstration.
+                </div>
+
+            </section>
+
+        </div>
+
+        {{-- BOTTOM BANNER --}}
+        <div class="lmc-bottom-banner">
+            <div>
+                <span>SHOP WITH CONFIDENCE</span>
+                <h2>Great finds. <em>Better conversations.</em></h2>
+                <p>Stay in touch with sellers throughout your shopping journey.</p>
             </div>
 
-            <form class="flex items-center gap-3 px-6 py-4 border-t border-sand-400/30">
-                <input type="text" placeholder="Type a message…"
-                       class="flex-1 h-12 rounded-md bg-sand-400/15 border border-sand-400/50 px-5 text-sm outline-none focus:border-maroon-500 transition-colors">
-                <button class="w-12 h-12 rounded-md bg-maroon-700 text-cream-50 grid place-items-center hover:bg-maroon-600 transition-colors shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9-7-9-7v14zM3 12h9"/>
-                    </svg>
-                </button>
-            </form>
-        </section>
+            <a href="{{ url('/search') }}">
+                Continue Shopping ↗
+            </a>
+        </div>
+
     </div>
+
+    {{-- TOAST --}}
+    <div class="lmc-toast" id="lmcToast" role="status" aria-live="polite"></div>
+
 </div>
 
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/buyer/messages.js') }}?v=4" defer></script>
+@endpush
