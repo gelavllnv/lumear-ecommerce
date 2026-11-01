@@ -3,7 +3,7 @@
 @section('title', 'Your bag — Lumear')
 
 @section('content')
-    @php($total = $cart->items->sum(fn ($item) => $item->productVariant->price_minor * $item->quantity))
+    @php($total = max(0, $subtotal - $bundlePricing['savings']))
 
     <div class="mx-auto max-w-5xl rise">
         <div class="mb-7 flex items-end justify-between">
@@ -16,6 +16,7 @@
                 @forelse ($cart->items as $item)
                     @php($variant = $item->productVariant)
                     @php($product = $variant->product)
+                    @php($line = $pricing[$item->id])
                     <article class="hover-lift flex items-center gap-4 rounded-2xl bg-cream-50 p-4 shadow-soft sm:p-5">
                         <div class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-cream-100">
                             @if ($product->images->first())
@@ -24,7 +25,7 @@
                                 ✦
                             @endif
                         </div>
-                        <div class="min-w-0 flex-1"><p class="truncate font-semibold">{{ $product->name }}</p><p class="mt-1 text-xs text-maroon-900/55">{{ $variant->name }} · {{ $product->seller->name }} · ₱{{ number_format($variant->price_minor / 100, 2) }} each</p></div>
+                        <div class="min-w-0 flex-1"><p class="truncate font-semibold">{{ $product->name }}</p><p class="mt-1 text-xs text-maroon-900/55">{{ $variant->name }} · {{ $product->seller->name }} · ₱{{ number_format($line['price_minor'] / 100, 2) }} each @if($line['label'])<span class="font-bold text-maroon-700">· {{ $line['label'] }}</span>@endif</p>@if(($bundlePricing['discounts'][$item->id] ?? 0) > 0)<p class="mt-1 text-xs font-bold text-emerald-700">Bundle saving: −₱{{ number_format($bundlePricing['discounts'][$item->id] / 100, 2) }}</p>@endif</div>
                         <div class="flex shrink-0 flex-col items-end gap-2">
                             <form class="flex items-center gap-2" method="post" action="{{ route('cart.update', $item) }}">
                                 @csrf
@@ -34,7 +35,7 @@
                             </form>
                             <form method="post" action="{{ route('cart.destroy', $item) }}">@csrf @method('DELETE')<button class="text-xs font-bold text-maroon-700 underline hover:text-maroon-900">Remove</button></form>
                         </div>
-                        <p class="hidden whitespace-nowrap font-display text-lg text-maroon-700 sm:block">₱{{ number_format(($variant->price_minor * $item->quantity) / 100, 2) }}</p>
+                        <p class="hidden whitespace-nowrap font-display text-lg text-maroon-700 sm:block">₱{{ number_format(($line['price_minor'] * $item->quantity) / 100, 2) }}</p>
                     </article>
                 @empty
                     <div class="rounded-2xl bg-cream-50 p-12 text-center shadow-soft"><p class="font-display text-2xl">Your bag is still empty.</p><a class="mt-5 inline-block rounded-xl bg-maroon-700 px-5 py-3 text-sm font-bold text-cream-50" href="{{ route('shop') }}">Find something lovely</a></div>
@@ -44,7 +45,10 @@
             @if ($cart->items->isNotEmpty())
                 <aside class="h-fit rounded-2xl bg-maroon-950 p-6 text-cream-50 shadow-lift">
                     <p class="text-xs font-bold uppercase tracking-[.18em] text-cream-200/70">Order summary</p>
-                    <div class="mt-5 flex justify-between text-sm"><span>Subtotal</span><span>₱{{ number_format($total / 100, 2) }}</span></div>
+                    <div class="mt-5 flex justify-between text-sm"><span>Subtotal</span><span>₱{{ number_format($subtotal / 100, 2) }}</span></div>
+                    @if($bundlePricing['savings'] > 0)
+                        <div class="mt-3 rounded-xl bg-emerald-50/10 p-3 text-xs text-emerald-100"><div class="flex justify-between gap-3 font-bold"><span>Bundle savings</span><span>−₱{{ number_format($bundlePricing['savings'] / 100, 2) }}</span></div>@foreach($bundlePricing['applied'] as $bundle)<p class="mt-1 text-emerald-100/75">{{ $bundle['name'] }} · {{ $bundle['detail'] }}</p>@endforeach</div>
+                    @endif
                     <div class="flex justify-between border-b border-cream-50/15 py-4 text-sm"><span>Shipping</span><span>Set by seller after checkout</span></div>
                     <div class="mt-4 flex justify-between font-display text-xl"><span>Total</span><span>₱{{ number_format($total / 100, 2) }}</span></div>
 
@@ -56,6 +60,17 @@
                             @csrf
                             <input type="hidden" name="payment_method" value="cod">
                             <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+                            @if($claimedVouchers->isNotEmpty())
+                                <label class="mb-3 block text-sm font-bold" for="voucher_code">Apply a voucher
+                                    <select id="voucher_code" name="voucher_code" class="mt-2 w-full rounded-lg border border-cream-50/25 bg-maroon-900 p-2.5 text-sm text-cream-50">
+                                        <option value="">No voucher</option>
+                                        @foreach($claimedVouchers as $voucher)
+                                            <option value="{{ $voucher->code }}">{{ $voucher->code }} · {{ $voucher->discount_type === 'fixed' ? '₱'.number_format($voucher->discount_minor / 100, 2).' off' : $voucher->discount_percent.'% off' }} · {{ $voucher->seller->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            @endif
+                            @error('voucher_code')<p class="mb-3 rounded-lg bg-red-500/15 p-2 text-xs text-red-100">{{ $message }}</p>@enderror
                             <p class="rounded-xl bg-cream-50/10 p-3 text-sm"><strong>Cash on Delivery</strong><br><span class="text-cream-200/75">Pay the courier when your order arrives.</span></p>
                             <button class="glow mt-3 w-full rounded-xl bg-cream-50 p-3.5 text-sm font-bold text-maroon-900" data-checkout-button>Place COD order</button>
                         </form>

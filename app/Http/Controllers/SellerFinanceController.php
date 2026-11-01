@@ -15,6 +15,7 @@ class SellerFinanceController extends Controller
     public function index(Request $request)
     {
         $seller = $this->seller($request);
+        $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'product_id' => ['nullable', 'integer'], 'status' => ['nullable', 'string']]);
         $wallet = $this->wallets->accountFor($seller);
         $orders = $seller->sellerOrders()->with('items.product')
             ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('from')))
@@ -36,10 +37,23 @@ class SellerFinanceController extends Controller
         ]);
     }
 
+    public function report(Request $request)
+    {
+        $seller = $this->seller($request);
+        $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'status' => ['nullable', 'string']]);
+        $orders = $seller->sellerOrders()->with(['order', 'items.product'])
+            ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('to')))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
+            ->latest()->get();
+        $wallet = $this->wallets->accountFor($seller);
+        $net = $orders->where('status', '!=', 'cancelled')->sum(fn ($order) => $order->subtotal_minor + $order->shipping_fee_minor - $order->commission_minor);
+        return view('reports.seller-finance', compact('seller', 'orders', 'wallet', 'net'));
+    }
     public function requestPayout(Request $request)
     {
         $seller = $this->seller($request);
-        $data = $request->validate(['amount' => ['required', 'numeric', 'min:100']]);
+        $data = $request->validate(['amount' => ['required', 'decimal:0,2', 'min:100']]);
         $account = $seller->payoutAccounts()->where('is_default', true)->first();
         abort_unless($account, 422, 'Add manual payout details before requesting a withdrawal.');
         /** @var SellerPayoutAccount $account */

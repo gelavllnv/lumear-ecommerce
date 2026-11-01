@@ -1,0 +1,186 @@
+:root{--lm-dark:#292323;--lm-panel:#342b2b;--lm-panel-raised:#3b3030;--lm-maroon-dark:#651d32;--lm-beige-dark:#f4e8d8;--lm-ivory:#fffdf9;--lm-gold:#c9a36a}
+body.lm-buyer-dark{background:var(--lm-dark)!important;color:var(--lm-beige-dark)}
+body.lm-buyer-dark #buyerMainContent{min-height:calc(100vh - 196px);background:radial-gradient(circle at 80% -18%,rgba(101,29,50,.25),transparent 34%),var(--lm-dark)}
+body.lm-buyer-dark #buyerMainContent>.mx-auto{padding-top:2.75rem!important;padding-bottom:4.5rem!important}
+body.lm-buyer-dark .lm-shell{width:min(calc(100% - 48px),1440px)}
+body.lm-buyer-dark :is(.bg-cream-50,.bg-cream-100,.bg-cream-200,.bg-white,.bg-white\/90){background-color:var(--lm-panel)!important}
+body.lm-buyer-dark :is(.bg-cream-50\/60,.bg-cream-100\/60,.bg-cream-100\/80,.bg-maroon-900\/5){background-color:var(--lm-panel-raised)!important}
+body.lm-buyer-dark :is(.text-maroon-950,.text-maroon-900,.text-maroon-800){color:var(--lm-ivory)!important}
+body.lm-buyer-dark :is(.text-maroon-900\/55,.text-maroon-900\/60,.text-maroon-900\/65,.text-maroon-900\/70,.text-maroon-900\/75){color:#d8c8ba!important}
+body.lm-buyer-dark :is(.text-maroon-700,.text-maroon-600){color:#e9b49f!important}
+body.lm-buyer-dark :is(.border-sand-400,.border-sand-400\/25,.border-sand-400\/30,.border-sand-400\/35,.border-sand-400\/45,.border-sand-400\/50,.border-sand-400\/60){border-color:rgba(201,163,106,.29)!important}
+body.lm-buyer-dark :is(.shadow-soft,.shadow-lift){box-shadow:0 18px 42px rgba(0,0,0,.26)!important}
+body.lm-buyer-dark :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){border-color:rgba(201,163,106,.32)!important;background:#241f1f!important;color:var(--lm-ivory)!important}
+body.lm-buyer-dark :is(input,textarea)::placeholder{color:#aa978d!important}
+body.lm-buyer-dark :is(input,select,textarea):focus{border-color:var(--lm-gold)!important;box-shadow:0 0 0 3px rgba(201,163,106,.14)!important}
+body.lm-buyer-dark .lm-mainbar{background:linear-gradient(112deg,#651d32,#7b2737)}
+body.lm-buyer-dark .lm-categorybar{border-color:rgba(201,163,106,.2);background:#211d1d}
+body.lm-buyer-dark :is(.lm-category-button,.lm-category-links a,.lm-category-account-links a){color:var(--lm-beige-dark)}
+body.lm-buyer-dark :is(.lm-category-links a:hover,.lm-category-account-links a:hover,.lm-category-button:hover){color:var(--lm-gold)}
+body.lm-buyer-dark :is(.lm-popover,.lm-category-dropdown){border-color:rgba(201,163,106,.26);background:var(--lm-panel);color:var(--lm-beige-dark);box-shadow:0 22px 50px rgba(0,0,0,.38)}
+body.lm-buyer-dark :is(.lm-account-popover a,.lm-category-grid a){color:var(--lm-beige-dark)}
+body.lm-buyer-dark :is(.lm-account-popover a:hover,.lm-category-grid a:hover){background:#473737;color:var(--lm-ivory)}
+body.lm-buyer-dark .lm-category-grid a span{background:#493636}
+body.lm-buyer-dark :is(.rounded-2xl,.rounded-3xl)[class*="bg-"]{border:1px solid rgba(201,163,106,.18)}
+body.lm-buyer-dark a:focus-visible,body.lm-buyer-dark button:focus-visible{outline-color:var(--lm-gold)}
+body.lm-buyer-dark :is(.glow,.bg-maroon-700){background:#8c3441!important;color:var(--lm-ivory)!important}
+body.lm-buyer-dark :is(.glow,.bg-maroon-700):hover{background:#a44954!important}
+body.lm-buyer-dark .lm-footer{border-top:1px solid rgba(201,163,106,.2);background:linear-gradient(112deg,#211d1d,#4d1d29 55%,#651d32)}
+body.lm-buyer-dark .lumear-home{background:transparent!important;color:var(--lm-beige-dark)}
+body.lm-buyer-dark .lumear-home :is(.category-section,.collection-section,.recommended-section,.voucher-section,.benefits-section){margin-top:clamp(28px,4vw,54px)!important}
+body.lm-buyer-dark .lumear-home :is(.category-strip,.voucher-card,.product-card,.benefit,.empty-state){border-color:rgba(201,163,106,.2)!important;background:#342b2b!important;box-shadow:0 14px 28px rgba(0,0,0,.18)}
+body.lm-buyer-dark .lumear-home .category-tile{color:var(--lm-beige-dark)!important}
+body.lm-buyer-dark .lumear-home .category-icon{background:#493636!important;color:var(--lm-gold)!important}
+body.lm-buyer-dark .lumear-home :is(.section-heading h2,.product-card h3,.voucher-card h3,.benefit strong){color:var(--lm-ivory)!important}
+body.lm-buyer-dark .lumear-home :is(.section-heading p,.product-card p,.voucher-card p,.benefit small){color:#cdbbae!important}
+body.lm-buyer-dark .lumear-home .outline-button{border-color:rgba(201,163,106,.55)!important;background:transparent!important;color:var(--lm-beige-dark)!important}
+body.lm-buyer-dark .lumear-home .outline-button:hover{background:#473737!important}
+body.lm-buyer-dark :is(.buyer-conversation-list,.buyer-message-shell,.buyer-messages-empty,.buyer-thread-empty){border-color:rgba(201,163,106,.23)!important;background:#342b2b!important;box-shadow:0 18px 42px rgba(0,0,0,.24)!important}
+body.lm-buyer-dark :is(.buyer-conversation-card,.buyer-thread-header){border-color:rgba(201,163,106,.2)!important;background:#3b3030!important}
+body.lm-buyer-dark :is(.buyer-messages h1,.buyer-thread-header h1,.buyer-conversation-topline strong){color:var(--lm-ivory)!important}
+body.lm-buyer-dark :is(.buyer-messages-heading p:last-child,.buyer-thread-header p:last-child,.buyer-conversation-preview,.buyer-conversation-topline time){color:#cdbbae!important}
+body.lm-buyer-dark .buyer-chat-row.is-seller .buyer-chat-bubble{background:#493636!important;color:var(--lm-ivory)!important}
+body.lm-buyer-dark .buyer-chat-row.is-own .buyer-chat-bubble{background:#7b2737!important;color:var(--lm-ivory)!important}
+body.lm-buyer-dark .buyer-message-input-wrap{border-color:rgba(201,163,106,.32)!important;background:#241f1f!important}
+body.lm-buyer-dark .buyer-message-composer>button{background:#8c3441!important;color:var(--lm-ivory)!important}
+@media(max-width:850px){body.lm-buyer-dark #buyerMainContent>.mx-auto{padding-top:2rem!important;padding-bottom:3.25rem!important}body.lm-buyer-dark .lm-shell{width:calc(100% - 32px)}}
+/* Refined buyer contrast: charcoal canvas, ivory merchandise cards, maroon only for emphasis. */
+body.lm-buyer-dark{--lm-dark:#1f2022;--lm-panel:#2a292b;--lm-panel-raised:#343235;--lm-beige-dark:#eee3d3;--lm-ivory:#fffdf9;--lm-gold:#c9a36a}
+body.lm-buyer-dark #buyerMainContent{background:radial-gradient(circle at 65% -20%,rgba(101,29,50,.2),transparent 38%),#1f2022}
+body.lm-buyer-dark .lumear-home :is(.category-strip,.benefit,.empty-state){background:#2a292b!important;border-color:rgba(201,163,106,.24)!important}
+body.lm-buyer-dark .lumear-home :is(.product-card,.voucher-card){background:#fffdf9!important;border-color:#e5d8c7!important;box-shadow:0 15px 30px rgba(0,0,0,.24)!important}
+body.lm-buyer-dark .lumear-home :is(.product-seller,.voucher-store){color:#8b746c!important}
+body.lm-buyer-dark .lumear-home :is(.product-card h3,.voucher-card h3){color:#2d2526!important}
+body.lm-buyer-dark .lumear-home :is(.product-card p,.voucher-card p){color:#6d5c57!important}
+body.lm-buyer-dark .lumear-home .price-row strong{color:#7f2634!important}
+body.lm-buyer-dark .lumear-home :is(.rating,.rating small){color:#a87832!important}
+body.lm-buyer-dark .lumear-home .add-cart-button{background:#7f2634!important;color:#fffdf9!important}
+body.lm-buyer-dark .lumear-home .add-cart-button:hover{background:#651d32!important}
+body.lm-buyer-dark .lumear-home .section-heading h2{color:#fffdf9!important}
+body.lm-buyer-dark .lumear-home .section-heading h2 em{color:#d99a7f!important}
+body.lm-buyer-dark .lumear-home .section-heading p{color:#cfc2b4!important}
+body.lm-buyer-dark .lumear-home .eyebrow{color:#d99a7f!important}
+body.lm-buyer-dark .lumear-home .category-icon{background:#3d3033!important;border-color:rgba(201,163,106,.3)!important;color:#d9b172!important}
+body.lm-buyer-dark .lumear-home .category-tile>span:last-child{color:#eee3d3!important}
+
+/* Final buyer surface pass: quiet charcoal cards, ivory type, gold commerce cues. */
+body.lm-buyer-dark{--lm-dark:#191a1c;--lm-panel:#252326;--lm-panel-raised:#2d2a2d;--lm-beige-dark:#eee5d8;--lm-ivory:#fffdf8;--lm-gold:#d2ad72}
+body.lm-buyer-dark #buyerMainContent{background:radial-gradient(circle at 50% -35%,rgba(101,29,50,.2),transparent 46%),#191a1c}
+body.lm-buyer-dark .lumear-home :is(.product-card,.voucher-card,.category-strip,.benefit,.empty-state){background:#252326!important;border-color:#403a38!important;box-shadow:0 12px 25px rgba(0,0,0,.22)!important}
+body.lm-buyer-dark .lumear-home .product-card{overflow:hidden;border-radius:14px!important}
+body.lm-buyer-dark .lumear-home .product-content{min-height:132px!important;padding:13px 13px 12px!important}
+body.lm-buyer-dark .lumear-home :is(.product-seller,.voucher-store){color:#b8a89a!important}
+body.lm-buyer-dark .lumear-home :is(.product-card h3,.voucher-card h3){color:#fffdf8!important}
+body.lm-buyer-dark .lumear-home :is(.product-card p,.voucher-card p){color:#d4c7bc!important}
+body.lm-buyer-dark .lumear-home .price-row strong{color:#d2ad72!important}
+body.lm-buyer-dark .lumear-home :is(.rating,.rating small){color:#d2ad72!important}
+body.lm-buyer-dark .lumear-home .add-cart-button{background:#7d2938!important;color:#fffdf8!important}
+body.lm-buyer-dark .lumear-home .add-cart-button:hover{background:#9a3d4c!important}
+body.lm-buyer-dark .lumear-home .quick-view-button{background:#302c2d!important;color:#fffdf8!important}
+body.lm-buyer-dark .lumear-home .benefits-grid{border:0!important;background:transparent!important;gap:12px!important}
+body.lm-buyer-dark .lumear-home .benefit{min-height:92px!important;border-radius:12px!important}
+body.lm-buyer-dark .lumear-home .benefit strong{color:#fffdf8!important}
+body.lm-buyer-dark .lumear-home .benefit small{color:#b8a89a!important}
+body.lm-buyer-dark .lumear-home .benefit>span{color:#d2ad72!important}
+body.lm-buyer-dark .lumear-home .outline-button{border-color:#806844!important;color:#eee5d8!important}
+body.lm-buyer-dark .lumear-home .outline-button:hover{border-color:#d2ad72!important;background:#2d2a2d!important}
+
+/* Keep editorial cards atmospheric; avoid washed-out image overlays. */
+body.lm-buyer-dark .lumear-home .promo-card{border-color:#514542!important;box-shadow:0 14px 28px rgba(0,0,0,.28)!important}
+body.lm-buyer-dark .lumear-home .promo-fashion{color:#fffdf8!important;background-image:linear-gradient(90deg,rgba(36,28,30,.93),rgba(58,38,40,.76) 54%,rgba(28,25,27,.25)),url('https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=900&q=85')!important}
+body.lm-buyer-dark .lumear-home .promo-beauty{background-image:linear-gradient(90deg,rgba(79,20,29,.92),rgba(86,31,39,.74) 54%,rgba(27,24,26,.28)),url('https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=900&q=85')!important}
+body.lm-buyer-dark .lumear-home .promo-work{color:#fffdf8!important;background-image:linear-gradient(90deg,rgba(30,30,32,.92),rgba(55,46,45,.75) 54%,rgba(25,25,27,.25)),url('https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=85')!important}
+body.lm-buyer-dark .lumear-home .promo-copy :is(h3,p,span){color:#fffdf8!important;text-shadow:0 2px 12px rgba(0,0,0,.42)}
+body.lm-buyer-dark .lumear-home .promo-copy strong{background:#8b303e!important;color:#fffdf8!important}
+body.lm-buyer-dark .lumear-home .promo-beauty .promo-copy strong{background:#fffdf8!important;color:#651d32!important}
+
+/* Hero: tone the photography down to the charcoal interface instead of a bright light-box. */
+body.lm-buyer-dark .lumear-home .hero-carousel{border-color:#4d4542!important;background:#252326!important;box-shadow:0 20px 42px rgba(0,0,0,.34)!important}
+body.lm-buyer-dark .lumear-home .hero-slide::before{background:linear-gradient(90deg,rgba(70,18,28,.94) 0%,rgba(80,25,34,.84) 38%,rgba(31,28,30,.68) 72%,rgba(20,20,22,.6) 100%)!important}
+body.lm-buyer-dark .lumear-home .hero-slide::after{border-color:rgba(238,229,216,.22)!important}
+body.lm-buyer-dark .lumear-home .hero-caption{color:#fffdf8!important}
+body.lm-buyer-dark .lumear-home .hero-arrow{background:#fffdf8!important;color:#651d32!important}
+body.lm-buyer-dark .lumear-home .hero-arrow:hover{background:#eadbcb!important}
+
+/* Buyer order history: a dedicated, consistent dark surface hierarchy. */
+body.lm-buyer-dark .buyer-orders>div>article{border:1px solid #403a38!important;background:#252326!important}
+body.lm-buyer-dark .buyer-orders :is(.bg-cream-50,.bg-cream-100,.bg-cream-100\/65,.bg-cream-200,.bg-maroon-900\/5){background:#2d2a2d!important}
+body.lm-buyer-dark .buyer-orders :is(.border-sand-400\/20,.border-sand-400\/25,.border-sand-400\/60){border-color:#443e3c!important}
+body.lm-buyer-dark .buyer-orders :is(.text-maroon-900,.text-maroon-900\/50,.text-maroon-900\/55,.text-maroon-900\/60){color:#eee5d8!important}
+body.lm-buyer-dark .buyer-orders .text-maroon-700{color:#d2ad72!important}
+body.lm-buyer-dark .buyer-orders .bg-emerald-50{border-color:#285341!important;background:#1d342d!important}
+body.lm-buyer-dark .buyer-orders :is(.text-emerald-950,.text-emerald-900,.text-emerald-900\/80){color:#c5ead5!important}
+body.lm-buyer-dark .buyer-orders :is(.bg-emerald-800,.bg-emerald-800:hover){background:#2d7354!important;color:#fffdf8!important}
+body.lm-buyer-dark .buyer-orders :is(select,textarea){border-color:#514845!important;background:#1d1c1e!important;color:#fffdf8!important}
+body.lm-buyer-dark .buyer-orders textarea::placeholder{color:#aa9e96!important}
+body.lm-buyer-dark .buyer-orders .rounded-xl.bg-cream-100{background:#40383a!important;color:#d2ad72!important}
+
+/* Lumear Assist: same charcoal hierarchy as the rest of the buyer journey. */
+body.lm-buyer-dark .buyer-support{color:#eee5d8!important}
+body.lm-buyer-dark .buyer-support-card{border-color:#403a38!important;background:radial-gradient(circle at 92% 4%,rgba(101,29,50,.18),transparent 30%),#252326!important;box-shadow:0 20px 44px rgba(0,0,0,.28)!important}
+body.lm-buyer-dark .buyer-support :is(h1,.buyer-support-answer h2){color:#fffdf8!important}
+body.lm-buyer-dark .buyer-support-intro{color:#cfc2b4!important}
+body.lm-buyer-dark :is(.buyer-support-eyebrow,.buyer-support-answer-label){color:#d99a7f!important}
+body.lm-buyer-dark .buyer-support-presence{border-color:#4a423f!important;background:#2d2a2d!important}
+body.lm-buyer-dark .buyer-support-presence strong{color:#fffdf8!important}
+body.lm-buyer-dark .buyer-support-presence small{color:#b8a89a!important}
+body.lm-buyer-dark .buyer-support-starters button{border-color:#514845!important;background:#2d2a2d!important;color:#eee5d8!important}
+body.lm-buyer-dark .buyer-support-starters button:hover{border-color:#d2ad72!important;background:#3b3333!important}
+body.lm-buyer-dark .buyer-support-form label{color:#eee5d8!important}
+body.lm-buyer-dark .buyer-support-form textarea{border-color:#514845!important;background:#1d1c1e!important;color:#fffdf8!important}
+body.lm-buyer-dark .buyer-support-form textarea::placeholder{color:#aa9e96!important}
+body.lm-buyer-dark .buyer-support-form-footer{color:#b8a89a!important}
+body.lm-buyer-dark .buyer-support-form button{background:#7d2938!important;color:#fffdf8!important}
+body.lm-buyer-dark .buyer-support-form button:hover{background:#9a3d4c!important}
+body.lm-buyer-dark .buyer-support-answer{border-color:#4a423f!important;background:#2d2a2d!important}
+body.lm-buyer-dark .buyer-support-answer p:not(.buyer-support-answer-label){color:#d4c7bc!important}
+body.lm-buyer-dark .buyer-support-answer a{color:#d2ad72!important}
+body.lm-buyer-dark .buyer-support-topics a{border-color:#403a38!important;background:#252326!important;color:#eee5d8!important}
+body.lm-buyer-dark .buyer-support-topics a:hover{border-color:#d2ad72!important;background:#2d2a2d!important;box-shadow:0 12px 24px rgba(0,0,0,.22)!important}
+body.lm-buyer-dark .buyer-support-topics strong{color:#fffdf8!important}
+body.lm-buyer-dark .buyer-support-topics>span{color:#b8a89a!important}
+body.lm-buyer-dark .buyer-support-topic-icon{background:#3d3033!important;color:#d2ad72!important}
+body.lm-buyer-dark .buyer-support-topics b{color:#d2ad72!important}
+
+/* Deals hub: retain the storefront's muted charcoal palette instead of white offer panels. */
+body.lm-buyer-dark .deals-hub{color:#eee5d8!important}
+body.lm-buyer-dark .deals-jump-nav a,
+body.lm-buyer-dark .deals-content-section,
+body.lm-buyer-dark .deals-offer-card,
+body.lm-buyer-dark .deals-empty-state{border-color:#403a38!important;background:#252326!important;box-shadow:0 14px 28px rgba(0,0,0,.22)!important}
+body.lm-buyer-dark .deals-section-tinted,
+body.lm-buyer-dark .deals-bundle-card{background:radial-gradient(circle at 95% 0,rgba(125,41,56,.2),transparent 34%),#2d2a2d!important}
+body.lm-buyer-dark .deals-jump-nav a:hover,
+body.lm-buyer-dark .deals-offer-card:hover{border-color:#806844!important;background:#2d2a2d!important;box-shadow:0 18px 32px rgba(0,0,0,.3)!important}
+body.lm-buyer-dark .deals-jump-icon{background:#3d3033!important;color:#d2ad72!important}
+body.lm-buyer-dark .deals-jump-nav strong,
+body.lm-buyer-dark .deals-section-heading h2,
+body.lm-buyer-dark .deals-offer-card h3,
+body.lm-buyer-dark .deals-voucher-value,
+body.lm-buyer-dark .deals-empty-state strong{color:#fffdf8!important}
+body.lm-buyer-dark .deals-jump-nav small,
+body.lm-buyer-dark .deals-section-heading>p,
+body.lm-buyer-dark .deals-offer-store,
+body.lm-buyer-dark .deals-offer-detail,
+body.lm-buyer-dark .deals-empty-state p{color:#b8a89a!important}
+body.lm-buyer-dark .deals-kicker,
+body.lm-buyer-dark .deals-section-heading h2 em,
+body.lm-buyer-dark .deals-bundle-value,
+body.lm-buyer-dark .deals-section-heading>a,
+body.lm-buyer-dark .deals-offer-footer :is(button,a),
+body.lm-buyer-dark .deals-bundle-action{color:#d2ad72!important}
+body.lm-buyer-dark .deals-jump-nav b,
+body.lm-buyer-dark .deals-offer-tag,
+body.lm-buyer-dark .deals-empty-state>span{background:#3d3033!important;color:#d2ad72!important}
+body.lm-buyer-dark .deals-code{border-color:#806844!important;background:#1d1c1e!important;color:#eee5d8!important}
+body.lm-buyer-dark .deals-claimed{background:#1d342d!important;color:#c5ead5!important}
+body.lm-buyer-dark .deals-bundle-steps p{background:#3b3434!important;color:#d4c7bc!important}
+body.lm-buyer-dark .deals-bundle-steps span{background:#7d2938!important;color:#fffdf8!important}
+body.lm-buyer-dark .deals-bundle-steps b{color:#fffdf8!important}
+body.lm-buyer-dark .deals-product-grid .product-card{border-color:#403a38!important;background:#252326!important;box-shadow:0 12px 25px rgba(0,0,0,.22)!important}
+body.lm-buyer-dark .deals-product-grid .product-image{background:#1d1c1e!important}
+body.lm-buyer-dark .deals-product-grid .product-seller,
+body.lm-buyer-dark .deals-product-grid :is(.rating,.rating small,.price-row del){color:#b8a89a!important}
+body.lm-buyer-dark .deals-product-grid h3{color:#fffdf8!important}
+body.lm-buyer-dark .deals-product-grid .price-row strong{color:#d2ad72!important}
+body.lm-buyer-dark .deals-product-grid .add-cart-button{background:#7d2938!important;color:#fffdf8!important}

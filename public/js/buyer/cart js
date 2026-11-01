@@ -1,0 +1,673 @@
+
+document.addEventListener("DOMContentLoaded", () => {
+    const root = document.getElementById("lumearCartPage");
+    if (!root) return;
+
+    const $ = (selector) => root.querySelector(selector);
+
+    const CART_KEY = "lumear_buyer_cart_demo_v1";
+    const CHECKOUT_KEY = "lumear_buyer_checkout_demo_v1";
+
+    const DEMO_SHIPPING = 120;
+
+    let cart = [];
+    let activeVoucher = "";
+    let pendingRemoval = [];
+    let toastTimer;
+
+    const money = (value) => {
+        return "₱" + Number(value || 0).toLocaleString("en-PH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
+    /* ======================================
+       STORAGE
+       ====================================== */
+
+    function readCart() {
+        try {
+            const data = JSON.parse(
+                localStorage.getItem(CART_KEY) || "[]"
+            );
+
+            if (!Array.isArray(data)) return [];
+
+            return data
+                .filter(item => item && typeof item === "object")
+                .map(item => {
+                    const stock = Math.max(
+                        0,
+                        Math.floor(Number(item.stock ?? 999))
+                    );
+
+                    const qty = Math.max(
+                        1,
+                        Math.floor(Number(item.quantity) || 1)
+                    );
+
+                    return {
+                        ...item,
+                        id: String(item.id || item.slug || ""),
+                        name: String(item.name || "Unnamed Product"),
+                        seller: String(item.seller || "Lumear Marketplace"),
+                        price: Math.max(0, Number(item.price) || 0),
+                        stock,
+                        quantity: stock > 0 ? Math.min(qty, stock) : qty,
+                        selected: item.selected !== false && stock > 0,
+                        color: String(item.color || "Classic"),
+                        size: String(item.size || "Standard"),
+                        image: String(item.image || ""),
+                        slug: String(item.slug || "")
+                    };
+                })
+                .filter(item => item.id);
+        } catch (error) {
+            console.error("Unable to read cart.", error);
+            return [];
+        }
+    }
+
+    function saveCart() {
+        try {
+            localStorage.setItem(CART_KEY, JSON.stringify(cart));
+
+            window.dispatchEvent(
+                new CustomEvent("lumear:cart-updated", {
+                    detail: { cart }
+                })
+            );
+
+            updateNavbarCount();
+
+            return true;
+        } catch (error) {
+            showToast("Unable to save your cart.");
+            return false;
+        }
+    }
+
+    function updateNavbarCount() {
+        const count = cart.reduce(
+            (total, item) => total + item.quantity,
+            0
+        );
+
+        const badge = document.getElementById("lumearNavCartCount");
+
+        if (badge) {
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.hidden = count === 0;
+        }
+    }
+
+    /* ======================================
+       HELPERS
+       ====================================== */
+
+    function escapeHTML(value) {
+        return String(value ?? "").replace(/[&<>"']/g, char => {
+            return {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;"
+            }[char];
+        });
+    }
+
+    function safeImage(url) {
+        try {
+            const parsed = new URL(url, window.location.origin);
+
+            if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+                return escapeHTML(parsed.href);
+            }
+
+            return "";
+        } catch {
+            return "";
+        }
+    }
+
+    function showToast(message) {
+        const toast = $("#cartToast");
+        if (!toast) return;
+
+        clearTimeout(toastTimer);
+
+        toast.textContent = message;
+        toast.classList.add("visible");
+
+        toastTimer = setTimeout(() => {
+            toast.classList.remove("visible");
+        }, 2800);
+    }
+
+    function groupBySeller(items) {
+        const groups = new Map();
+
+        items.forEach(item => {
+            if (!groups.has(item.seller)) {
+                groups.set(item.seller, []);
+            }
+
+            groups.get(item.seller).push(item);
+        });
+
+        return groups;
+    }
+
+    function selectedItems() {
+        return cart.filter(item => item.selected && item.stock > 0);
+    }
+
+    function getTotals() {
+        const selected = selectedItems();
+
+        const subtotal = selected.reduce(
+            (total, item) => total + item.price * item.quantity,
+            0
+        );
+
+        const shipping = selected.length ? DEMO_SHIPPING : 0;
+
+        let discount = 0;
+
+        if (activeVoucher === "LUMEAR50" && subtotal >= 500) {
+            discount = 50;
+        }
+
+        if (activeVoucher === "LUMEAR10" && subtotal >= 1000) {
+            discount = Math.min(subtotal * 0.1, 150);
+        }
+
+        return {
+            selected,
+            subtotal,
+            shipping,
+            discount,
+            total: Math.max(0, subtotal + shipping - discount)
+        };
+    }
+
+    /* ======================================
+       RENDER CART
+       ====================================== */
+
+    function render() {
+        const content = $("#cartContent");
+        const empty = $("#cartEmpty");
+        const groupsContainer = $("#cartShopGroups");
+
+        if (!content || !empty || !groupsContainer) return;
+
+        if (cart.length === 0) {
+            content.hidden = true;
+            empty.hidden = false;
+
+            updateNavbarCount();
+            return;
+        }
+
+        content.hidden = false;
+        empty.hidden = true;
+
+        const groups = groupBySeller(cart);
+
+        let html = "";
+
+        groups.forEach((items, seller) => {
+            const allChecked = items.every(item => item.selected);
+            const someChecked = items.some(item => item.selected);
+
+            html += `
+                <section class="lm-cart-shop">
+
+                    <div class="lm-cart-shop-header">
+
+                        <label class="lm-cart-check-label">
+                            <input
+                                type="checkbox"
+                                data-action="toggle-shop"
+                                data-seller="${escapeHTML(seller)}"
+                                ${allChecked ? "checked" : ""}
+                                ${someChecked && !allChecked ? 'data-indeterminate="true"' : ""}
+                            >
+
+                            <span class="lm-cart-checkbox"></span>
+                        </label>
+
+                        <div class="lm-cart-shop-icon">
+                            ${escapeHTML(seller.charAt(0).toUpperCase())}
+                        </div>
+
+                        <div class="lm-cart-shop-name">
+                            <strong>${escapeHTML(seller)}</strong>
+                            <span>Seller storefront · Demo</span>
+                        </div>
+
+                        <a href="/chat" class="lm-cart-shop-link">
+                            Message ↗
+                        </a>
+
+                    </div>
+            `;
+
+            items.forEach(item => {
+                const image = safeImage(item.image);
+
+                html += `
+                    <article class="lm-cart-item" data-item-id="${escapeHTML(item.id)}">
+
+                        <label class="lm-cart-check-label">
+                            <input
+                                type="checkbox"
+                                data-action="toggle-item"
+                                data-id="${escapeHTML(item.id)}"
+                                ${item.selected ? "checked" : ""}
+                                ${item.stock < 1 ? "disabled" : ""}
+                                aria-label="Select ${escapeHTML(item.name)}"
+                            >
+
+                            <span class="lm-cart-checkbox"></span>
+                        </label>
+
+                        <a
+                            href="${item.slug ? "/product/" + encodeURIComponent(item.slug) : "#"}"
+                            class="lm-cart-item-photo"
+                        >
+                            ${
+                                image
+                                ? `<img src="${image}" alt="${escapeHTML(item.name)}" loading="lazy">`
+                                : `<div style="height:100%;display:grid;place-items:center;font-size:30px">✦</div>`
+                            }
+                        </a>
+
+                        <div class="lm-cart-item-info">
+
+                            <a
+                                href="${item.slug ? "/product/" + encodeURIComponent(item.slug) : "#"}"
+                                class="lm-cart-item-name"
+                            >
+                                ${escapeHTML(item.name)}
+                            </a>
+
+                            <p class="lm-cart-item-variant">
+                                Finish: ${escapeHTML(item.color)}<br>
+                                Option: ${escapeHTML(item.size)}
+                            </p>
+
+                            <span class="lm-cart-item-stock ${item.stock < 1 ? "out" : ""}">
+                                ${
+                                    item.stock > 0
+                                    ? `${item.stock} pieces available`
+                                    : "Out of stock"
+                                }
+                            </span>
+
+                        </div>
+
+                        <div class="lm-cart-item-price">
+                            <strong>${money(item.price)}</strong>
+                            <small>Unit price</small>
+                        </div>
+
+                        <div class="lm-cart-qty">
+
+                            <button
+                                type="button"
+                                data-action="decrease"
+                                data-id="${escapeHTML(item.id)}"
+                                ${item.quantity <= 1 ? "disabled" : ""}
+                                aria-label="Decrease quantity"
+                            >−</button>
+
+                            <span>${item.quantity}</span>
+
+                            <button
+                                type="button"
+                                data-action="increase"
+                                data-id="${escapeHTML(item.id)}"
+                                ${item.quantity >= item.stock ? "disabled" : ""}
+                                aria-label="Increase quantity"
+                            >+</button>
+
+                        </div>
+
+                        <button
+                            type="button"
+                            class="lm-cart-delete"
+                            data-action="remove"
+                            data-id="${escapeHTML(item.id)}"
+                            aria-label="Remove ${escapeHTML(item.name)}"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="1.7"
+                                 stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/>
+                            </svg>
+                        </button>
+
+                    </article>
+                `;
+            });
+
+            html += `</section>`;
+        });
+
+        groupsContainer.innerHTML = html;
+
+        groupsContainer
+            .querySelectorAll('[data-indeterminate="true"]')
+            .forEach(input => {
+                input.indeterminate = true;
+            });
+
+        updateSummary();
+        updateNavbarCount();
+    }
+
+    /* ======================================
+       SUMMARY
+       ====================================== */
+
+    function updateSummary() {
+        const totals = getTotals();
+
+        const selectedCount = totals.selected.reduce(
+            (sum, item) => sum + item.quantity,
+            0
+        );
+
+        const allSelected = cart.length > 0 &&
+            cart.every(item => item.selected);
+
+        const someSelected = cart.some(item => item.selected);
+
+        const selectAll = $("#cartSelectAll");
+
+        if (selectAll) {
+            selectAll.checked = allSelected;
+            selectAll.indeterminate = someSelected && !allSelected;
+        }
+
+        $("#cartAllCount").textContent = `(${cart.length} items)`;
+
+        $("#cartSelectedCount").textContent =
+            `(${selectedCount} item${selectedCount === 1 ? "" : "s"})`;
+
+        $("#cartSubtotal").textContent = money(totals.subtotal);
+        $("#cartShipping").textContent = money(totals.shipping);
+        $("#cartDiscount").textContent = "−" + money(totals.discount);
+        $("#cartTotal").textContent = money(totals.total);
+
+        $("#cartCheckout").disabled = totals.selected.length === 0;
+
+        $("#cartRemoveSelected").disabled = !someSelected;
+
+        if (activeVoucher) {
+            const message = $("#cartVoucherMessage");
+
+            if (totals.discount > 0) {
+                message.textContent =
+                    `${activeVoucher} applied successfully.`;
+                message.className = "success";
+            } else {
+                message.textContent =
+                    "Voucher minimum spend has not been reached.";
+                message.className = "error";
+            }
+        }
+    }
+
+    /* ======================================
+       CART ACTIONS
+       ====================================== */
+
+    function updateItem(id, changes) {
+        const item = cart.find(item => item.id === id);
+
+        if (!item) return;
+
+        Object.assign(item, changes);
+
+        saveCart();
+        render();
+    }
+
+    function changeQuantity(id, amount) {
+        const item = cart.find(item => item.id === id);
+
+        if (!item) return;
+
+        const next = item.quantity + amount;
+
+        if (next < 1) {
+            showToast("Minimum quantity is 1.");
+            return;
+        }
+
+        if (next > item.stock) {
+            showToast(`Only ${item.stock} pieces are available.`);
+            return;
+        }
+
+        updateItem(id, { quantity: next });
+    }
+
+    function toggleShop(seller, checked) {
+        cart.forEach(item => {
+            if (item.seller === seller) {
+                item.selected = checked && item.stock > 0;
+            }
+        });
+
+        saveCart();
+        render();
+    }
+
+    $("#cartShopGroups")?.addEventListener("click", event => {
+        const button = event.target.closest("[data-action]");
+
+        if (!button || button.tagName === "INPUT") return;
+
+        const action = button.dataset.action;
+        const id = button.dataset.id;
+
+        if (action === "increase") {
+            changeQuantity(id, 1);
+        }
+
+        if (action === "decrease") {
+            changeQuantity(id, -1);
+        }
+
+        if (action === "remove") {
+            openRemoveModal([id]);
+        }
+    });
+
+    $("#cartShopGroups")?.addEventListener("change", event => {
+        const input = event.target;
+
+        if (input.dataset.action === "toggle-item") {
+            updateItem(input.dataset.id, {
+                selected: input.checked
+            });
+        }
+
+        if (input.dataset.action === "toggle-shop") {
+            toggleShop(input.dataset.seller, input.checked);
+        }
+    });
+
+    $("#cartSelectAll")?.addEventListener("change", event => {
+        const checked = event.target.checked;
+
+        cart.forEach(item => {
+            item.selected = checked && item.stock > 0;
+        });
+
+        saveCart();
+        render();
+    });
+
+    $("#cartRemoveSelected")?.addEventListener("click", () => {
+        const ids = cart
+            .filter(item => item.selected)
+            .map(item => item.id);
+
+        if (ids.length) {
+            openRemoveModal(ids);
+        }
+    });
+
+    /* ======================================
+       REMOVE CONFIRMATION
+       ====================================== */
+
+    const modal = $("#cartRemoveModal");
+
+    function openRemoveModal(ids) {
+        pendingRemoval = ids;
+
+        $("#cartModalTitle").textContent =
+            ids.length > 1
+                ? `Remove ${ids.length} products?`
+                : "Remove this product?";
+
+        $("#cartModalDescription").textContent =
+            ids.length > 1
+                ? "These products will be removed from your shopping cart."
+                : "This product will be removed from your shopping cart.";
+
+        modal.hidden = false;
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeRemoveModal() {
+        modal.hidden = true;
+        document.body.style.overflow = "";
+        pendingRemoval = [];
+    }
+
+    $("#cartCancelRemove")?.addEventListener(
+        "click",
+        closeRemoveModal
+    );
+
+    $("#cartConfirmRemove")?.addEventListener("click", () => {
+        const removedCount = pendingRemoval.length;
+
+        cart = cart.filter(
+            item => !pendingRemoval.includes(item.id)
+        );
+
+        closeRemoveModal();
+
+        saveCart();
+        render();
+
+        showToast(
+            `${removedCount} product${removedCount === 1 ? "" : "s"} removed.`
+        );
+    });
+
+    modal?.addEventListener("click", event => {
+        if (event.target === modal) {
+            closeRemoveModal();
+        }
+    });
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !modal.hidden) {
+            closeRemoveModal();
+        }
+    });
+
+    /* ======================================
+       DEMO VOUCHERS
+       ====================================== */
+
+    $("#cartApplyVoucher")?.addEventListener("click", () => {
+        const input = $("#cartVoucher");
+        const message = $("#cartVoucherMessage");
+
+        const code = input.value.trim().toUpperCase();
+
+        if (!code) {
+            activeVoucher = "";
+            message.textContent = "Enter a voucher code.";
+            message.className = "error";
+            updateSummary();
+            return;
+        }
+
+        if (code !== "LUMEAR50" && code !== "LUMEAR10") {
+            activeVoucher = "";
+            message.textContent = "Invalid voucher code.";
+            message.className = "error";
+            updateSummary();
+            return;
+        }
+
+        activeVoucher = code;
+        updateSummary();
+    });
+
+    /* ======================================
+       PROCEED TO CHECKOUT
+       ====================================== */
+
+    $("#cartCheckout")?.addEventListener("click", () => {
+        const totals = getTotals();
+
+        if (!totals.selected.length) {
+            showToast("Select at least one product first.");
+            return;
+        }
+
+        const checkout = {
+            items: totals.selected,
+            subtotal: totals.subtotal,
+            shipping: totals.shipping,
+            discount: totals.discount,
+            total: totals.total,
+            voucher: activeVoucher,
+            createdAt: new Date().toISOString()
+        };
+
+        try {
+            localStorage.setItem(
+                CHECKOUT_KEY,
+                JSON.stringify(checkout)
+            );
+        } catch (error) {
+            showToast("Unable to prepare checkout.");
+            return;
+        }
+
+        /*
+         * ERP 3.7 — Checkout is the next module.
+         * Until that page exists, do not place a fake order.
+         */
+        showToast(
+            "Cart is ready. Checkout will be connected in the next module."
+        );
+    });
+
+    /* ======================================
+       INITIALIZATION
+       ====================================== */
+
+    cart = readCart();
+
+    // Save normalized cart data so the cart
+    // and product details page share one format.
+    saveCart();
+
+    render();
+});

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Address;
 use App\Models\Category;
 use App\Models\EmailVerificationCode;
+use App\Models\LogisticsProvider;
 use App\Models\Role;
 use App\Models\Seller;
 use App\Models\SellerAgreementAcceptance;
@@ -34,7 +35,8 @@ class AuthController extends Controller
 
     public function registerBuyer(Request $request)
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'unique:users,email'], 'password' => ['required', 'confirmed', Password::min(8)], 'phone' => ['required', 'string', 'max:255'], 'delivery_recipient' => ['required', 'string', 'max:255'], 'delivery_phone' => ['required', 'string', 'max:255'], 'delivery_line1' => ['required', 'string', 'max:255'], 'delivery_barangay' => ['required', 'string', 'max:255'], 'delivery_city' => ['required', 'string', 'max:255'], 'delivery_province' => ['required', 'string', 'max:255'], 'delivery_postal_code' => ['required', 'string', 'max:255']]);
+        $adultCutoff = now()->subYears(18)->toDateString();
+        $data = $request->validate(['name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'unique:users,email'], 'password' => ['required', 'confirmed', Password::min(8)], 'phone' => ['required', 'string', 'max:255'], 'date_of_birth' => ['bail', 'required', 'date', "before_or_equal:$adultCutoff"], 'delivery_recipient' => ['required', 'string', 'max:255'], 'delivery_phone' => ['required', 'string', 'max:255'], 'delivery_line1' => ['required', 'string', 'max:255'], 'delivery_barangay' => ['required', 'string', 'max:255'], 'delivery_city' => ['required', 'string', 'max:255'], 'delivery_province' => ['required', 'string', 'max:255'], 'delivery_postal_code' => ['required', 'string', 'max:255']], ['date_of_birth.before_or_equal' => 'You must be at least 18 years old to create a Lumear account.']);
         $user = DB::transaction(function () use ($data) {
             $user = $this->createUser($data, 'buyer');
             Address::create(['user_id' => $user->id, 'label' => 'Delivery address', 'recipient' => $data['delivery_recipient'], 'phone' => $data['delivery_phone'], 'line1' => $data['delivery_line1'], 'barangay' => $data['delivery_barangay'], 'city' => $data['delivery_city'], 'province' => $data['delivery_province'], 'postal_code' => $data['delivery_postal_code'], 'is_default' => true]);
@@ -55,12 +57,14 @@ class AuthController extends Controller
             'tin' => trim((string) $request->input('tin')),
         ]);
         $nameRule = ['required', 'string', 'min:2', 'max:50', "regex:/^[\\pL][\\pL .'-]{1,49}$/u"];
+        $adultCutoff = now()->subYears(18)->toDateString();
         $data = $request->validate([
             'first_name' => $nameRule,
             'last_name' => $nameRule,
             'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             'phone' => ['required', 'regex:/^09\\d{9}$/', Rule::unique('users', 'phone')],
+            'date_of_birth' => ['bail', 'required', 'date', "before_or_equal:$adultCutoff"],
             'shop_name' => ['required', 'string', 'min:3', 'max:30', 'unique:sellers,name'],
             'category_id' => ['required', 'exists:categories,id'],
             'seller_type' => ['required', Rule::in(['individual', 'sole_proprietorship', 'corporation'])],
@@ -81,7 +85,7 @@ class AuthController extends Controller
             'seller_agreement' => ['accepted'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'banner' => ['nullable', 'image', 'max:4096'],
-        ]);
+        ], ['date_of_birth.before_or_equal' => 'You must be at least 18 years old to create a Lumear account.']);
         $regions = PhilippineLocations::regions();
         if (! in_array($data['pickup_province'], $regions[$data['pickup_region']] ?? [], true)) {
             throw ValidationException::withMessages(['pickup_province' => 'Choose a province that belongs to the selected region.']);
@@ -117,9 +121,40 @@ class AuthController extends Controller
         return redirect()->route('seller.email-verification.notice')->with('status', 'A six-digit verification code was sent to your email address.');
     }
 
+    public function registerLogistics(Request $request)
+    {
+        // Normalize before validation so users may enter either 09XXXXXXXXX or +639XXXXXXXXX.
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+            'phone' => $this->normalizePhilippineMobile((string) $request->input('phone')),
+        ]);
+
+        $adultCutoff = now()->subYears(18)->toDateString();
+        $data = $request->validate(['name' => ['required', 'string', 'min:2', 'max:100'], 'date_of_birth' => ['bail', 'required', 'date', "before_or_equal:$adultCutoff"], 'provider_name' => ['required', 'string', 'min:3', 'max:100', 'unique:logistics_providers,name'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'phone' => ['required', 'regex:/^09\\d{9}$/', Rule::unique('users', 'phone')], 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()], 'agreement' => ['accepted']], ['date_of_birth.before_or_equal' => 'The operator must be at least 18 years old to create a Lumear account.']);
+        $provider = DB::transaction(function () use ($data): LogisticsProvider {
+            $user = $this->createUser($data, 'logistics');
+            $base = Str::slug($data['provider_name']) ?: 'logistics'; $slug = $base; $number = 2;
+            while (LogisticsProvider::where('slug', $slug)->exists()) { $slug = $base.'-'.$number++; }
+            return LogisticsProvider::create(['user_id' => $user->id, 'name' => $data['provider_name'], 'slug' => $slug, 'contact_phone' => $data['phone'], 'status' => 'pending']);
+        });
+        Auth::login($provider->user);
+        // An unavailable SMTP server must not make a completed application look
+        // like a failed registration. The account stays pending for review.
+        $verificationMessage = 'Verify your email, then an administrator will review your logistics application.';
+        try {
+            event(new Registered($provider->user));
+        } catch (\Throwable $exception) {
+            report($exception);
+            $verificationMessage = 'Your logistics application was created. We could not send the verification email right now; check the mail settings or contact an administrator for help.';
+        }
+        $this->audit->record($request, 'logistics.registered', $provider, null, ['email' => $provider->user->email]);
+
+        return redirect()->route('logistics.status')->with('status', $verificationMessage);
+    }
+
     public function login(Request $request)
     {
-        $data = $request->validate(['email' => ['required', 'email'], 'password' => ['required'], 'role' => ['nullable', 'in:buyer,seller']]);
+        $data = $request->validate(['email' => ['required', 'email'], 'password' => ['required'], 'role' => ['nullable', 'in:buyer,seller,logistics']]);
         // Role is a post-login UI safety check, not a users-table credential.
         $credentials = ['email' => $data['email'], 'password' => $data['password']];
         $selectedRole = $data['role'] ?? null;
@@ -152,6 +187,10 @@ class AuthController extends Controller
             return redirect()->route('seller.email-verification.notice')->with('status', 'Verify your email before accessing seller tools.');
         }
 
+        if ($user->isLogistics()) {
+            return redirect()->route('logistics.status');
+        }
+
         return $user->isSeller() ? redirect()->route('seller.status') : redirect()->route('shop');
     }
 
@@ -163,7 +202,7 @@ class AuthController extends Controller
 
     private function createUser(array $data, string $role): User
     {
-        $user = User::create(['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password'], 'phone' => $data['phone'] ?? null]);
+        $user = User::create(['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password'], 'phone' => $data['phone'] ?? null, 'date_of_birth' => $data['date_of_birth']]);
         $user->roles()->attach(Role::firstOrCreate(['name' => $role]));
         return $user;
     }

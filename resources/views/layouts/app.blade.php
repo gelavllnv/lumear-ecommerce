@@ -1,44 +1,176 @@
-<!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
+
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Lumear')</title>
+
+    <title>@yield('title', 'Lumear — Shop the good stuff')</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cream: {
+                            50: '#FBF5F1',
+                            100: '#F3E4DA',
+                            200: '#E0CFC2',
+                            300: '#CAAE9F'
+                        },
+                        sand: {
+                            400: '#CAAE9F',
+                            500: '#9E7161'
+                        },
+                        maroon: {
+                            950: '#3D0F11',
+                            900: '#62191C',
+                            800: '#62191C',
+                            700: '#873632',
+                            600: '#873632',
+                            500: '#9E7161',
+                            400: '#9E7161',
+                            300: '#B99184'
+                        },
+                        gold: {
+                            500: '#9E7161',
+                            400: '#CAAE9F',
+                            300: '#E0CFC2'
+                        }
+                    },
+                    fontFamily: {
+                        display: ['"Fraunces"', 'serif'],
+                        body: ['"Plus Jakarta Sans"', 'sans-serif']
+                    },
+                    boxShadow: {
+                        soft: '0 12px 32px -12px rgba(46,10,19,.18)',
+                        lift: '0 20px 40px -16px rgba(46,10,19,.28)'
+                    },
+                    keyframes: {
+                        rise: {
+                            '0%': {
+                                opacity: 0,
+                                transform: 'translateY(14px)'
+                            },
+                            '100%': {
+                                opacity: 1,
+                                transform: 'translateY(0)'
+                            }
+                        },
+                        marquee: {
+                            '0%': { transform: 'translateX(0)' },
+                            '100%': { transform: 'translateX(-50%)' }
+                        }
+                    },
+                    animation: {
+                        rise: 'rise .6s cubic-bezier(.16,1,.3,1) both',
+                        marquee: 'marquee 28s linear infinite'
+                    }
+                }
+            }
+        };
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet">
+
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        html {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .font-display {
+            font-family: 'Fraunces', serif;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .link-grow {
+            position: relative;
+        }
+
+        .link-grow::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -2px;
+            width: 0;
+            height: 1.5px;
+            background: currentColor;
+            transition: width .35s cubic-bezier(.16,1,.3,1);
+        }
+
+        .link-grow:hover::after {
+            width: 100%;
+        }
+
+        :focus-visible {
+            outline: 2px solid #873632;
+            outline-offset: 2px;
+        }
+    </style>
+
+    {{-- Shared navbar and footer styling --}}
+    <link rel="stylesheet"
+          href="{{ asset('css/buyer/storefront.css') }}?v=11">
+
+    {{-- Keep the existing Lumear interactions (cart, checkout, address picker) available. --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- Individual Buyer page styles --}}
+    @stack('styles')
+    <link rel="stylesheet" href="{{ asset('css/buyer/dark-mode.css') }}?v=8">
 </head>
-<body class="app-shell min-h-screen bg-cream-100 text-maroon-900">
-    <header class="app-header sticky top-0 z-50 bg-cream-50 shadow-[0_1px_0_rgba(98,25,28,.1)]">
-        <div class="app-announcement bg-maroon-950 px-5 py-2 text-center text-[11px] font-bold tracking-[.12em] text-cream-100">LOCAL FINDS · COD CHECKOUT · THOUGHTFUL SHOPPING</div>
-        <div class="mx-auto flex h-[78px] max-w-7xl items-center gap-6 px-5">
-            <a href="{{ route('shop') }}" class="flex shrink-0 items-center gap-2"><span class="grid h-9 w-9 place-items-center rounded-xl bg-maroon-900 font-display text-xl text-cream-50">L</span><span class="font-display text-3xl italic tracking-tight">Lumear</span></a>
-            <form action="{{ route('shop') }}" class="app-search hidden h-11 max-w-2xl flex-1 overflow-hidden rounded-xl border border-sand-400/60 bg-cream-50 transition focus-within:border-maroon-700 md:flex"><input class="min-w-0 flex-1 bg-transparent px-5 text-sm outline-none" name="q" value="{{ request('q') }}" placeholder="Search products, categories, or orders"><button class="w-12 text-lg text-maroon-700" aria-label="Search">⌕</button></form>
-            <div class="ml-auto flex items-center gap-4 text-sm font-semibold">
-                @auth
-                    @if(auth()->user()->isBuyer())
-                        <a class="relative nav-link" href="{{ route('cart') }}">Bag <span class="absolute -right-4 -top-3 grid h-5 min-w-5 place-items-center rounded-full bg-maroon-700 px-1 text-[10px] text-cream-50">{{ auth()->user()->cart?->items()->sum('quantity') ?? 0 }}</span></a><a class="nav-link hidden sm:block" href="{{ route('orders') }}">My orders</a>
-                    @elseif(auth()->user()->isAdmin())
-                        <a class="nav-link hidden sm:block" href="{{ route('admin.dashboard') }}">Admin Centre</a>
-                    @elseif(auth()->user()->isSeller())
-                        <a class="nav-link hidden sm:block" href="{{ route('seller.status') }}">Seller Centre</a>
-                    @endif
-                    <a class="flex items-center gap-2 rounded-full border border-sand-400/50 px-2 py-1.5 transition hover:border-maroon-700 hover:bg-cream-100" href="{{ route('account.show') }}" aria-label="Open your profile"><span class="grid h-6 w-6 place-items-center rounded-full bg-maroon-700 text-[11px] text-cream-50">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span><span class="hidden max-w-24 truncate sm:block">Profile</span></a>
-                    <form method="post" action="{{ route('logout') }}">@csrf<button class="nav-link">Log out</button></form>
-                @else
-                    <a class="nav-link" href="{{ route('login') }}">Sign in</a><a class="rounded-full bg-maroon-700 px-4 py-2 text-cream-50 transition hover:bg-maroon-900" href="{{ route('register') }}">Join Lumear</a>
-                @endauth
+
+<body class="lm-buyer-dark bg-cream-100 text-maroon-900 antialiased">
+
+    @include('partials.navbar')
+
+    <main id="buyerMainContent">
+        @if(session('status'))
+            <div class="lm-shell pt-4">
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800" role="status">
+                    {{ session('status') }}
+                </div>
             </div>
-        </div>
-        <div class="border-y border-sand-400/35"><nav class="mx-auto flex h-11 max-w-7xl items-center gap-6 overflow-x-auto whitespace-nowrap px-5 text-[12px] font-bold uppercase tracking-[.08em]"><a class="nav-link text-maroon-700" href="{{ route('shop') }}">All finds</a>@foreach(['Fashion','Beauty & Wellness','Home & Living','Electronics','Pet Supplies','Sports & Outdoor','Books & Stationery','Food & Drinks'] as $category)<a class="nav-link" href="{{ route('shop',['q' => $category]) }}">{{ $category }}</a>@endforeach</nav></div>
-    </header>
-    <main class="mx-auto max-w-7xl px-5 py-8">
-        @if(session('status'))<div class="rise mb-6 flex gap-3 rounded-xl border border-emerald-700/15 bg-emerald-50 p-4 text-emerald-900"><span>✓</span><span>{{ session('status') }}</span></div>@endif
-        @if($errors->any())<div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900"><ul class="list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-        @yield('content')
+        @endif
+
+        @if($errors->any())
+            <div class="lm-shell pt-4">
+                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+                    {{ $errors->first() }}
+                </div>
+            </div>
+        @endif
+
+        @if(request()->routeIs('shop'))
+            {{ $slot ?? '' }}
+            @yield('content')
+        @else
+            <div class="mx-auto max-w-7xl px-5 py-8">
+                {{ $slot ?? '' }}
+                @yield('content')
+            </div>
+        @endif
     </main>
-    <footer class="mt-14 bg-maroon-950 text-cream-200"><div class="mx-auto grid max-w-7xl gap-5 px-5 py-10 sm:grid-cols-2"><div><span class="font-display text-3xl italic text-cream-50">Lumear</span><p class="mt-3 text-sm text-cream-200/70">Curated everyday finds from independent shops.</p></div><p class="self-end text-xs text-cream-200/60 sm:text-right">© {{ date('Y') }} Lumear · Made for beautiful everyday moments.</p></div></footer>
+
+    @include('partials.footer')
+
+    <script src="{{ asset('js/buyer/storefront.js') }}?v=11" defer></script>
+
+    @stack('scripts')
+
+    @if(request()->is('home') || request()->is('/'))
+    <script src="{{ asset('js/buyer/home-product-navigation.js') }}?v=2" defer></script>
+    @endif
 </body>
 </html>

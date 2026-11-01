@@ -43,4 +43,6 @@ class SellerOrder extends Model
     {
         return $this->hasMany(OrderTimeline::class);
     }
+
+    public function returnRequests(): HasMany { return $this->hasMany(ReturnRequest::class); }
 }

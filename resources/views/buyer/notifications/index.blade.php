@@ -1,0 +1,5 @@
+@extends('layouts.app')
+@section('title', 'Notifications — Lumear')
+@section('content')
+<div class="mx-auto max-w-3xl rise"><p class="text-xs font-bold uppercase tracking-[.18em] text-maroon-700">Updates</p><h1 class="mt-2 font-display text-4xl">Notifications</h1><div class="mt-7 space-y-3">@forelse($notifications as $notification)<article class="rounded-2xl bg-cream-50 p-5 shadow-soft"><p class="font-bold">{{ $notification->data['title'] ?? 'Marketplace update' }}</p><p class="mt-1 text-sm text-maroon-900/65">{{ $notification->data['body'] ?? '' }}</p>@if(!empty($notification->data['url']))<a class="mt-3 inline-block text-sm font-bold underline" href="{{ $notification->data['url'] }}">View update</a>@endif</article>@empty <div class="rounded-2xl bg-cream-50 p-10 text-center shadow-soft">You are all caught up.</div>@endforelse</div>{{ $notifications->links() }}</div>
+@endsection

@@ -1,16 +1,18 @@
 @extends('layouts.seller')
 
 @section('seller-content')
-    <div class="flex items-end justify-between gap-4 mb-6">
+    <div class="seller-page">
+    <div class="seller-page-header">
         <div>
-            <p class="text-xs uppercase tracking-[.18em] font-bold text-maroon-700">Customer voice</p>
-            <h1 class="font-display text-4xl mt-2">Reviews</h1>
+            <p class="seller-page-eyebrow">Customer voice</p>
+            <h1>Reviews</h1>
+            <p>Read customer feedback and improve future listings.</p>
         </div>
-        <span class="rounded-full bg-cream-200 px-4 py-2 text-sm font-bold">{{ $reviews->count() }} total</span>
+        <form class="flex items-center gap-2" method="get"><label class="sr-only" for="rating">Rating</label><select class="field !w-auto" id="rating" name="rating" onchange="this.form.submit()"><option value="">All ratings</option>@for($rating = 5; $rating >= 1; $rating--)<option value="{{ $rating }}" @selected(request('rating') == $rating)>{{ $rating }} star{{ $rating === 1 ? '' : 's' }}</option>@endfor</select><span class="seller-table-status">{{ $reviews->total() }} total</span></form>
     </div>
 
     @forelse ($reviews as $review)
-        <article class="bg-cream-50 rounded-2xl p-5 shadow-soft mb-4">
+        <article class="seller-operation-card mb-4">
             <div class="flex justify-between gap-4">
                 <div>
                     <p class="font-bold">{{ $review->buyer->name }}</p>
@@ -21,12 +23,17 @@
             @if ($review->body)
                 <p class="mt-4 leading-relaxed text-maroon-900/75">{{ $review->body }}</p>
             @endif
+            @if($review->reply)
+                <div class="mt-4 rounded-xl border border-maroon-700/30 bg-maroon-900/5 p-4"><p class="text-xs font-bold uppercase tracking-wider text-maroon-700">Your response</p><p class="mt-2 text-sm">{{ $review->reply->body }}</p></div>
+            @endif
+            <form class="seller-operation-form mt-4 flex flex-wrap gap-3" method="post" action="{{ route('seller.reviews.reply', $review) }}">@csrf<label class="sr-only" for="reply-{{ $review->id }}">Seller response</label><input id="reply-{{ $review->id }}" class="field flex-1" name="body" maxlength="500" value="{{ old('body', $review->reply?->body) }}" placeholder="Reply to this review" required><button class="rounded-xl px-4 py-2 text-sm font-bold">{{ $review->reply ? 'Update response' : 'Reply' }}</button></form>
             <p class="mt-4 text-xs text-maroon-900/45">{{ $review->created_at->toFormattedDateString() }}</p>
         </article>
     @empty
-        <div class="bg-cream-50 rounded-2xl p-12 text-center shadow-soft">
-            <p class="font-display text-2xl">No reviews yet.</p>
-            <p class="text-sm text-maroon-900/55 mt-2">Reviews from your customers will appear here.</p>
+        <div class="seller-surface seller-empty-state">
+            <b>No reviews yet.</b>
+            <p>Reviews from your customers will appear here.</p>
         </div>
     @endforelse
+    </div>
 @endsection

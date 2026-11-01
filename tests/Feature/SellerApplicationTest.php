@@ -52,6 +52,16 @@ class SellerApplicationTest extends TestCase
             ->assertSessionHasErrors(['phone', 'tin', 'sec_certificate', 'bir_certificate']);
     }
 
+    public function test_seller_registration_rejects_anyone_under_eighteen(): void
+    {
+        Role::create(['name' => 'seller']);
+        $category = Category::create(['name' => 'Clothes', 'slug' => 'clothes']);
+        $data = $this->application($category->id, ['date_of_birth' => now()->subYears(18)->addDay()->toDateString()]);
+
+        $this->from(route('register'))->post(route('register.seller'), $data)
+            ->assertRedirect(route('register'))
+            ->assertSessionHasErrors(['date_of_birth']);
+    }
     public function test_six_digit_code_verifies_seller_and_expired_or_old_codes_cannot_be_used(): void
     {
         $role = Role::create(['name' => 'seller']);
@@ -74,6 +84,7 @@ class SellerApplicationTest extends TestCase
             'last_name' => "Dela Cruz",
             'email' => 'seller@example.test',
             'phone' => '09171234567',
+            'date_of_birth' => now()->subYears(20)->toDateString(),
             'password' => 'Secure!123',
             'password_confirmation' => 'Secure!123',
             'shop_name' => 'Jose Clothes',

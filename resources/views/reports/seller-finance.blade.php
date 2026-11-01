@@ -1,0 +1,9 @@
+@extends('reports.layout')
+@section('title', 'Seller earnings report')
+@section('generated-by'){{ $seller->name }}@endsection
+@section('content')
+<h1 class="report-title">Seller earnings report</h1><p class="report-subtitle">A printable summary of COD sales, net earnings, and wallet position for {{ $seller->name }}.</p>
+<div class="metrics"><div class="metric"><span>Net sales</span><b>PHP {{ number_format($net/100,2) }}</b></div><div class="metric"><span>Orders</span><b>{{ $orders->count() }}</b></div><div class="metric"><span>Available balance</span><b>PHP {{ number_format($wallet->available_minor/100,2) }}</b></div><div class="metric"><span>Pending COD</span><b>PHP {{ number_format($wallet->pending_minor/100,2) }}</b></div></div>
+<section class="section"><h2>Order earnings</h2><table class="table"><thead><tr><th>Order</th><th>Date</th><th>Products</th><th>Status</th><th class="amount">Net</th></tr></thead><tbody>@forelse($orders as $order)<tr><td>{{ $order->order->reference }}</td><td>{{ $order->created_at->format('M j, Y') }}</td><td>{{ $order->items->map(fn($item) => $item->product_name.' x'.$item->quantity)->join(', ') }}</td><td>{{ ucfirst(str_replace('_',' ',$order->status)) }}</td><td class="amount">PHP {{ number_format(($order->subtotal_minor+$order->shipping_fee_minor-$order->commission_minor)/100,2) }}</td></tr>@empty<tr><td colspan="5">No sales match this report's filters.</td></tr>@endforelse</tbody></table></section>
+<p class="meta" style="margin-top:18px">This report records marketplace activity only. COD releases remain subject to delivery and reconciliation controls.</p><p class="no-print" style="margin-top:26px"><button onclick="window.print()">Print or save as PDF</button></p>
+@endsection

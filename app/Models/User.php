@@ -18,6 +18,7 @@ use Illuminate\Notifications\Notifiable;
     'email',
     'password',
     'phone',
+    'date_of_birth',
     'is_suspended',
 ])]
 #[Hidden([
@@ -50,6 +51,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(Cart::class);
     }
 
+    public function voucherClaims(): HasMany
+    {
+        return $this->hasMany(BuyerSellerVoucher::class, 'buyer_id');
+    }
+
+    public function savedProducts(): HasMany
+    {
+        return $this->hasMany(SavedProduct::class, 'buyer_id');
+    }
+
     public function addresses(): HasMany
     {
         return $this->hasMany(Address::class);
@@ -58,6 +69,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function rider(): HasOne
     {
         return $this->hasOne(Rider::class);
+    }
+
+    public function logisticsProvider(): HasOne
+    {
+        return $this->hasOne(LogisticsProvider::class);
     }
 
     public function authIdentities(): HasMany
@@ -100,11 +116,17 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasRole('seller');
     }
 
+    public function isLogistics(): bool
+    {
+        return $this->hasRole('logistics');
+    }
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'date_of_birth' => 'date',
             'is_suspended' => 'boolean',
         ];
     }

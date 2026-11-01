@@ -48,6 +48,10 @@ class WalletService
                 throw ValidationException::withMessages(['amount' => 'The minimum withdrawal is ₱100.00.']);
             }
 
+            if (SellerPayoutRequest::where('seller_id', $seller->id)->whereIn('status', ['requested', 'approved'])->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages(['amount' => 'You already have a pending payout request. Wait for it to be completed or rejected before requesting another payout.']);
+            }
+
             if ($account->available_minor < $amountMinor) {
                 throw ValidationException::withMessages(['amount' => 'The requested amount exceeds your available balance.']);
             }
@@ -104,6 +108,41 @@ class WalletService
                 'pending_delta' => -$netMinor,
                 'reference' => $remittanceReference,
                 'metadata' => ['released_by' => $adminId],
+                'occurred_at' => now(),
+            ]);
+        });
+    }
+
+    /** Reverse an order's still-held earnings once a return is approved. */
+    public function reverseForReturn(SellerOrder $sellerOrder, int $actorId): void
+    {
+        DB::transaction(function () use ($sellerOrder, $actorId): void {
+            $sellerOrder = SellerOrder::lockForUpdate()->findOrFail($sellerOrder->id);
+            if (WalletJournal::where('seller_order_id', $sellerOrder->id)->where('entry_type', 'return_approved_reversal')->exists()) {
+                return;
+            }
+            $wallet = WalletAccount::where('seller_id', $sellerOrder->seller_id)->lockForUpdate()->firstOrCreate(['seller_id' => $sellerOrder->seller_id]);
+            $netMinor = $sellerOrder->subtotal_minor + $sellerOrder->shipping_fee_minor - $sellerOrder->commission_minor;
+            $pendingJournal = WalletJournal::where('seller_order_id', $sellerOrder->id)->where('entry_type', 'cod_sale_pending')->exists();
+            $releasedJournal = WalletJournal::where('seller_order_id', $sellerOrder->id)->where('entry_type', 'cod_sale_released')->exists();
+            if ($pendingJournal && ! $releasedJournal && $wallet->pending_minor >= $netMinor) {
+                $wallet->decrement('pending_minor', $netMinor);
+                $availableDelta = 0;
+                $pendingDelta = -$netMinor;
+            } else {
+                $availableDelta = -min($wallet->available_minor, $netMinor);
+                if ($availableDelta !== 0) $wallet->increment('available_minor', $availableDelta);
+                $pendingDelta = 0;
+            }
+            WalletJournal::create([
+                'transaction_uuid' => (string) Str::uuid(),
+                'wallet_account_id' => $wallet->id,
+                'seller_order_id' => $sellerOrder->id,
+                'entry_type' => 'return_approved_reversal',
+                'available_delta' => $availableDelta,
+                'pending_delta' => $pendingDelta,
+                'reference' => 'RETURN-'.$sellerOrder->id,
+                'metadata' => ['approved_by' => $actorId],
                 'occurred_at' => now(),
             ]);
         });

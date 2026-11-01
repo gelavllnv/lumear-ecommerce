@@ -30,4 +30,9 @@ class ProductVariant extends Model
     {
         return $this->hasMany(InventoryMovement::class);
     }
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
 }

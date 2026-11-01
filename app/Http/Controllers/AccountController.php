@@ -13,7 +13,13 @@ class AccountController extends Controller
 
     public function show(Request $request): View
     {
-        return view('account.show', ['user' => $request->user()]);
+        $user = $request->user();
+
+        if ($user->isSeller()) {
+            return view('account.seller-show', ['user' => $user, 'seller' => $user->seller]);
+        }
+
+        return view('account.show', ['user' => $user]);
     }
 
     public function update(Request $request): RedirectResponse

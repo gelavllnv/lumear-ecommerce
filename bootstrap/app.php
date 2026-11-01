@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'seller.approved' => \App\Http\Middleware\EnsureApprovedSeller::class,
+            'logistics.approved' => \App\Http\Middleware\EnsureApprovedLogistics::class,
             'admin' => \App\Http\Middleware\EnsureAdmin::class,
             'buyer' => \App\Http\Middleware\EnsureBuyer::class,
             'permission' => \App\Http\Middleware\EnsurePermission::class,

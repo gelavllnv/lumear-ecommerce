@@ -32,6 +32,6 @@ class OrderItem extends Model
 
     public function lineTotalMinor(): int
     {
-        return $this->unit_price_minor * $this->quantity;
+        return ($this->unit_price_minor * $this->quantity) - $this->promotion_discount_minor;
     }
 }

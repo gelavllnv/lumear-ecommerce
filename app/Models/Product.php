@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -40,6 +41,7 @@ class Product extends Model
     {
         return $this->hasOne(ProductVariant::class)
             ->where('is_active', true)
+            ->where('stock', '>', 0)
             ->orderBy('price_minor');
     }
 
@@ -52,6 +54,14 @@ class Product extends Model
     {
         return $this->hasMany(ProductReview::class);
     }
+
+    public function storeCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(SellerStoreCategory::class, 'product_seller_store_category')->withTimestamps();
+    }
+
+    public function sales(): HasMany { return $this->hasMany(ProductSale::class); }
+    public function flashSales(): HasMany { return $this->hasMany(FlashSale::class); }
 
     /** Convenience accessors for the storefront; values remain variant-backed. */
     public function getPriceMinorAttribute(): int

@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\AuditLog;
+use App\Models\ReturnRequest;
+use App\Models\OrderItem;
+use App\Models\LogisticsProvider;
 use App\Models\Product;
 use App\Models\Seller;
 use App\Models\SellerKycSubmission;
@@ -19,7 +23,7 @@ class AdminController extends Controller
 {
     public function __construct(private readonly AuditService $audit, private readonly WalletService $wallets, private readonly SecureDocumentStorage $documents) {}
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $pendingSellers = Seller::with(['user', 'pickupAddress'])->where('status', 'pending')->latest()->get();
 
@@ -30,11 +34,42 @@ class AdminController extends Controller
             'orderCount' => Order::count(),
             'salesMinor' => Order::where('payment_status', 'paid')->sum('total_minor'),
             'pendingSellers' => $pendingSellers,
+            'pendingLogistics' => LogisticsProvider::with('user')->where('status', 'pending')->latest()->get(),
             'pendingKyc' => SellerKycSubmission::with('seller.owner')->where('status', 'pending')->latest()->take(8)->get(),
             'pendingPayouts' => SellerPayoutRequest::with(['seller', 'account'])->whereIn('status', ['requested', 'approved'])->latest()->take(8)->get(),
             'recentOrders' => Order::with(['buyer', 'sellerOrders.seller'])->latest()->take(8)->get(),
             'flaggedProducts' => Product::with(['seller.owner', 'category', 'images'])->where('moderation_status', 'flagged')->latest()->take(20)->get(),
+            'moderationQueue' => Product::with(['seller', 'category'])->when($request->filled('moderation_status'), fn ($q) => $q->where('moderation_status', $request->string('moderation_status')->toString()))->when($request->filled('q'), fn ($q) => $q->where(fn ($search) => $search->where('name', 'like', '%'.$request->q.'%')->orWhere('moderation_reason', 'like', '%'.$request->q.'%')))->latest()->paginate(20, ['*'], 'moderation_page')->withQueryString(),
+            'auditLogs' => AuditLog::with('actor')->when($request->filled('audit_q'), fn ($q) => $q->where(fn ($search) => $search->where('action', 'like', '%'.$request->audit_q.'%')->orWhere('auditable_type', 'like', '%'.$request->audit_q.'%')->orWhere('auditable_id', $request->audit_q)))->latest()->paginate(25, ['*'], 'audit_page')->withQueryString(),
+            'returnQueue' => ReturnRequest::with(['buyer', 'sellerOrder.seller', 'orderItem'])->whereIn('status', ['requested', 'in_dispute'])->latest()->take(30)->get(),
+            'promotionReport' => ['discount_minor' => OrderItem::sum('promotion_discount_minor'), 'redemptions' => OrderItem::where('promotion_discount_minor', '>', 0)->count(), 'sales_minor' => Order::sum('total_minor')],
         ]);
+    }
+
+    public function report(Request $request)
+    {
+        $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
+        $orders = Order::with(['buyer', 'sellerOrders.seller'])
+            ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('to')))
+            ->latest()->get();
+        $returns = ReturnRequest::whereIn('status', ['requested', 'in_dispute'])->count();
+        return view('reports.admin-marketplace', [
+            'orders' => $orders,
+            'returns' => $returns,
+            'sellerCount' => Seller::where('status', 'approved')->count(),
+            'salesMinor' => $orders->sum('total_minor'),
+            'generatedBy' => $request->user(),
+        ]);
+    }
+    public function updateLogistics(Request $request, LogisticsProvider $provider)
+    {
+        $data = $request->validate(['status' => ['required', Rule::in(['approved', 'rejected', 'suspended'])], 'rejection_reason' => ['nullable', 'string', 'max:3000', 'required_if:status,rejected']]);
+        $before = $provider->only(['status', 'rejection_reason']);
+        $provider->update(['status' => $data['status'], 'rejection_reason' => $data['status'] === 'rejected' ? $data['rejection_reason'] : null]);
+        $this->audit->record($request, 'admin.logistics_status_changed', $provider, $before, $provider->only(['status', 'rejection_reason']));
+
+        return back()->with('status', "{$provider->name} is now {$data['status']}.");
     }
 
     public function updateSeller(Request $request, Seller $seller)

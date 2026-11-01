@@ -2,7 +2,7 @@
 @section('title','My orders — Lumear')
 
 @section('content')
-<div class="rise mx-auto max-w-5xl">
+<div class="buyer-orders rise mx-auto max-w-5xl">
     <div class="mb-7 flex items-end justify-between">
         <div><p class="text-xs font-bold uppercase tracking-[.18em] text-maroon-700">Order history</p><h1 class="mt-2 font-display text-4xl">My orders</h1></div>
         <a class="text-sm font-bold underline" href="{{ route('shop') }}">Continue shopping</a>

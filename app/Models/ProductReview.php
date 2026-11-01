@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ProductReview extends Model
 {
@@ -33,4 +34,6 @@ class ProductReview extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function reply(): HasOne { return $this->hasOne(ProductReviewReply::class); }
 }

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Notifications\MarketplaceAlert;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\ProductReview;
+use App\Models\ProductReviewReply;
 use App\Models\ProductVariant;
 use App\Models\Seller;
 use App\Models\SellerOnboardingStep;
@@ -71,18 +73,51 @@ class SellerController extends Controller
     public function destroy(Request $request, Product $product)
     {
         $this->owns($request, $product);
+        $hasUnfinishedOrders = $product->variants()->whereHas('orderItems.sellerOrder', fn ($query) => $query->whereNotIn('status', ['completed', 'cancelled', 'returned', 'refunded']))->exists();
+        if ($hasUnfinishedOrders) {
+            return back()->withErrors(['product' => 'This product has unfinished orders and cannot be deleted yet.']);
+        }
         $product->delete();
         return back()->with('status', 'Product removed from your storefront.');
     }
 
     private function saveProduct(Request $request, Product $product): Product
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:255'], 'description' => ['required', 'string', 'max:10000'], 'variants' => ['required', 'array', 'min:1', 'max:20'], 'variants.*.id' => ['nullable', 'integer'], 'variants.*.name' => ['required', 'string', 'max:255'], 'variants.*.options_text' => ['nullable', 'string', 'max:1000'], 'variants.*.sku' => ['required', 'string', 'max:255', 'distinct'], 'variants.*.price' => ['required', 'numeric', 'min:0.01'], 'variants.*.stock' => ['required', 'integer', 'min:0'], 'variants.*.weight_grams' => ['required', 'integer', 'min:0'], 'variants.*.is_active' => ['nullable', 'boolean'], 'is_active' => ['nullable', 'boolean'], 'images.*' => ['nullable', 'image', 'max:4096']]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'min:5', 'max:120'],
+            'description' => ['required', 'string', 'min:20', 'max:3000'],
+            'variants' => ['required', 'array', 'min:1', 'max:400'],
+            'variants.*.id' => ['nullable', 'integer'],
+            'variants.*.name' => ['required', 'string', 'max:120'],
+            'variants.*.options_text' => ['nullable', 'string', 'max:255'],
+            'variants.*.sku' => ['required', 'string', 'max:100', 'distinct'],
+            'variants.*.price' => ['required', 'decimal:0,2', 'between:1,1000000'],
+            'variants.*.stock' => ['required', 'integer', 'between:0,99999'],
+            'variants.*.weight_grams' => ['required', 'integer', 'min:1'],
+            'variants.*.is_active' => ['nullable', 'boolean'],
+            'is_active' => ['nullable', 'boolean'],
+            'images' => [$product->exists ? 'nullable' : 'required', 'array', 'min:1', 'max:9'],
+            'images.*' => ['file', 'mimetypes:image/jpeg,image/png', 'max:5120'],
+        ], [
+            'name.min' => 'Product name must contain 5 to 120 characters.',
+            'name.max' => 'Product name must contain 5 to 120 characters.',
+            'description.min' => 'Product description must contain 20 to 3,000 characters.',
+            'description.max' => 'Product description must contain 20 to 3,000 characters.',
+            'variants.*.price.decimal' => 'Price can use no more than two decimal places.',
+            'variants.*.price.between' => 'Price must be between ₱1.00 and ₱1,000,000.00.',
+            'variants.*.stock.between' => 'Stock must be a whole number from 0 to 99,999.',
+            'variants.*.weight_grams.min' => 'Weight must be at least 1 gram.',
+            'images.required' => 'Add at least one JPG or PNG product image.',
+            'images.max' => 'A product can have no more than 9 images.',
+            'images.*.mimetypes' => 'Images must be JPG or PNG files no larger than 5 MB.',
+            'images.*.max' => 'Images must be JPG or PNG files no larger than 5 MB.',
+        ]);
         $seller = $this->seller($request);
         if (! $seller->category_id) {
             throw \Illuminate\Validation\ValidationException::withMessages(['category' => 'Choose your one store category in onboarding before adding products.']);
         }
         $moderationReason = $this->prohibitedListingReason($data['name'].' '.$data['description']);
+        $this->validateVariationStructure($data['variants']);
         $this->ensureVariantOwnershipAndSkuAvailability($product, $data['variants']);
 
         DB::transaction(function () use ($request, $product, $data, $seller, $moderationReason) {
@@ -132,6 +167,32 @@ class SellerController extends Controller
         return $options ?: null;
     }
 
+    /** Enforces a maximum of two named variation types and 20 unique options per type. */
+    private function validateVariationStructure(array $variants): void
+    {
+        $optionsByType = [];
+        foreach ($variants as $index => $variant) {
+            $options = $this->parseVariantOptions((string) ($variant['options_text'] ?? '')) ?? [];
+            foreach ($options as $type => $value) {
+                $normalizedType = mb_strtolower(trim($type));
+                $normalizedValue = mb_strtolower(trim($value));
+                if ($normalizedType === '' || $normalizedValue === '') {
+                    throw \Illuminate\Validation\ValidationException::withMessages(["variants.$index.options_text" => 'Variation type and option cannot be empty.']);
+                }
+                $optionsByType[$normalizedType] ??= [];
+                $optionsByType[$normalizedType][$normalizedValue] = true;
+            }
+        }
+        if (count($optionsByType) > 2) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['variants' => 'A product can have at most 2 variation types.']);
+        }
+        foreach ($optionsByType as $type => $options) {
+            if (count($options) > 20) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['variants' => 'Each variation type can have at most 20 options.']);
+            }
+        }
+    }
+
     private function owns(Request $request, Product $product): void { abort_unless($product->seller_id === $this->seller($request)->id, 403); }
 
     public function inventory(Request $request) { return view('seller.inventory', ['products' => $this->seller($request)->products()->with('variants')->get()->sortBy('stock')]); }
@@ -139,11 +200,11 @@ class SellerController extends Controller
     public function adjustInventory(Request $request, ProductVariant $variant)
     {
         abort_unless($variant->product->seller_id === $this->seller($request)->id, 403);
-        $data = $request->validate(['quantity_delta' => ['required', 'integer', 'between:-100000,100000', 'not_in:0'], 'note' => ['nullable', 'string', 'max:500']]);
+        $data = $request->validate(['quantity_delta' => ['required', 'integer', 'between:-99999,99999', 'not_in:0'], 'note' => ['nullable', 'string', 'max:500']]);
         DB::transaction(function () use ($variant, $request, $data): void {
             $variant = ProductVariant::lockForUpdate()->findOrFail($variant->id);
             $newStock = $variant->stock + $data['quantity_delta'];
-            if ($newStock < 0) throw \Illuminate\Validation\ValidationException::withMessages(['quantity_delta' => 'Stock cannot go below zero.']);
+            if ($newStock < 0 || $newStock > 99999) throw \Illuminate\Validation\ValidationException::withMessages(['quantity_delta' => 'Stock must remain a whole number from 0 to 99,999.']);
             $variant->update(['stock' => $newStock]);
             InventoryMovement::create(['product_variant_id' => $variant->id, 'actor_id' => $request->user()->id, 'type' => 'manual_adjustment', 'quantity_delta' => $data['quantity_delta'], 'stock_after' => $newStock, 'reference' => 'SELLER-INVENTORY', 'note' => $data['note'] ?? null]);
         });
@@ -152,8 +213,15 @@ class SellerController extends Controller
 
     public function orders(Request $request)
     {
+        $request->validate(['status' => ['nullable', Rule::in(['pending', 'accepted', 'packed', 'ready_to_ship', 'shipped', 'delivered', 'completed', 'cancelled'])], 'q' => ['nullable', 'string', 'max:100'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
+        $seller = $this->seller($request);
         return view('seller.orders', [
-            'sellerOrders' => $this->seller($request)->sellerOrders()->with(['order.buyer', 'items'])->latest()->paginate(30),
+            'sellerOrders' => $seller->sellerOrders()->with(['order.buyer', 'items'])
+                ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
+                ->when($request->filled('q'), fn ($query) => $query->whereHas('order', fn ($order) => $order->where('reference', 'like', '%'.$request->string('q')->trim().'%')))
+                ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('from')))
+                ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('to')))
+                ->latest()->paginate(30)->withQueryString(),
             'allowedTransitions' => $this->allowedOrderTransitions(),
         ]);
     }
@@ -161,7 +229,10 @@ class SellerController extends Controller
     public function updateOrder(Request $request, SellerOrder $sellerOrder)
     {
         abort_unless($sellerOrder->seller_id === $this->seller($request)->id, 403);
-        $data = $request->validate(['status' => ['required', Rule::in(['pending', 'accepted', 'packed', 'ready_to_ship', 'shipped', 'delivered', 'completed', 'cancelled'])]]);
+        $data = $request->validate(['status' => ['required', Rule::in(['pending', 'accepted', 'packed', 'ready_to_ship', 'shipped', 'delivered', 'completed', 'cancelled'])], 'reason' => ['nullable', 'string', 'min:10', 'max:300']]);
+        if ($data['status'] === 'cancelled' && blank($data['reason'] ?? null)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['reason' => 'Give a cancellation reason containing 10 to 300 characters.']);
+        }
 
         $allowedTransitions = $this->allowedOrderTransitions();
         if (! in_array($data['status'], $allowedTransitions[$sellerOrder->status] ?? [], true)) {
@@ -179,7 +250,7 @@ class SellerController extends Controller
                 'status' => $data['status'],
                 'delivered_at' => $data['status'] === 'delivered' ? now() : $sellerOrder->delivered_at,
             ]);
-            OrderTimeline::create(['order_id' => $sellerOrder->order_id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $request->user()->id, 'status' => $data['status'], 'event' => 'seller_status_updated', 'note' => "Changed from {$previousStatus} to {$data['status']}." ]);
+            OrderTimeline::create(['order_id' => $sellerOrder->order_id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $request->user()->id, 'status' => $data['status'], 'event' => 'seller_status_updated', 'note' => $data['status'] === 'cancelled' ? trim($data['reason']) : "Changed from {$previousStatus} to {$data['status']}." ]);
 
             if ($data['status'] === 'cancelled') {
                 $variants = ProductVariant::whereIn('id', $sellerOrder->items->pluck('product_variant_id'))->lockForUpdate()->get()->keyBy('id');
@@ -201,6 +272,8 @@ class SellerController extends Controller
             }
         });
 
+$sellerOrder->loadMissing('order.buyer');
+        $sellerOrder->order->buyer->notify(new MarketplaceAlert('Order update', "Order {$sellerOrder->order->reference} is now {$sellerOrder->status}.", route('orders')));
         return redirect()->route('seller.orders')->with('status', 'Fulfillment status updated.');
     }
 
@@ -220,6 +293,15 @@ class SellerController extends Controller
         ];
     }
 
+    public function analytics(Request $request)
+    {
+        $seller = $this->seller($request);
+        $orders = $seller->sellerOrders()->with('items.product')->whereIn('status', ['delivered', 'completed'])->get();
+        $bestSellers = $orders->flatMap->items->groupBy('product_id')->map(fn ($items) => ['name' => $items->first()->product_name, 'quantity' => $items->sum('quantity'), 'revenue_minor' => $items->sum(fn ($item) => $item->unit_price_minor * $item->quantity - $item->promotion_discount_minor)])->sortByDesc('quantity')->take(5);
+        $repeatBuyers = $orders->groupBy('order.buyer_id')->filter(fn ($buyerOrders) => $buyerOrders->count() > 1)->count();
+        $promotionImpact = $orders->flatMap->items->sum('promotion_discount_minor');
+        return view('seller.analytics', compact('seller', 'bestSellers', 'repeatBuyers', 'promotionImpact', 'orders'));
+    }
     public function earnings(Request $request)
     {
         $seller = $this->seller($request);
@@ -232,22 +314,56 @@ class SellerController extends Controller
         $seller = $this->seller($request);
 
         return view('seller.reviews', [
-            'reviews' => ProductReview::with(['buyer', 'product'])
+            'reviews' => ProductReview::with(['buyer', 'product', 'reply'])
                 ->whereHas('product', fn ($query) => $query->where('seller_id', $seller->id))
+                ->when($request->filled('rating'), fn ($query) => $query->where('rating', $request->integer('rating')))
                 ->latest()
                 ->paginate(30),
         ]);
+    }
+
+    public function saveReviewReply(Request $request, ProductReview $review)
+    {
+        $seller = $this->seller($request);
+        abort_unless($review->product()->where('seller_id', $seller->id)->exists(), 403);
+        $request->merge(['body' => trim((string) $request->input('body'))]);
+        $data = $request->validate(['body' => ['required', 'string', 'max:500']], ['body.required' => 'Write a response before saving it.']);
+        $reply = ProductReviewReply::updateOrCreate(['product_review_id' => $review->id], ['seller_id' => $seller->id, 'body' => $data['body']]);
+        $this->audit->record($request, $reply->wasRecentlyCreated ? 'seller.review_reply_created' : 'seller.review_reply_updated', $reply, null, ['review_id' => $review->id]);
+        return back()->with('status', 'Your response to the review was saved.');
     }
     public function settings(Request $request) { return view('seller.settings', ['seller' => $this->seller($request)]); }
 
     public function saveSettings(Request $request)
     {
         $seller = $this->seller($request);
-        $data = $request->validate(['description' => ['nullable', 'max:3000'], 'phone' => ['nullable', 'max:255'], 'logo' => ['nullable', 'image', 'max:2048'], 'banner' => ['nullable', 'image', 'max:4096']]);
-        $seller->fill(['description' => $data['description']]);
+        $request->merge([
+            'name' => trim((string) $request->input('name')),
+            'description' => trim((string) $request->input('description')),
+            'phone' => trim((string) $request->input('phone')),
+        ]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'min:3', 'max:30', Rule::unique('sellers', 'name')->ignore($seller->id)],
+            'description' => ['nullable', 'string', 'max:500'],
+            'phone' => ['required', 'regex:/^(09\d{9}|\+639\d{9})$/'],
+            'is_on_vacation' => ['nullable', 'boolean'],
+            'logo' => ['nullable', 'file', 'mimetypes:image/jpeg,image/png', 'max:5120'],
+            'banner' => ['nullable', 'file', 'mimetypes:image/jpeg,image/png', 'max:5120'],
+        ], [
+            'name.min' => 'Shop name must contain 3 to 30 characters.',
+            'name.max' => 'Shop name must contain 3 to 30 characters.',
+            'name.unique' => 'That shop name is already taken. Choose another name.',
+            'phone.regex' => 'Enter a Philippine mobile number such as 09171234567 or +639171234567.',
+            'logo.mimetypes' => 'Logo must be a JPG or PNG image no larger than 5 MB.',
+            'banner.mimetypes' => 'Banner must be a JPG or PNG image no larger than 5 MB.',
+            'logo.max' => 'Logo must be a JPG or PNG image no larger than 5 MB.',
+            'banner.max' => 'Banner must be a JPG or PNG image no larger than 5 MB.',
+        ]);
+        $seller->fill(['name' => $data['name'], 'description' => $data['description'] ?: null, 'is_on_vacation' => $request->boolean('is_on_vacation')]);
         if ($request->file('logo')) $seller->logo_path = $request->file('logo')->store('seller-assets', 'public');
         if ($request->file('banner')) $seller->banner_path = $request->file('banner')->store('seller-assets', 'public');
         $seller->save();
+        $seller->profile()->updateOrCreate([], ['business_name' => $seller->name]);
         $seller->user->update(['phone' => $data['phone']]);
         return back()->with('status', 'Shop settings saved.');
     }

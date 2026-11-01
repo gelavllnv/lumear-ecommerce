@@ -1,0 +1,8 @@
+@extends('reports.layout')
+@section('title', 'Marketplace operations report')
+@section('generated-by')Prepared by {{ $generatedBy->name }}@endsection
+@section('content')
+<h1 class="report-title">Marketplace operations report</h1><p class="report-subtitle">A printable administration snapshot of marketplace volume, seller activity, and open after-sales cases.</p>
+<div class="metrics"><div class="metric"><span>Marketplace sales</span><b>PHP {{ number_format($salesMinor/100,2) }}</b></div><div class="metric"><span>Orders</span><b>{{ $orders->count() }}</b></div><div class="metric"><span>Approved sellers</span><b>{{ $sellerCount }}</b></div><div class="metric"><span>Open returns</span><b>{{ $returns }}</b></div></div>
+<section class="section"><h2>Order register</h2><table class="table"><thead><tr><th>Reference</th><th>Buyer</th><th>Shops</th><th>Payment</th><th class="amount">Total</th></tr></thead><tbody>@forelse($orders as $order)<tr><td>{{ $order->reference }}</td><td>{{ $order->buyer->name }}</td><td>{{ $order->sellerOrders->pluck('seller.name')->join(', ') }}</td><td>{{ ucfirst($order->payment_status) }}</td><td class="amount">PHP {{ number_format($order->total_minor/100,2) }}</td></tr>@empty<tr><td colspan="5">No orders match this report's date range.</td></tr>@endforelse</tbody></table></section><p class="no-print" style="margin-top:26px"><button onclick="window.print()">Print or save as PDF</button></p>
+@endsection

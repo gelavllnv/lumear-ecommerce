@@ -3,19 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuthIdentity;
-use App\Models\Role;
-use App\Models\Seller;
-use App\Models\SellerOnboardingStep;
 use App\Models\User;
 use App\Services\AuditService;
 use Google\Client as GoogleClient;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -79,7 +74,9 @@ class GoogleOAuthController extends Controller
                 'code_verifier' => $context['verifier'],
             ])->throw()->json();
             $claims = $this->verifiedClaims((string) ($tokens['id_token'] ?? ''));
-            $user = $this->resolveAccount($claims, $context['role']);
+            $user = $this->resolveAccount($claims);
+        } catch (ValidationException $exception) {
+            return redirect()->route('register')->withErrors($exception->errors());
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -99,7 +96,7 @@ class GoogleOAuthController extends Controller
     }
 
     /** @param array<string, mixed> $claims */
-    private function resolveAccount(array $claims, string $requestedRole): User
+    private function resolveAccount(array $claims): User
     {
         $identity = AuthIdentity::with('user')->where('provider', 'google')->where('provider_user_id', $claims['sub'])->first();
         if ($identity) {
@@ -108,25 +105,16 @@ class GoogleOAuthController extends Controller
             return $identity->user;
         }
 
-        return DB::transaction(function () use ($claims, $requestedRole): User {
+        return DB::transaction(function () use ($claims): User {
             $user = User::whereRaw('LOWER(email) = ?', [Str::lower($claims['email'])])->lockForUpdate()->first();
             if ($user && ! $user->hasVerifiedEmail()) {
                 throw ValidationException::withMessages(['email' => 'Sign in with your original method and verify the existing account before linking Google.']);
             }
 
             if (! $user) {
-                $user = User::create([
-                    'name' => $claims['name'] ?: Str::before($claims['email'], '@'),
-                    'email' => $claims['email'],
-                    'email_verified_at' => now(),
-                    'password' => Hash::make(Str::password(48)),
+                throw ValidationException::withMessages([
+                    'date_of_birth' => 'To create an account, register with your date of birth first. Google Sign-In is available after registration.',
                 ]);
-                $user->roles()->attach(Role::firstOrCreate(['name' => $requestedRole]));
-
-                if ($requestedRole === 'seller') {
-                    $this->createSellerOnboarding($user);
-                }
-                event(new Registered($user));
             }
 
             AuthIdentity::create([
@@ -156,16 +144,6 @@ class GoogleOAuthController extends Controller
         abort_unless(isset($payload['sub'], $payload['email']), 422, 'Google account information is incomplete.');
 
         return ['sub' => (string) $payload['sub'], 'email' => Str::lower((string) $payload['email']), 'name' => (string) ($payload['name'] ?? '')];
-    }
-
-    private function createSellerOnboarding(User $user): void
-    {
-        $name = trim($user->name) !== '' ? $user->name.' Store' : 'New Seller Store';
-        $seller = Seller::create(['user_id' => $user->id, 'name' => $name, 'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)), 'status' => 'pending']);
-        $seller->profile()->create(['business_name' => $name]);
-        foreach (['store_profile', 'kyc_submitted', 'payout_details', 'seller_agreement', 'first_product'] as $step) {
-            SellerOnboardingStep::create(['seller_id' => $seller->id, 'step' => $step]);
-        }
     }
 
     private function destinationFor(User $user, string $requestedRedirect): string

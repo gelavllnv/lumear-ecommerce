@@ -1,0 +1,136 @@
+html[data-theme="light"] .seller-navigation-item {
+    color: #705654 !important;
+}
+
+html[data-theme="light"] .seller-navigation-item:hover {
+    background: #f4e8e1 !important;
+    color: #62191c !important;
+}
+
+html[data-theme="light"] .seller-navigation-item.active {
+    background: linear-gradient(110deg, #873632, #62191c) !important;
+    color: #fffaf5 !important;
+}
+
+html[data-theme="light"] .seller-profile-link,
+html[data-theme="light"] .seller-profile-card,
+html[data-theme="light"] .seller-account-side section,
+html[data-theme="light"] .seller-surface,
+html[data-theme="light"] .seller-operation-card,
+html[data-theme="light"] .seller-order-card {
+    border-color: #e4d5cd !important;
+    background: #fff !important;
+    color: #4d3032 !important;
+    box-shadow: 0 14px 30px rgba(75, 35, 38, .08) !important;
+}
+
+html[data-theme="light"] .seller-profile-link:hover,
+html[data-theme="light"] .seller-profile-link.active,
+html[data-theme="light"] .seller-data-table tr:hover td,
+html[data-theme="light"] .seller-message-list a:hover {
+    border-color: #b98984 !important;
+    background: #fbf2ed !important;
+}
+
+html[data-theme="light"] .seller-profile-link,
+html[data-theme="light"] .seller-navigation-item,
+html[data-theme="light"] .seller-data-table td,
+html[data-theme="light"] .seller-message-list a {
+    color: #5e4140 !important;
+}
+
+html[data-theme="light"] .seller-profile-link small,
+html[data-theme="light"] .seller-account-heading span,
+html[data-theme="light"] .seller-page-header p:last-child,
+html[data-theme="light"] .seller-account-side section > span,
+html[data-theme="light"] .seller-empty-state p,
+html[data-theme="light"] .seller-data-table small,
+html[data-theme="light"] .seller-metric-grid span,
+html[data-theme="light"] .seller-profile-email span,
+html[data-theme="light"] .seller-profile-identity small {
+    color: #806760 !important;
+}
+
+html[data-theme="light"] .seller-account-heading h1,
+html[data-theme="light"] .seller-page-header h1,
+html[data-theme="light"] .seller-profile-identity h2,
+html[data-theme="light"] .seller-account-side h2,
+html[data-theme="light"] .seller-surface-header h2,
+html[data-theme="light"] .seller-operation-card h2,
+html[data-theme="light"] .seller-empty-state b,
+html[data-theme="light"] .seller-data-table strong,
+html[data-theme="light"] .seller-order-card h2,
+html[data-theme="light"] .seller-order-card .font-bold {
+    color: #4d3032 !important;
+}
+
+html[data-theme="light"] .seller-profile-mini,
+html[data-theme="light"] .seller-profile-identity > span {
+    background: #873632 !important;
+    color: #fffaf5 !important;
+}
+
+html[data-theme="light"] .seller-profile-identity,
+html[data-theme="light"] .seller-surface-header,
+html[data-theme="light"] .seller-data-table td {
+    border-color: #eadbd5 !important;
+}
+
+html[data-theme="light"] .seller-profile-form label,
+html[data-theme="light"] .seller-operation-form label,
+html[data-theme="light"] .seller-product-editor .label,
+html[data-theme="light"] .seller-product-editor .mini-label {
+    color: #5e4140 !important;
+}
+
+html[data-theme="light"] .seller-profile-form .field,
+html[data-theme="light"] .seller-operation-card .field,
+html[data-theme="light"] .seller-operation-form .field,
+html[data-theme="light"] .seller-order-card select,
+html[data-theme="light"] .seller-message-thread .field {
+    border-color: #d8c2b8 !important;
+    background: #fffdfa !important;
+    color: #4d3032 !important;
+}
+
+html[data-theme="light"] .seller-surface-header p,
+html[data-theme="light"] .seller-data-table th {
+    color: #806760 !important;
+}
+
+html[data-theme="light"] .seller-data-table th {
+    background: #fcf9f7 !important;
+}
+
+html[data-theme="light"] .seller-table-status,
+html[data-theme="light"] .seller-product-editor .seller-operation-card > .rounded-xl,
+html[data-theme="light"] .seller-product-editor [data-variant-row],
+html[data-theme="light"] .seller-order-card .bg-cream-200,
+html[data-theme="light"] .seller-order-card .bg-maroon-900\/5,
+html[data-theme="light"] .seller-message-thread .bg-cream-100 {
+    border-color: #ddc7bd !important;
+    background: #fbf2ed !important;
+    color: #5e4140 !important;
+}
+
+html[data-theme="light"] .seller-table-action,
+html[data-theme="light"] .seller-product-editor [data-add-variant] {
+    color: #873632 !important;
+}
+
+html[data-theme="light"] .seller-product-editor [data-add-variant] {
+    border-color: #b98984 !important;
+}
+
+html[data-theme="light"] .seller-operation-form button,
+html[data-theme="light"] .seller-account-save,
+html[data-theme="light"] .seller-page-action,
+html[data-theme="light"] .seller-product-editor .glow {
+    background: #873632 !important;
+    color: #fffaf5 !important;
+}
+
+html[data-theme="light"] .seller-operation-form button:hover,
+html[data-theme="light"] .seller-page-action:hover {
+    background: #62191c !important;
+}

@@ -1,0 +1,5 @@
+@extends('layouts.app')
+@section('title', 'Saved products — Lumear')
+@section('content')
+<div class="mx-auto max-w-6xl rise"><p class="text-xs font-bold uppercase tracking-[.18em] text-maroon-700">Wishlist</p><h1 class="mt-2 font-display text-4xl">Saved products</h1><div class="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">@forelse($savedProducts as $saved)<article class="rounded-2xl bg-cream-50 p-5 shadow-soft"><h2 class="font-display text-xl">{{ $saved->product->name }}</h2><p class="mt-1 text-sm text-maroon-900/60">{{ $saved->product->seller->name }}</p><div class="mt-5 flex justify-between"><a class="font-bold underline" href="{{ route('products.show', $saved->product) }}">View product</a><form method="post" action="{{ route('buyer.saved.destroy', $saved->product) }}">@csrf @method('DELETE')<button class="text-sm font-bold text-maroon-700">Remove</button></form></div></article>@empty <div class="rounded-2xl bg-cream-50 p-10 shadow-soft"><p class="font-display text-2xl">Nothing saved yet.</p><a class="mt-3 inline-block font-bold underline" href="{{ route('shop') }}">Browse products</a></div>@endforelse</div>{{ $savedProducts->links() }}</div>
+@endsection

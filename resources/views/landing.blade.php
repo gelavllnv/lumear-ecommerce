@@ -1,113 +1,204 @@
 @extends('layouts.landing')
 
-@section('title', 'Lumear - Things made to be kept')
+@section('title', 'Lumear — Discover more, beautifully')
 
 @section('content')
 @php
+    $categories = [
+        ['name' => 'Home living', 'image' => 'story.jpg', 'copy' => 'Make room for the everyday.'],
+        ['name' => 'Style finds', 'image' => 'cardigan.jpg', 'copy' => 'Wear what feels like you.'],
+        ['name' => 'Slow rituals', 'image' => 'skincare.jpg', 'copy' => 'Small pauses, well kept.'],
+        ['name' => 'Table stories', 'image' => 'ceramics.jpg', 'copy' => 'Gather around good things.'],
+    ];
+
     $products = [
-        ['name' => 'Cloud Wool Cardigan', 'price' => '2,680', 'image' => 'cardigan.jpg', 'tag' => 'Fashion'],
-        ['name' => 'Solenne Leather Bag', 'price' => '4,200', 'image' => 'bag.jpg', 'tag' => 'New'],
-        ['name' => 'Form Kitchen Set', 'price' => '2,950', 'image' => 'kitchen.jpg', 'tag' => 'Appliances'],
-        ['name' => 'Arden Floor Lamp', 'price' => '7,850', 'image' => 'lamp.jpg', 'tag' => 'Home & decor'],
-        ['name' => 'Ritual Skin Set', 'price' => '6,480', 'image' => 'skincare.jpg', 'tag' => 'Wellness'],
-        ['name' => 'Cara Ceramic Vessel', 'price' => '4,280', 'image' => 'ceramics.jpg', 'tag' => 'Home & decor'],
-        ['name' => 'Sol Shade Frames', 'price' => '3,950', 'image' => 'sunglasses.jpg', 'tag' => 'Accessories'],
-        ['name' => 'Mira Espresso Maker', 'price' => '1,750', 'image' => 'coffee.jpg', 'tag' => 'Appliances'],
+        ['name' => 'Cloud Wool Cardigan', 'price' => '2,680', 'image' => 'cardigan.jpg', 'tag' => 'Just in'],
+        ['name' => 'Solenne Leather Bag', 'price' => '4,200', 'image' => 'bag.jpg', 'tag' => 'Editor’s pick'],
+        ['name' => 'Form Kitchen Set', 'price' => '2,950', 'image' => 'kitchen.jpg', 'tag' => 'For the home'],
+        ['name' => 'Arden Floor Lamp', 'price' => '7,850', 'image' => 'lamp.jpg', 'tag' => 'New arrival'],
     ];
 @endphp
 
-<header class="absolute inset-x-0 top-0 z-20 text-white">
-    <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-        <a href="{{ route('landing') }}" class="font-display text-2xl italic tracking-tight" aria-label="Lumear home">Lumear</a>
-        <div class="hidden items-center gap-7 text-xs font-medium md:flex">
-            <a href="#collection" class="transition hover:text-sand">Collection</a>
-            <a href="#story" class="transition hover:text-sand">Our story</a>
-            <a href="{{ route('shop') }}" class="transition hover:text-sand">Marketplace</a>
+<div class="announcement-bar" role="status">
+    <span>Philippine marketplace</span>
+    <span aria-hidden="true">✦</span>
+    <span>Thoughtful local finds</span>
+    <span aria-hidden="true">✦</span>
+    <span>Cash on delivery available</span>
+</div>
+
+<header class="landing-header">
+    <nav class="landing-nav" aria-label="Main navigation">
+        <a href="{{ route('landing') }}" class="brand" aria-label="Lumear home">
+            <span class="brand-mark" aria-hidden="true">L</span>
+            <span>Lumear</span>
+        </a>
+
+        <div class="nav-links" aria-label="Explore Lumear">
+            <a href="#discover">Discover</a>
+            <a href="#featured">Featured</a>
+            <a href="#our-story">Our story</a>
         </div>
-        <div class="flex items-center gap-4 text-xs font-semibold">
-            <a href="{{ route('login') }}" class="hidden sm:inline hover:text-sand">Log in</a>
-            <a href="{{ route('shop') }}" class="border border-white/70 bg-wine px-4 py-2.5 transition hover:bg-white hover:text-ink">Shop now</a>
+
+        <div class="nav-actions">
+            <a href="{{ route('login') }}" class="nav-login">Sign in</a>
+            <a href="{{ route('register') }}" class="button button-dark">Join Lumear <span aria-hidden="true">↗</span></a>
         </div>
     </nav>
 </header>
 
 <main>
-    <section class="relative isolate min-h-[650px] overflow-hidden bg-ink sm:min-h-[730px]">
-        <img src="{{ asset('images/landing/hero.jpg') }}" alt="A carefully curated rail of clothing" class="absolute inset-0 -z-20 h-full w-full object-cover object-right">
-        <div class="absolute inset-0 -z-10 bg-gradient-to-r from-[#340b16]/95 via-[#4e1825]/72 to-transparent"></div>
-        <div class="mx-auto flex min-h-[650px] max-w-7xl items-center px-5 pb-16 pt-28 sm:min-h-[730px] sm:px-8 lg:px-12">
-            <div class="max-w-xl text-white">
-                <p class="mb-5 text-[10px] font-bold uppercase tracking-[0.24em] text-sand">Since 2026 - thoughtfully curated</p>
-                <h1 class="font-display text-5xl leading-[.9] tracking-tight sm:text-7xl">Things made<br><em class="text-[#e6c78f]">to be kept.</em></h1>
-                <p class="mt-7 max-w-sm text-sm leading-6 text-white/80">Lumear brings together objects of quiet beauty - pieces chosen for craftsmanship, longevity, and the feeling they add to everyday life.</p>
-                <div class="mt-8 flex items-center gap-5">
-                    <a href="{{ route('shop') }}" class="bg-wine px-5 py-3 text-xs font-bold uppercase tracking-wide transition hover:bg-white hover:text-ink">Explore the collection</a>
-                    <a href="#story" class="text-xs font-semibold underline underline-offset-4 transition hover:text-sand">Our story</a>
+    <section class="hero-carousel" data-hero-carousel aria-roledescription="carousel" aria-label="Lumear featured collections">
+        <article class="hero-slide is-active" data-hero-slide aria-hidden="false">
+            <video class="hero-video" muted loop playsinline preload="metadata" poster="{{ asset('images/landing/hero.jpg') }}">
+                <source src="{{ asset('media/landing/couch.mp4') }}" type="video/mp4">
+            </video>
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+                <p class="eyebrow light">A more considered home</p>
+                <h1>Everyday pieces,<br><em>made memorable.</em></h1>
+                <p class="hero-copy">Find the objects, makers, and small details that make a space feel unmistakably yours.</p>
+                <div class="hero-actions">
+                    <a href="{{ route('shop') }}" class="button button-light">Shop home finds <span aria-hidden="true">→</span></a>
+                    <a href="#our-story" class="text-link light">Why Lumear <span aria-hidden="true">↗</span></a>
                 </div>
             </div>
+            <p class="hero-index" aria-hidden="true"><span>01</span> / 03</p>
+        </article>
+
+        <article class="hero-slide" data-hero-slide aria-hidden="true">
+            <video class="hero-video" muted loop playsinline preload="metadata" poster="{{ asset('images/landing/kitchen.jpg') }}">
+                <source src="{{ asset('media/landing/air-purifier.mp4') }}" type="video/mp4">
+            </video>
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+                <p class="eyebrow light">A breath of fresh air</p>
+                <h2>Make space for<br><em>better living.</em></h2>
+                <p class="hero-copy">Designed for the daily rhythm—useful essentials with a little more care in every detail.</p>
+                <div class="hero-actions">
+                    <a href="{{ route('shop') }}" class="button button-light">Explore essentials <span aria-hidden="true">→</span></a>
+                    <a href="#featured" class="text-link light">See what’s new <span aria-hidden="true">↗</span></a>
+                </div>
+            </div>
+            <p class="hero-index" aria-hidden="true"><span>02</span> / 03</p>
+        </article>
+
+        <article class="hero-slide" data-hero-slide aria-hidden="true">
+            <video class="hero-video" muted loop playsinline preload="metadata" poster="{{ asset('images/landing/coffee.jpg') }}">
+                <source src="{{ asset('media/landing/bottles.mp4') }}" type="video/mp4">
+            </video>
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+                <p class="eyebrow light">Small rituals, every day</p>
+                <h2>Bring color to<br><em>the in-between.</em></h2>
+                <p class="hero-copy">From on-the-go favourites to thoughtful gifts, meet the pieces that brighten the ordinary.</p>
+                <div class="hero-actions">
+                    <a href="{{ route('shop') }}" class="button button-light">Find your favourite <span aria-hidden="true">→</span></a>
+                    <a href="#discover" class="text-link light">Browse by mood <span aria-hidden="true">↗</span></a>
+                </div>
+            </div>
+            <p class="hero-index" aria-hidden="true"><span>03</span> / 03</p>
+        </article>
+
+        <div class="carousel-controls">
+            <button type="button" class="carousel-arrow" data-carousel-prev aria-label="Show previous feature">←</button>
+            <div class="carousel-dots" role="tablist" aria-label="Featured collections">
+                <button type="button" class="carousel-dot is-active" data-carousel-dot="0" role="tab" aria-selected="true" aria-label="Show feature 1"></button>
+                <button type="button" class="carousel-dot" data-carousel-dot="1" role="tab" aria-selected="false" aria-label="Show feature 2"></button>
+                <button type="button" class="carousel-dot" data-carousel-dot="2" role="tab" aria-selected="false" aria-label="Show feature 3"></button>
+            </div>
+            <button type="button" class="carousel-arrow" data-carousel-next aria-label="Show next feature">→</button>
         </div>
-        <a href="#collection" class="absolute bottom-7 left-5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/75 sm:left-8 lg:left-12">Scroll to explore ↓</a>
     </section>
 
-    <div class="bg-wine py-3 text-center text-[10px] font-bold uppercase tracking-[0.16em] text-white">
-        New arrivals every Friday <span class="mx-5 text-sand">✦</span> 30-day returns, no questions <span class="mx-5 text-sand">✦</span> Sustainably sourced
-    </div>
-
-    <section id="collection" class="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-12 lg:py-28">
-        <div class="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+    <section class="intro-section" id="discover">
+        <div class="section-heading split-heading">
             <div>
-                <p class="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-wine">Featured products</p>
-                <h2 class="font-display text-4xl leading-none sm:text-5xl">Curated for<br><em class="text-wine">quiet luxury.</em></h2>
+                <p class="eyebrow">Made for how you live</p>
+                <h2>Discover a marketplace<br>with <em>more feeling.</em></h2>
             </div>
-            <a href="{{ route('shop') }}" class="text-xs font-bold uppercase tracking-wide text-wine underline underline-offset-4">Browse the full marketplace →</a>
+            <p>Not just more things. Find locally loved pieces, emerging sellers, and dependable essentials chosen for the life you are building.</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
-            @foreach ($products as $product)
-                <a href="{{ url('/product/'.Str::slug($product['name'])) }}" class="product-card group block">
-                    <div class="relative aspect-[4/5] overflow-hidden bg-sand/30">
-                        <img src="{{ asset('images/landing/'.$product['image']) }}" alt="{{ $product['name'] }}" class="product-image h-full w-full object-cover">
-                        <span class="absolute left-3 top-3 bg-paper/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-ink">{{ $product['tag'] }}</span>
-                    </div>
-                    <div class="flex items-start justify-between gap-3 pt-3">
-                        <h3 class="text-xs font-medium leading-5 sm:text-sm">{{ $product['name'] }}</h3>
-                        <span class="shrink-0 text-xs text-ink/65">₱{{ $product['price'] }}</span>
+        <div class="mood-grid">
+            @foreach ($categories as $index => $category)
+                <a href="{{ route('shop') }}" class="mood-card {{ $index === 0 ? 'mood-card-wide' : '' }}">
+                    <img src="{{ asset('images/landing/'.$category['image']) }}" alt="{{ $category['name'] }} collection">
+                    <div class="mood-card-content">
+                        <span class="eyebrow light">0{{ $index + 1 }}</span>
+                        <h3>{{ $category['name'] }}</h3>
+                        <p>{{ $category['copy'] }}</p>
+                        <span class="round-link" aria-hidden="true">↗</span>
                     </div>
                 </a>
             @endforeach
         </div>
     </section>
 
-    <section id="story" class="grid bg-[#ead8b5] md:grid-cols-2">
-        <div class="min-h-80 overflow-hidden md:min-h-[520px]">
-            <img src="{{ asset('images/landing/story.jpg') }}" alt="A wall of collected art and objects" class="h-full w-full object-cover">
-        </div>
-        <div class="flex items-center px-8 py-20 sm:px-16 lg:px-24">
-            <div class="max-w-md">
-                <p class="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-wine">Our point of view</p>
-                <h2 class="font-display text-4xl leading-tight sm:text-5xl">Objects chosen for<br>the stories they’ll<br><em class="text-wine">gather over time.</em></h2>
-                <p class="mt-6 text-sm leading-6 text-ink/70">We believe the things in your home should earn their place. Discover a more thoughtful way to shop with Lumear.</p>
-                <a href="{{ route('shop') }}" class="mt-8 inline-block border-b border-ink pb-1 text-xs font-bold uppercase tracking-wide">Discover the marketplace →</a>
+    <section class="feature-ribbon" aria-label="Lumear benefits">
+        <p><span>01</span> Secure COD checkout</p>
+        <p><span>02</span> Local sellers &amp; honest finds</p>
+        <p><span>03</span> Delivery updates that keep up</p>
+    </section>
+
+    <section class="featured-section" id="featured">
+        <div class="section-heading section-heading-row">
+            <div>
+                <p class="eyebrow">The Lumear edit</p>
+                <h2>Worth a second<br><em>look.</em></h2>
             </div>
+            <a href="{{ route('shop') }}" class="text-link">View the marketplace <span aria-hidden="true">→</span></a>
         </div>
+
+        <div class="product-grid">
+            @foreach ($products as $product)
+                <a href="{{ route('shop') }}" class="product-card">
+                    <div class="product-image-wrap">
+                        <img src="{{ asset('images/landing/'.$product['image']) }}" alt="{{ $product['name'] }}">
+                        <span class="product-tag">{{ $product['tag'] }}</span>
+                        <span class="product-action" aria-hidden="true">+</span>
+                    </div>
+                    <div class="product-info">
+                        <div>
+                            <p class="product-name">{{ $product['name'] }}</p>
+                            <p class="product-source">Marketplace find</p>
+                        </div>
+                        <p class="product-price">₱{{ $product['price'] }}</p>
+                    </div>
+                </a>
+            @endforeach
+        </div>
+    </section>
+
+    <section class="story-section" id="our-story">
+        <div class="story-photo">
+            <img src="{{ asset('images/landing/story.jpg') }}" alt="A wall of collected art and everyday objects">
+        </div>
+        <div class="story-content">
+            <p class="eyebrow">The Lumear point of view</p>
+            <h2>Good finds change<br>the feel of a <em>day.</em></h2>
+            <p>We created Lumear for the joy of noticing: a piece with character, a seller with care, an everyday essential that works a little harder for you.</p>
+            <a href="{{ route('register') }}" class="button button-dark">Create an account <span aria-hidden="true">→</span></a>
+        </div>
+    </section>
+
+    <section class="seller-callout">
+        <p class="eyebrow light">Sell with Lumear</p>
+        <h2>Have something good<br>to put into the <em>world?</em></h2>
+        <a href="{{ route('register', ['role' => 'seller']) }}" class="button button-gold">Open your store <span aria-hidden="true">↗</span></a>
     </section>
 </main>
 
-<footer class="bg-[#350a14] text-white/70">
-    <div class="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-2 lg:px-12">
-        <div>
-            <p class="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-sand">A little note, now and then</p>
-            <h2 class="font-display text-4xl leading-none text-white sm:text-5xl">For homes in the<br>making.</h2>
-        </div>
-        <div class="md:pt-6">
-            <p class="max-w-sm text-sm leading-6">New arrivals, behind the scenes, and ideas for making the everyday feel considered.</p>
-            <form class="mt-6 flex max-w-sm border-b border-white/40" action="{{ route('shop') }}">
-                <label for="email" class="sr-only">Email address</label>
-                <input id="email" type="email" placeholder="your@email.com" class="w-full bg-transparent py-3 text-sm text-white placeholder:text-white/45 focus:outline-none">
-                <button class="text-xs font-bold text-white">Subscribe ↗</button>
-            </form>
+<footer class="landing-footer">
+    <div class="footer-main">
+        <a href="{{ route('landing') }}" class="brand footer-brand"><span class="brand-mark" aria-hidden="true">L</span><span>Lumear</span></a>
+        <p>Good things, thoughtfully found.<br>Made for everyday life in the Philippines.</p>
+        <div class="footer-links">
+            <a href="{{ route('shop') }}">Marketplace</a>
+            <a href="{{ route('login') }}">Sign in</a>
+            <a href="{{ route('register') }}">Create account</a>
         </div>
     </div>
-    <div class="border-t border-white/10 px-5 py-5 text-center text-[10px] text-white/45 sm:px-8">© {{ date('Y') }} Lumear. All rights reserved.</div>
+    <div class="footer-bottom"><span>© {{ date('Y') }} Lumear</span><span>Local finds · COD checkout · Thoughtful shopping</span></div>
 </footer>
 @endsection

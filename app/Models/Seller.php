@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Seller extends Model
 {
@@ -26,6 +26,12 @@ class Seller extends Model
     {
         return $this->hasMany(Product::class);
     }
+
+    public function storeCategories(): HasMany { return $this->hasMany(SellerStoreCategory::class)->orderBy('position'); }
+    public function vouchers(): HasMany { return $this->hasMany(SellerVoucher::class); }
+    public function flashSales(): HasMany { return $this->hasMany(FlashSale::class); }
+    public function bundleDeals(): HasMany { return $this->hasMany(BundleDeal::class); }
+    public function returns(): HasMany { return $this->hasManyThrough(ReturnRequest::class, SellerOrder::class); }
 
     public function category(): BelongsTo
     {
