@@ -1,0 +1,43 @@
+import '../models/van_pickup_request.dart';
+
+final List<VanPickupRequest> vanPickupDemoData = [
+  VanPickupRequest(
+    id: 'PU-2026-001',
+    sellerName: 'Lumear Fashion Shop',
+    totalAmount: 1500.0,
+    sellerPhone: '09171234567',
+    sellerEmail: 'fashion@example.com',
+    address: '123 Rizal Street',
+    barangay: 'Poblacion',
+    municipality: 'Mabini',
+    province: 'Davao de Oro',
+    parcelCount: 12,
+    notes: 'Clothing and fashion items.',
+  ),
+  VanPickupRequest(
+    id: 'PU-2026-002',
+    sellerName: 'Tech Corner Store',
+    totalAmount: 1500.0,
+    sellerPhone: '09182345678',
+    sellerEmail: 'tech@example.com',
+    address: '45 Market Road',
+    barangay: 'Central',
+    municipality: 'Nabunturan',
+    province: 'Davao de Oro',
+    parcelCount: 8,
+    notes: 'Handle electronic items with care.',
+  ),
+  VanPickupRequest(
+    id: 'PU-2026-003',
+    sellerName: 'Daily Needs Shop',
+    totalAmount: 1500.0,
+    sellerPhone: '09193456789',
+    sellerEmail: 'dailyneeds@example.com',
+    address: '78 Main Avenue',
+    barangay: 'Poblacion',
+    municipality: 'Mabini',
+    province: 'Davao de Oro',
+    parcelCount: 5,
+    notes: 'Please contact the seller upon arrival.',
+  ),
+];
