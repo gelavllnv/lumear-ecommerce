@@ -3,125 +3,92 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Http;
 
+// LOGISTICS CONTROLLERS
+use App\Http\Controllers\Logistics\LogisticsRegistrationController;
+use App\Http\Controllers\Logistics\LogisticsAuthController;
+use App\Http\Controllers\Logistics\LogisticsDashboardController;
+use App\Http\Controllers\Logistics\LogisticsPickupController;
+use App\Http\Controllers\Logistics\LogisticsOperationsController;
+use App\Http\Controllers\Logistics\LogisticsIncomingApiController;
+use App\Http\Controllers\Logistics\LogisticsSortingApiController;
+use App\Http\Controllers\Logistics\LogisticsDeliveryApiController;
+use App\Http\Controllers\Logistics\LogisticsRiderManagementApiController;
+
+// LOGISTICS HEAD ADMIN
+use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
+use App\Http\Controllers\Logistics\LogisticsHeadAdminDashboardController;
+use App\Http\Controllers\Logistics\LogisticsHeadAdminApplicationController;
+
+// MIDDLEWARE
+use App\Http\Middleware\EnsureApprovedLogistics;
+use App\Http\Middleware\EnsureLogisticsHeadAdmin;
+
 
 /*
 |--------------------------------------------------------------------------
-| BUYER AUTHENTICATION ROUTES
+| BUYER AUTHENTICATION
 |--------------------------------------------------------------------------
 */
 
-// Buyer Login / Landing Page
 Route::get('/', function () {
-
     return view('buyer.auth.login');
-
 })->name('login');
 
-
-// Buyer Registration
 Route::get('/register', function () {
-
     return view('buyer.auth.register');
-
 })->name('register');
 
 
 /*
 |--------------------------------------------------------------------------
-| BUYER SHOP ROUTES
+| BUYER SHOP
 |--------------------------------------------------------------------------
 */
 
-// Buyer Home
 Route::get('/home', function () {
-
     return view('buyer.home');
-
 })->name('home');
 
-
-// Product Details
 Route::get('/product/{slug}', function ($slug) {
-
     return view('buyer.products.show');
-
 });
 
-
-// Product Category
 Route::get('/category/{slug}', function ($slug) {
 
-    $category =
-        \App\Support\BuyerCategories::find($slug);
-
+    $category = \App\Support\BuyerCategories::find($slug);
 
     abort_if(!$category, 404);
 
-
     return view('buyer.category.show', [
-
         'category' => $category,
-
-        'products' =>
-            \App\Support\BuyerProducts::forCategory(
-                $slug
-            ),
-
+        'products' => \App\Support\BuyerProducts::forCategory($slug),
     ]);
-
 });
 
-
-// Buyer Cart
 Route::get('/cart', function () {
-
     return view('buyer.cart');
-
 });
 
-
-// Buyer Orders
 Route::get('/orders', function () {
-
     return view('buyer.orders.index');
-
 });
 
-
-// Buyer Chat
 Route::get('/chat', function () {
-
     return view('buyer.chat');
-
 });
 
-
-// Buyer Account
 Route::get('/account', function () {
-
     return view('buyer.account');
-
 });
 
-
-// Buyer Search
 Route::get('/search', function () {
 
-    $query =
-        request('q', '');
-
+    $query = request('q', '');
 
     return view('buyer.search', [
-
         'query' => $query,
-
-        'products' =>
-            \App\Support\BuyerProducts::search(
-                $query
-            ),
-
+        'products' => \App\Support\BuyerProducts::search($query),
     ]);
-
 });
 
 Route::get('/saved', function () {
@@ -131,7 +98,7 @@ Route::get('/saved', function () {
 
 /*
 |--------------------------------------------------------------------------
-| LOGISTICS / SORTING CENTER ROUTES
+| LOGISTICS ROUTES
 |--------------------------------------------------------------------------
 */
 
@@ -139,148 +106,411 @@ Route::prefix('logistics')
     ->name('logistics.')
     ->group(function () {
 
-
         /*
         |--------------------------------------------------------------------------
-        | Logistics Authentication
+        | LOGISTICS AUTHENTICATION
         |--------------------------------------------------------------------------
         */
 
-        Route::get('/login', function () {
+        Route::get('/login', [
+            LogisticsAuthController::class,
+            'showLogin'
+        ])->name('login');
 
-            return view(
-                'logistics.auth.login'
-            );
+        Route::post('/login', [
+            LogisticsAuthController::class,
+            'login'
+        ])->name('login.submit');
 
-        })->name('login');
+        Route::post('/logout', [
+            LogisticsAuthController::class,
+            'logout'
+        ])->name('logout');
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | LOGISTICS REGISTRATION
+        |--------------------------------------------------------------------------
+        */
 
         Route::get('/register', function () {
-
-            return view(
-                'logistics.auth.register'
-            );
-
+            return view('logistics.auth.register');
         })->name('register');
 
-
-
         Route::get('/pending', function () {
-
-            return view(
-                'logistics.auth.pending'
-            );
-
+            return view('logistics.auth.pending');
         })->name('pending');
 
+        Route::post('/register/validate', [
+            LogisticsRegistrationController::class,
+            'validateStep'
+        ])->name('register.validate');
+
+        Route::post('/register/send-otp', [
+            LogisticsRegistrationController::class,
+            'sendOtp'
+        ])->name('register.send-otp');
+
+        Route::post('/register/verify-otp', [
+            LogisticsRegistrationController::class,
+            'verifyOtp'
+        ])->name('register.verify-otp');
+
+        Route::post('/register/submit', [
+            LogisticsRegistrationController::class,
+            'submit'
+        ])->name('register.submit');
+
+        Route::get('/municipality-availability', [
+            LogisticsRegistrationController::class,
+            'municipalityAvailability'
+        ])->name('municipality.availability');
 
 
         /*
         |--------------------------------------------------------------------------
-        | Logistics Dashboard
+        | PROTECTED LOGISTICS WORKSPACE
+        |--------------------------------------------------------------------------
+        |
+        | All modules require an authenticated and approved
+        | Logistics provider account.
+        |
+        */
+
+        Route::middleware([
+            'auth',
+            EnsureApprovedLogistics::class
+        ])->group(function () {
+
+            /*
+            |--------------------------------------------------------------------------
+            | DASHBOARD
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/dashboard', [
+                LogisticsDashboardController::class,
+                'index'
+            ])->name('dashboard');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PICKUP REQUESTS
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/pickup-requests', [
+                LogisticsPickupController::class,
+                'index'
+            ])->name('pickup.index');
+
+            Route::get('/pickup-requests/{id}', [
+                LogisticsPickupController::class,
+                'show'
+            ])
+                ->whereNumber('id')
+                ->name('pickup.show');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | INCOMING PARCELS
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/incoming-parcels', function () {
+                return view('logistics.incoming.index');
+            })->name('incoming.index');
+
+            Route::post('/incoming-parcels/{id}/receive', [
+                LogisticsOperationsController::class,
+                'receive'
+            ])
+                ->whereNumber('id')
+                ->name('ops.receive');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PARCEL SORTING
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/parcel-sorting', function () {
+                return view('logistics.sorting.index');
+            })->name('sorting.index');
+
+            Route::post('/parcel-sorting/{id}/sort', [
+                LogisticsOperationsController::class,
+                'sort'
+            ])
+                ->whereNumber('id')
+                ->name('ops.sort');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | DELIVERY ASSIGNMENT
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/delivery-assignment', function () {
+                return view('logistics.assignment.index');
+            })->name('assignment.index');
+
+            Route::post('/delivery-assignment/{id}/assign', [
+                LogisticsOperationsController::class,
+                'assign'
+            ])
+                ->whereNumber('id')
+                ->name('ops.assign');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | DELIVERY MONITORING
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/delivery-monitoring', function () {
+                return view('logistics.monitoring.index');
+            })->name('monitoring.index');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | RIDER APPLICATIONS
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/rider-applications', function () {
+                return view('logistics.riders.applications');
+            })->name('riders.applications');
+
+            Route::post('/rider-applications', [
+                LogisticsOperationsController::class,
+                'apply'
+            ])->name('ops.apply');
+
+            Route::post('/rider-applications/{id}/decide', [
+                LogisticsOperationsController::class,
+                'decide'
+            ])
+                ->whereNumber('id')
+                ->name('ops.decide');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | RIDER LIST
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/riders', function () {
+                return view('logistics.riders.index');
+            })->name('riders.index');
+
+            Route::post('/riders/{id}/status', [
+                LogisticsOperationsController::class,
+                'riderStatus'
+            ])
+                ->whereNumber('id')
+                ->name('ops.rider-status');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | MESSAGES
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/messages', function () {
+                return view('logistics.messages.index');
+            })->name('messages.index');
+
+            Route::post('/messages', [
+                LogisticsOperationsController::class,
+                'message'
+            ])->name('ops.message');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | REPORTS
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/reports', function () {
+                return view('logistics.reports.index');
+            })->name('reports.index');
+
+            Route::get('/reports/export', [
+                LogisticsOperationsController::class,
+                'report'
+            ])->name('ops.report');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | MY ACCOUNT
+            | ORIGINAL UI
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/account', function () {
+                return view('logistics.account.index');
+            })->name('account.index');
+
+            Route::post('/account', [
+                LogisticsOperationsController::class,
+                'account'
+            ])->name('ops.account');
+
+            Route::post('/account/password', [
+                LogisticsOperationsController::class,
+                'password'
+            ])->name('ops.password');
+
+        });
+
+        Route::get('/api/incoming-parcels', [
+            LogisticsIncomingApiController::class,
+            'index'
+        ])->name('api.incoming.index');
+
+        Route::post('/api/incoming-parcels/{id}/receive', [
+            LogisticsIncomingApiController::class,
+            'receive'
+        ])
+            ->whereNumber('id')
+            ->name('api.incoming.receive');
+
+        Route::get('/api/sorting', [
+            LogisticsSortingApiController::class,
+            'index'
+        ])->name('api.sorting.index');
+
+        Route::post('/api/sorting/batches', [
+            LogisticsSortingApiController::class,
+            'createBatch'
+        ])->name('api.sorting.batches');
+
+        Route::post('/api/sorting/assign', [
+            LogisticsSortingApiController::class,
+            'assign'
+        ])->name('api.sorting.assign');
+
+        Route::post('/api/sorting/{id}/complete', [
+            LogisticsSortingApiController::class,
+            'complete'
+        ])
+            ->whereNumber('id')
+            ->name('api.sorting.complete');
+
+        /*
+        |--------------------------------------------------------------------------
+        | DELIVERY ASSIGNMENT API
         |--------------------------------------------------------------------------
         */
 
-        Route::get('/dashboard', function () {
+        Route::get('/api/delivery/assignment', [
+            LogisticsDeliveryApiController::class,
+            'assignment'
+        ])->name('api.delivery.assignment');
 
-            return view(
-                'logistics.dashboard'
-            );
+        Route::post('/api/delivery/assign', [
+            LogisticsDeliveryApiController::class,
+            'assign'
+        ])->name('api.delivery.assign');
 
-        })->name('dashboard');
+        Route::post('/api/delivery/dispatch/{id}', [
+            LogisticsDeliveryApiController::class,
+            'dispatch'
+        ])
+            ->whereNumber('id')
+            ->name('api.delivery.dispatch');
 
-        Route::get('/pickup-requests', function () {
+        /*
+        |--------------------------------------------------------------------------
+        | DELIVERY MONITORING API
+        |--------------------------------------------------------------------------
+        */
 
-            return view(
-                'logistics.pickup.index'
-            );
+        Route::get('/api/delivery/monitoring', [
+            LogisticsDeliveryApiController::class,
+            'monitoring'
+        ])->name('api.delivery.monitoring');
 
-        })->name('pickup.index');
+        Route::post('/api/delivery/monitoring/{id}/status', [
+            LogisticsDeliveryApiController::class,
+            'updateStatus'
+        ])
+            ->whereNumber('id')
+            ->name('api.delivery.monitoring.status');
+        
+        Route::get('/api/rider-management', [
+            LogisticsRiderManagementApiController::class,
+            'index'
+        ])->name('api.riders.index');
 
+        Route::post('/api/rider-management/applications/{id}/decide', [
+            LogisticsRiderManagementApiController::class,
+            'decide'
+        ])
+            ->whereNumber('id')
+            ->name('api.riders.decide');
+
+        Route::post('/api/rider-management/riders/{id}/status', [
+            LogisticsRiderManagementApiController::class,
+            'updateStatus'
+        ])
+            ->whereNumber('id')
+            ->name('api.riders.status');
 
         /*
         |--------------------------------------------------------------------------
         | PHILIPPINE ADDRESS API
         |--------------------------------------------------------------------------
-        |
-        | Browser
-        |    ↓
-        | Laravel
-        |    ↓
-        | PSGC Cloud
-        |
         */
 
+        Route::get('/address/provinces', function () {
 
+            try {
 
-        /*
-        |--------------------------------------------------------------------------
-        | Provinces
-        |--------------------------------------------------------------------------
-        */
+                $response = Http::timeout(15)
+                    ->acceptJson()
+                    ->get('https://psgc.cloud/api/v2/provinces');
 
-        Route::get(
-            '/address/provinces',
-            function () {
+                if ($response->failed()) {
 
-                try {
-
-                    $response =
-                        Http::timeout(15)
-                            ->acceptJson()
-                            ->get(
-                                'https://psgc.cloud/api/v2/provinces'
-                            );
-
-
-                    if ($response->failed()) {
-
-                        return response()->json(
-                            [
-                                'success' => false,
-
-                                'message' =>
-                                    'Unable to load provinces.',
-                            ],
-                            500
-                        );
-
-                    }
-
-
-                    return response()->json(
-                        $response->json()
-                    );
-
-
-                } catch (\Exception $exception) {
-
-                    return response()->json(
-                        [
-                            'success' => false,
-
-                            'message' =>
-                                'Address service is unavailable.',
-
-                            'error' =>
-                                $exception->getMessage(),
-                        ],
-                        500
-                    );
-
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unable to load provinces.',
+                    ], 500);
                 }
 
+                return response()->json($response->json());
+
+            } catch (\Exception $exception) {
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Address service is unavailable.',
+                ], 500);
             }
-        )->name('address.provinces');
 
+        })->name('address.provinces');
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Cities / Municipalities
-        |--------------------------------------------------------------------------
-        */
 
         Route::get(
             '/address/provinces/{province}/cities-municipalities',
@@ -288,65 +518,35 @@ Route::prefix('logistics')
 
                 try {
 
-                    $response =
-                        Http::timeout(15)
-                            ->acceptJson()
-                            ->get(
-                                'https://psgc.cloud/api/v2/provinces/'
-                                . urlencode($province)
-                                . '/cities-municipalities'
-                            );
-
+                    $response = Http::timeout(15)
+                        ->acceptJson()
+                        ->get(
+                            'https://psgc.cloud/api/v2/provinces/'
+                            . urlencode($province)
+                            . '/cities-municipalities'
+                        );
 
                     if ($response->failed()) {
 
-                        return response()->json(
-                            [
-                                'success' => false,
-
-                                'message' =>
-                                    'Unable to load cities and municipalities.',
-                            ],
-                            500
-                        );
-
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Unable to load cities and municipalities.',
+                        ], 500);
                     }
 
-
-                    return response()->json(
-                        $response->json()
-                    );
-
+                    return response()->json($response->json());
 
                 } catch (\Exception $exception) {
 
-                    return response()->json(
-                        [
-                            'success' => false,
-
-                            'message' =>
-                                'Address service is unavailable.',
-
-                            'error' =>
-                                $exception->getMessage(),
-                        ],
-                        500
-                    );
-
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Address service is unavailable.',
+                    ], 500);
                 }
 
             }
-        )->name(
-            'address.cities-municipalities'
-        );
+        )->name('address.cities-municipalities');
 
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Barangays
-        |--------------------------------------------------------------------------
-        */
 
         Route::get(
             '/address/cities-municipalities/{municipality}/barangays',
@@ -354,86 +554,140 @@ Route::prefix('logistics')
 
                 try {
 
-                    $response =
-                        Http::timeout(15)
-                            ->acceptJson()
-                            ->get(
-                                'https://psgc.cloud/api/v2/cities-municipalities/'
-                                . urlencode($municipality)
-                                . '/barangays'
-                            );
-
+                    $response = Http::timeout(15)
+                        ->acceptJson()
+                        ->get(
+                            'https://psgc.cloud/api/v2/cities-municipalities/'
+                            . urlencode($municipality)
+                            . '/barangays'
+                        );
 
                     if ($response->failed()) {
 
-                        return response()->json(
-                            [
-                                'success' => false,
-
-                                'message' =>
-                                    'Unable to load barangays.',
-                            ],
-                            500
-                        );
-
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Unable to load barangays.',
+                        ], 500);
                     }
 
-
-                    return response()->json(
-                        $response->json()
-                    );
-
+                    return response()->json($response->json());
 
                 } catch (\Exception $exception) {
 
-                    return response()->json(
-                        [
-                            'success' => false,
-
-                            'message' =>
-                                'Address service is unavailable.',
-
-                            'error' =>
-                                $exception->getMessage(),
-                        ],
-                        500
-                    );
-
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Address service is unavailable.',
+                    ], 500);
                 }
 
             }
         )->name('address.barangays');
-
 
     });
 
 
 /*
 |--------------------------------------------------------------------------
-| DEVELOPMENT NOTE
+| LOGISTICS HEAD ADMIN
 |--------------------------------------------------------------------------
-|
-| Buyer and Logistics authentication are still temporary.
-|
-| Current Logistics modules:
-|
-| ✓ Login
-| ✓ Registration
-| ✓ Philippine address API
-| ✓ Pending Approval
-| ✓ Dashboard
-|
-| Next modules:
-|
-| - Pickup Requests
-| - Incoming Parcels
-| - Parcel Sorting
-| - Delivery Assignment
-| - Delivery Monitoring
-| - Rider Applications
-| - Rider Management
-| - Messages
-| - Reports
-| - Account Management
-|
 */
+
+Route::prefix('logistics/head-admin')
+    ->name('logistics.head-admin.')
+    ->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | HEAD ADMIN AUTHENTICATION
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/login', [
+            LogisticsHeadAdminAuthController::class,
+            'showLogin'
+        ])->name('login');
+
+        Route::post('/login', [
+            LogisticsHeadAdminAuthController::class,
+            'login'
+        ])->name('login.submit');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROTECTED HEAD ADMIN ROUTES
+        |--------------------------------------------------------------------------
+        */
+
+        Route::middleware([
+            'auth',
+            EnsureLogisticsHeadAdmin::class
+        ])->group(function () {
+
+            /*
+            |--------------------------------------------------------------------------
+            | HEAD ADMIN DASHBOARD
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/dashboard', [
+                LogisticsHeadAdminDashboardController::class,
+                'index'
+            ])->name('dashboard');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | HEAD ADMIN LOGOUT
+            |--------------------------------------------------------------------------
+            */
+
+            Route::post('/logout', [
+                LogisticsHeadAdminAuthController::class,
+                'logout'
+            ])->name('logout');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | APPLICATION MANAGEMENT
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/applications', [
+                LogisticsHeadAdminApplicationController::class,
+                'index'
+            ])->name('applications.index');
+
+            Route::get('/applications/{id}', [
+                LogisticsHeadAdminApplicationController::class,
+                'show'
+            ])
+                ->whereNumber('id')
+                ->name('applications.show');
+
+            Route::get('/applications/{id}/documents/{type}', [
+                LogisticsHeadAdminApplicationController::class,
+                'document'
+            ])
+                ->whereNumber('id')
+                ->where('type', 'valid-id|business-permit')
+                ->name('applications.document');
+
+            Route::post('/applications/{id}/approve', [
+                LogisticsHeadAdminApplicationController::class,
+                'approve'
+            ])
+                ->whereNumber('id')
+                ->name('applications.approve');
+
+            Route::post('/applications/{id}/reject', [
+                LogisticsHeadAdminApplicationController::class,
+                'reject'
+            ])
+                ->whereNumber('id')
+                ->name('applications.reject');
+
+        });
+
+    });

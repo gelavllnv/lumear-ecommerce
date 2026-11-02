@@ -1,10 +1,11 @@
 /* =========================================================
    LUMEAR LOGISTICS
    AUTHENTICATION + REGISTRATION
+
+   Laravel 13 / MySQL
    ========================================================= */
 
 document.addEventListener("DOMContentLoaded", function () {
-
 
     /* =====================================================
        1. PASSWORD VISIBILITY
@@ -12,7 +13,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const passwordButtons =
         document.querySelectorAll(".password-button");
-
 
     passwordButtons.forEach(function (button) {
 
@@ -24,11 +24,9 @@ document.addEventListener("DOMContentLoaded", function () {
             const passwordInput =
                 document.getElementById(targetId);
 
-
             if (!passwordInput) {
                 return;
             }
-
 
             if (passwordInput.type === "password") {
 
@@ -55,80 +53,73 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-
     /* =====================================================
-       2. DEMO LOGISTICS LOGIN
+       2. REAL LOGISTICS LOGIN
        ===================================================== */
 
     const loginForm =
         document.getElementById("logisticsLoginForm");
 
-
     if (loginForm) {
 
-        loginForm.addEventListener(
-            "submit",
-            function (event) {
+        let isSubmitting = false;
+
+        loginForm.addEventListener("submit", function (event) {
+
+            /*
+             * Do not prevent normal form submission.
+             * Laravel handles authentication and redirects.
+             */
+
+            if (!loginForm.checkValidity()) {
 
                 event.preventDefault();
 
+                loginForm.reportValidity();
 
-                const email =
-                    document.getElementById(
-                        "logisticsEmail"
-                    );
+                return;
+            }
 
-                const password =
-                    document.getElementById(
-                        "logisticsPassword"
-                    );
+            if (isSubmitting) {
 
-                const button =
-                    document.getElementById(
-                        "logisticsLoginButton"
-                    );
+                event.preventDefault();
 
+                return;
+            }
 
-                if (
-                    !email.value.trim() ||
-                    !password.value.trim()
-                ) {
-                    return;
-                }
+            isSubmitting = true;
 
+            const button =
+                document.getElementById("logisticsLoginButton");
 
-                localStorage.setItem(
-                    "lumear_logistics_email",
-                    email.value.trim()
-                );
+            if (button) {
 
+                button.disabled = true;
 
-                if (button) {
-
-                    button.disabled = true;
-
-                    button.innerHTML =
-                        "<span>Signing in...</span>";
-
-                }
-
-
-                setTimeout(function () {
-
-                    window.location.href =
-                        loginForm.dataset.dashboardUrl;
-
-                }, 550);
+                button.innerHTML =
+                    "<span>Signing in...</span>";
 
             }
-        );
+
+            /*
+             * The browser now sends the POST request to:
+             *
+             * route('logistics.login.submit')
+             *
+             * LogisticsAuthController decides whether to:
+             *
+             * - Redirect approved providers to dashboard
+             * - Redirect pending providers to pending page
+             * - Reject unauthorized login attempts
+             */
+
+        });
 
     }
 
 
-
     /* =====================================================
-       3. AUTOMATIC AGE
+       3. AUTOMATIC AGE CALCULATION
        ===================================================== */
 
     const birthday =
@@ -137,92 +128,76 @@ document.addEventListener("DOMContentLoaded", function () {
     const age =
         document.getElementById("age");
 
-
     if (birthday && age) {
 
-        const today =
-            new Date();
+        const today = new Date();
 
-
-        const year =
-            today.getFullYear();
+        const year = today.getFullYear();
 
         const month =
-            String(
-                today.getMonth() + 1
-            ).padStart(2, "0");
+            String(today.getMonth() + 1).padStart(2, "0");
 
         const day =
-            String(
-                today.getDate()
-            ).padStart(2, "0");
+            String(today.getDate()).padStart(2, "0");
 
+        birthday.max = `${year}-${month}-${day}`;
 
-        birthday.max =
-            `${year}-${month}-${day}`;
+        function calculateAge() {
 
+            if (!birthday.value) {
+
+                age.value = "";
+
+                return;
+            }
+
+            const birthDate =
+                new Date(birthday.value + "T00:00:00");
+
+            if (Number.isNaN(birthDate.getTime())) {
+
+                age.value = "";
+
+                return;
+            }
+
+            const currentDate = new Date();
+
+            let calculatedAge =
+                currentDate.getFullYear() -
+                birthDate.getFullYear();
+
+            const monthDifference =
+                currentDate.getMonth() -
+                birthDate.getMonth();
+
+            if (
+                monthDifference < 0 ||
+                (
+                    monthDifference === 0 &&
+                    currentDate.getDate() < birthDate.getDate()
+                )
+            ) {
+
+                calculatedAge--;
+
+            }
+
+            age.value =
+                calculatedAge >= 0
+                    ? calculatedAge
+                    : "";
+
+        }
 
         birthday.addEventListener(
             "change",
-            function () {
-
-                if (!birthday.value) {
-
-                    age.value = "";
-
-                    return;
-
-                }
-
-
-                const birthDate =
-                    new Date(
-                        birthday.value +
-                        "T00:00:00"
-                    );
-
-
-                const currentDate =
-                    new Date();
-
-
-                let calculatedAge =
-                    currentDate.getFullYear()
-                    -
-                    birthDate.getFullYear();
-
-
-                const monthDifference =
-                    currentDate.getMonth()
-                    -
-                    birthDate.getMonth();
-
-
-                if (
-                    monthDifference < 0 ||
-                    (
-                        monthDifference === 0 &&
-                        currentDate.getDate()
-                        <
-                        birthDate.getDate()
-                    )
-                ) {
-
-                    calculatedAge--;
-
-                }
-
-
-                age.value =
-                    calculatedAge >= 0
-                        ? calculatedAge
-                        : "";
-
-            }
+            calculateAge
         );
 
-    }
+        calculateAge();
 
+    }
 
 
     /* =====================================================
@@ -239,9 +214,8 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("barangay");
 
 
-
     /* =====================================================
-       5. START ADDRESS SYSTEM
+       5. INITIALIZE ADDRESS SYSTEM
        ===================================================== */
 
     if (
@@ -253,7 +227,6 @@ document.addEventListener("DOMContentLoaded", function () {
         loadProvinces();
 
     }
-
 
 
     /* =====================================================
@@ -268,24 +241,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
         barangaySelect.disabled = true;
 
-
         setSelectMessage(
             provinceSelect,
             "Loading provinces..."
         );
-
 
         setSelectMessage(
             municipalitySelect,
             "Select province first"
         );
 
-
         setSelectMessage(
             barangaySelect,
             "Select municipality first"
         );
-
 
         try {
 
@@ -294,16 +263,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     "/logistics/address/provinces"
                 );
 
-
             fillSelect(
                 provinceSelect,
                 provinces,
                 "Select province"
             );
 
-
             provinceSelect.disabled = false;
-
 
         } catch (error) {
 
@@ -312,12 +278,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 error
             );
 
-
             setSelectMessage(
                 provinceSelect,
                 "Failed to load provinces"
             );
-
 
             provinceSelect.disabled = false;
 
@@ -326,12 +290,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-
     /* =====================================================
        7. PROVINCE CHANGE
        ===================================================== */
 
-    if (provinceSelect) {
+    if (
+        provinceSelect &&
+        municipalitySelect &&
+        barangaySelect
+    ) {
 
         provinceSelect.addEventListener(
             "change",
@@ -340,48 +307,37 @@ document.addEventListener("DOMContentLoaded", function () {
                 const provinceCode =
                     provinceSelect.value;
 
-
                 setSelectMessage(
                     municipalitySelect,
                     "Select province first"
                 );
-
 
                 setSelectMessage(
                     barangaySelect,
                     "Select municipality first"
                 );
 
-
                 municipalitySelect.disabled = true;
 
                 barangaySelect.disabled = true;
 
-
                 if (!provinceCode) {
                     return;
                 }
-
 
                 setSelectMessage(
                     municipalitySelect,
                     "Loading cities / municipalities..."
                 );
 
-
                 try {
 
                     const municipalities =
                         await requestAddress(
-                            "/logistics/address/provinces/"
-                            +
-                            encodeURIComponent(
-                                provinceCode
-                            )
-                            +
+                            "/logistics/address/provinces/" +
+                            encodeURIComponent(provinceCode) +
                             "/cities-municipalities"
                         );
-
 
                     fillSelect(
                         municipalitySelect,
@@ -389,10 +345,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         "Select municipality / city"
                     );
 
-
-                    municipalitySelect.disabled =
-                        false;
-
+                    municipalitySelect.disabled = false;
 
                 } catch (error) {
 
@@ -401,15 +354,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         error
                     );
 
-
                     setSelectMessage(
                         municipalitySelect,
                         "Failed to load locations"
                     );
 
-
-                    municipalitySelect.disabled =
-                        false;
+                    municipalitySelect.disabled = false;
 
                 }
 
@@ -419,12 +369,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-
     /* =====================================================
-       8. MUNICIPALITY / CITY CHANGE
+       8. MUNICIPALITY CHANGE
        ===================================================== */
 
-    if (municipalitySelect) {
+    if (
+        municipalitySelect &&
+        barangaySelect
+    ) {
 
         municipalitySelect.addEventListener(
             "change",
@@ -433,40 +385,30 @@ document.addEventListener("DOMContentLoaded", function () {
                 const municipalityCode =
                     municipalitySelect.value;
 
-
                 setSelectMessage(
                     barangaySelect,
                     "Select municipality first"
                 );
 
-
                 barangaySelect.disabled = true;
-
 
                 if (!municipalityCode) {
                     return;
                 }
-
 
                 setSelectMessage(
                     barangaySelect,
                     "Loading barangays..."
                 );
 
-
                 try {
 
                     const barangays =
                         await requestAddress(
-                            "/logistics/address/cities-municipalities/"
-                            +
-                            encodeURIComponent(
-                                municipalityCode
-                            )
-                            +
+                            "/logistics/address/cities-municipalities/" +
+                            encodeURIComponent(municipalityCode) +
                             "/barangays"
                         );
-
 
                     fillSelect(
                         barangaySelect,
@@ -474,10 +416,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         "Select barangay"
                     );
 
-
-                    barangaySelect.disabled =
-                        false;
-
+                    barangaySelect.disabled = false;
 
                 } catch (error) {
 
@@ -486,15 +425,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         error
                     );
 
-
                     setSelectMessage(
                         barangaySelect,
                         "Failed to load barangays"
                     );
 
-
-                    barangaySelect.disabled =
-                        false;
+                    barangaySelect.disabled = false;
 
                 }
 
@@ -504,30 +440,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-
     /* =====================================================
-       9. ADDRESS REQUEST
-
-       IMPORTANT:
-
-       Your Laravel endpoint returns:
-
-       {
-           "data": [
-               {...},
-               {...}
-           ]
-       }
-
-       This function supports BOTH:
-
-       {
-           "data": [...]
-       }
-
-       and:
-
-       [...]
+       9. ADDRESS API REQUEST
        ===================================================== */
 
     async function requestAddress(url) {
@@ -537,96 +451,47 @@ document.addEventListener("DOMContentLoaded", function () {
             url
         );
 
+        const response = await fetch(url, {
 
-        const response =
-            await fetch(
-                url,
-                {
-                    method: "GET",
+            method: "GET",
 
-                    cache: "no-store",
+            cache: "no-store",
 
-                    headers: {
+            headers: {
 
-                        "Accept":
-                            "application/json",
+                "Accept": "application/json",
 
-                        "X-Requested-With":
-                            "XMLHttpRequest"
+                "X-Requested-With": "XMLHttpRequest"
 
-                    }
+            }
 
-                }
-            );
-
-
-        console.log(
-            "Address HTTP status:",
-            response.status
-        );
-
+        });
 
         if (!response.ok) {
 
             const errorBody =
                 await response.text();
 
-
             console.error(
                 "Address server error:",
                 errorBody
             );
 
-
             throw new Error(
-                "HTTP error "
-                +
+                "Address request failed: HTTP " +
                 response.status
             );
 
         }
 
-
         const result =
             await response.json();
-
-
-        console.log(
-            "Address response:",
-            result
-        );
-
-
-
-        /* ---------------------------------------------
-           FORMAT 1
-
-           [
-               {...},
-               {...}
-           ]
-           --------------------------------------------- */
 
         if (Array.isArray(result)) {
 
             return result;
 
         }
-
-
-
-        /* ---------------------------------------------
-           FORMAT 2
-
-           {
-               "data": [
-                   {...},
-                   {...}
-               ]
-           }
-
-           This is the format shown in your screenshot.
-           --------------------------------------------- */
 
         if (
             result &&
@@ -637,17 +502,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         }
 
-
-
-        /* ---------------------------------------------
-           Invalid format
-           --------------------------------------------- */
-
         console.error(
             "Unknown PSGC response format:",
             result
         );
-
 
         throw new Error(
             "The address API returned an unknown format."
@@ -656,9 +514,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-
     /* =====================================================
-       10. FILL SELECT
+       10. POPULATE ADDRESS SELECT
        ===================================================== */
 
     function fillSelect(
@@ -667,36 +524,28 @@ document.addEventListener("DOMContentLoaded", function () {
         placeholder
     ) {
 
+        if (!selectElement) {
+            return;
+        }
+
         selectElement.innerHTML = "";
 
-
         const placeholderOption =
-            document.createElement(
-                "option"
-            );
-
+            document.createElement("option");
 
         placeholderOption.value = "";
 
         placeholderOption.textContent =
             placeholder;
 
-
         selectElement.appendChild(
             placeholderOption
         );
 
-
-
-        /*
-         * Make sure we really received
-         * an array.
-         */
-
         if (!Array.isArray(items)) {
 
             console.error(
-                "fillSelect received invalid data:",
+                "Invalid address data:",
                 items
             );
 
@@ -704,102 +553,74 @@ document.addEventListener("DOMContentLoaded", function () {
 
         }
 
-
-
-        /*
-         * Sort alphabetically.
-         */
-
-        items.sort(
+        const sortedItems = [...items].sort(
             function (a, b) {
 
                 const nameA =
-                    a.name || "";
+                    String(a?.name || "");
 
                 const nameB =
-                    b.name || "";
+                    String(b?.name || "");
 
-
-                return nameA.localeCompare(
-                    nameB
-                );
+                return nameA.localeCompare(nameB);
 
             }
         );
 
+        sortedItems.forEach(function (item) {
 
+            if (
+                !item ||
+                !item.code ||
+                !item.name
+            ) {
+                return;
+            }
 
-        /*
-         * Add every location.
-         */
+            const option =
+                document.createElement("option");
 
-        items.forEach(
-            function (item) {
+            option.value =
+                item.code;
 
-                if (
-                    !item ||
-                    !item.code ||
-                    !item.name
-                ) {
-                    return;
-                }
+            option.textContent =
+                item.name;
 
+            option.dataset.name =
+                item.name;
 
-                const option =
-                    document.createElement(
-                        "option"
-                    );
+            if (item.region) {
 
-
-                option.value =
-                    item.code;
-
-
-                option.textContent =
-                    item.name;
-
-
-                option.dataset.name =
-                    item.name;
-
-
-                if (item.region) {
-
-                    option.dataset.region =
-                        item.region;
-
-                }
-
-
-                if (item.type) {
-
-                    option.dataset.type =
-                        item.type;
-
-                }
-
-
-                selectElement.appendChild(
-                    option
-                );
+                option.dataset.region =
+                    item.region;
 
             }
-        );
 
+            if (item.type) {
+
+                option.dataset.type =
+                    item.type;
+
+            }
+
+            selectElement.appendChild(
+                option
+            );
+
+        });
 
         console.log(
             "Loaded",
-            items.length,
-            "items into",
+            sortedItems.length,
+            "locations into",
             selectElement.id
         );
 
     }
 
 
-
     /* =====================================================
-       11. SELECT MESSAGE
+       11. ADDRESS SELECT PLACEHOLDER
        ===================================================== */
 
     function setSelectMessage(
@@ -811,21 +632,15 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-
         selectElement.innerHTML = "";
 
-
         const option =
-            document.createElement(
-                "option"
-            );
-
+            document.createElement("option");
 
         option.value = "";
 
         option.textContent =
             message;
-
 
         selectElement.appendChild(
             option
@@ -834,16 +649,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-
     /* =====================================================
-       12. FILE UPLOAD NAME
+       12. FILE UPLOAD NAME DISPLAY
        ===================================================== */
 
     const fileInputs =
         document.querySelectorAll(
             ".upload-box input[type='file']"
         );
-
 
     fileInputs.forEach(function (input) {
 
@@ -852,26 +665,18 @@ document.addEventListener("DOMContentLoaded", function () {
             function () {
 
                 const uploadBox =
-                    input.closest(
-                        ".upload-box"
-                    );
-
+                    input.closest(".upload-box");
 
                 if (!uploadBox) {
                     return;
                 }
 
-
                 const fileName =
-                    uploadBox.querySelector(
-                        ".file-name"
-                    );
-
+                    uploadBox.querySelector(".file-name");
 
                 if (!fileName) {
                     return;
                 }
-
 
                 if (
                     input.files &&
@@ -894,9 +699,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-
     /* =====================================================
-       13. REGISTRATION SUBMISSION
+       13. REGISTRATION FORM
        ===================================================== */
 
     const registrationForm =
@@ -904,114 +708,23 @@ document.addEventListener("DOMContentLoaded", function () {
             "logisticsRegistrationForm"
         );
 
-
     if (registrationForm) {
 
-        registrationForm.addEventListener(
-            "submit",
-            function (event) {
-
-                event.preventDefault();
-
-
-                if (
-                    !registrationForm.checkValidity()
-                ) {
-
-                    registrationForm.reportValidity();
-
-                    return;
-
-                }
-
-
-
-                /* -----------------------------------------
-                   Get readable address names
-                   ----------------------------------------- */
-
-                const provinceName =
-                    provinceSelect
-                        ?.selectedOptions[0]
-                        ?.dataset.name
-                    ||
-                    "";
-
-
-                const municipalityName =
-                    municipalitySelect
-                        ?.selectedOptions[0]
-                        ?.dataset.name
-                    ||
-                    "";
-
-
-                const barangayName =
-                    barangaySelect
-                        ?.selectedOptions[0]
-                        ?.dataset.name
-                    ||
-                    "";
-
-
-
-                /* -----------------------------------------
-                   Temporary storage
-                   ----------------------------------------- */
-
-                localStorage.setItem(
-                    "lumear_logistics_province",
-                    provinceName
-                );
-
-
-                localStorage.setItem(
-                    "lumear_logistics_municipality",
-                    municipalityName
-                );
-
-
-                localStorage.setItem(
-                    "lumear_logistics_barangay",
-                    barangayName
-                );
-
-
-
-                const button =
-                    document.getElementById(
-                        "registrationSubmitButton"
-                    );
-
-
-                if (button) {
-
-                    button.disabled = true;
-
-
-                    button.innerHTML =
-                        "<span>Submitting...</span>";
-
-                }
-
-
-
-                setTimeout(
-                    function () {
-
-                        window.location.href =
-                            registrationForm
-                                .dataset
-                                .pendingUrl;
-
-                    },
-                    650
-                );
-
-            }
-        );
+        /*
+         * IMPORTANT:
+         *
+         * The old version prevented the form from
+         * submitting and redirected using a demo URL.
+         *
+         * This version does not intercept registration.
+         *
+         * Your registration wizard / OTP script can
+         * continue handling its own AJAX submission.
+         *
+         * If no separate handler exists, the form
+         * submits normally to its configured action.
+         */
 
     }
-
 
 });
