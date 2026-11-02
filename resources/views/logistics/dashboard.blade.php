@@ -1,10 +1,82 @@
-@extends('layouts.logistics')
 
+@extends('layouts.logistics')
 
 @section('title', 'Dashboard — Lumear Logistics')
 
-
 @section('content')
+
+@php
+    /*
+    |--------------------------------------------------------------------------
+    | AUTHENTICATED LOGISTICS DATA
+    |--------------------------------------------------------------------------
+    |
+    | Supplied by LogisticsDashboardController.
+    |
+    | Statistics are zero until the parcel and rider
+    | database relationships have been implemented.
+    |
+    */
+
+    $businessName = $provider->name ?? 'Logistics Provider';
+
+    $municipality = $provider->municipality_name
+        ?? 'Municipality not set';
+
+    $province = $provider->province_name
+        ?? 'Province not set';
+
+    $ownerName = $user->name ?? 'Not available';
+
+    $businessEmail = $application->email
+        ?? $user->email
+        ?? 'Not available';
+
+    $providerStatus = $provider->status ?? 'pending';
+
+    $stats = array_merge([
+        'pending_pickups' => 0,
+        'incoming_parcels' => 0,
+        'sorting_queue' => 0,
+        'active_riders' => 0,
+        'available_riders' => 0,
+        'out_for_delivery' => 0,
+        'delivered_today' => 0,
+    ], $stats ?? []);
+
+    $flowStages = [
+        [
+            'label' => 'Pickup Requested',
+            'description' => 'Waiting for approval',
+            'value' => $stats['pending_pickups'],
+            'class' => '',
+        ],
+        [
+            'label' => 'Incoming',
+            'description' => 'Moving to center',
+            'value' => $stats['incoming_parcels'],
+            'class' => '',
+        ],
+        [
+            'label' => 'Sorting',
+            'description' => 'At sorting center',
+            'value' => $stats['sorting_queue'],
+            'class' => 'current',
+        ],
+        [
+            'label' => 'Out for Delivery',
+            'description' => 'With assigned riders',
+            'value' => $stats['out_for_delivery'],
+            'class' => '',
+        ],
+        [
+            'label' => 'Delivered',
+            'description' => 'Completed today',
+            'value' => $stats['delivered_today'],
+            'class' => 'completed',
+        ],
+    ];
+@endphp
 
 
 {{-- =========================================================
@@ -24,20 +96,18 @@
         </h1>
 
         <p>
-            Monitor today's parcel flow, riders, pickups,
+            Monitor parcel flow, riders, pickups,
             sorting operations and deliveries.
         </p>
 
     </div>
 
-
     <div class="heading-actions">
 
-        <button
-            type="button"
+        <a
+            href="{{ route('logistics.reports.index') }}"
             class="outline-action-button"
         >
-
             <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -50,10 +120,8 @@
                 <path d="M5 21h14"/>
             </svg>
 
-            Export Summary
-
-        </button>
-
+            View Reports
+        </a>
 
         <a
             href="{{ route('logistics.pickup.index') }}"
@@ -78,20 +146,142 @@
 </section>
 
 
+{{-- =========================================================
+     REGISTERED LOGISTICS PROVIDER
+     ========================================================= --}}
+
+<section
+    class="dashboard-card provider-information-card"
+    style="margin-bottom:24px;"
+>
+
+    <div class="card-heading">
+
+        <div>
+
+            <span class="card-eyebrow">
+                REGISTERED LOGISTICS PROVIDER
+            </span>
+
+            <h2>
+                {{ $businessName }}
+            </h2>
+
+            <p>
+                {{ $municipality }},
+                {{ $province }}
+            </p>
+
+        </div>
+
+        <span class="stat-change positive">
+            {{ ucfirst($providerStatus) }}
+        </span>
+
+    </div>
+
+    <div
+        style="
+            display:grid;
+            grid-template-columns:repeat(
+                auto-fit,
+                minmax(180px,1fr)
+            );
+            gap:22px;
+            padding:0 22px 24px;
+        "
+    >
+
+        <div>
+
+            <span class="stat-label">
+                Business Owner
+            </span>
+
+            <strong
+                style="
+                    display:block;
+                    margin-top:8px;
+                    overflow-wrap:anywhere;
+                "
+            >
+                {{ $ownerName }}
+            </strong>
+
+        </div>
+
+        <div>
+
+            <span class="stat-label">
+                Registered Email
+            </span>
+
+            <strong
+                style="
+                    display:block;
+                    margin-top:8px;
+                    overflow-wrap:anywhere;
+                "
+            >
+                {{ $businessEmail }}
+            </strong>
+
+        </div>
+
+        <div>
+
+            <span class="stat-label">
+                Assigned Municipality
+            </span>
+
+            <strong
+                style="
+                    display:block;
+                    margin-top:8px;
+                "
+            >
+                {{ $municipality }}
+            </strong>
+
+        </div>
+
+        <div>
+
+            <span class="stat-label">
+                Municipality PSGC Code
+            </span>
+
+            <strong
+                style="
+                    display:block;
+                    margin-top:8px;
+                "
+            >
+                {{ $provider->municipality_psgc_code
+                    ?? 'Not available' }}
+            </strong>
+
+        </div>
+
+    </div>
+
+</section>
+
 
 {{-- =========================================================
-     KPI CARDS
+     KPI STATISTICS
      ========================================================= --}}
 
 <section class="stats-grid">
 
+
+    {{-- PENDING PICKUP REQUESTS --}}
 
     <article class="stat-card">
 
         <div class="stat-card-top">
 
             <div class="stat-icon">
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -102,7 +292,6 @@
                     <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
                     <path d="m3.3 7 8.7 5 8.7-5"/>
                 </svg>
-
             </div>
 
             <span class="stat-change attention">
@@ -116,23 +305,23 @@
         </span>
 
         <strong class="stat-number">
-            8
+            {{ number_format($stats['pending_pickups']) }}
         </strong>
 
         <p>
-            3 received within the last hour
+            Requests awaiting processing
         </p>
 
     </article>
 
 
+    {{-- INCOMING PARCELS --}}
 
     <article class="stat-card">
 
         <div class="stat-card-top">
 
             <div class="stat-icon">
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -144,11 +333,10 @@
                     <path d="M8 7V4h8v3"/>
                     <path d="M8 12h8"/>
                 </svg>
-
             </div>
 
             <span class="stat-change">
-                Today
+                Incoming
             </span>
 
         </div>
@@ -158,7 +346,7 @@
         </span>
 
         <strong class="stat-number">
-            34
+            {{ number_format($stats['incoming_parcels']) }}
         </strong>
 
         <p>
@@ -168,13 +356,13 @@
     </article>
 
 
+    {{-- SORTING QUEUE --}}
 
     <article class="stat-card">
 
         <div class="stat-card-top">
 
             <div class="stat-icon">
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -187,7 +375,6 @@
                     <path d="M10 15h4"/>
                     <path d="M12 15v5"/>
                 </svg>
-
             </div>
 
             <span class="stat-change">
@@ -201,7 +388,7 @@
         </span>
 
         <strong class="stat-number">
-            21
+            {{ number_format($stats['sorting_queue']) }}
         </strong>
 
         <p>
@@ -211,13 +398,13 @@
     </article>
 
 
+    {{-- ACTIVE RIDERS --}}
 
     <article class="stat-card">
 
         <div class="stat-card-top">
 
             <div class="stat-icon">
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -229,11 +416,10 @@
                     <path d="M3 21v-2a6 6 0 0 1 12 0v2"/>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
-
             </div>
 
             <span class="stat-change positive">
-                7 available
+                {{ $stats['available_riders'] }} available
             </span>
 
         </div>
@@ -243,7 +429,7 @@
         </span>
 
         <strong class="stat-number">
-            12
+            {{ number_format($stats['active_riders']) }}
         </strong>
 
         <p>
@@ -253,13 +439,13 @@
     </article>
 
 
+    {{-- OUT FOR DELIVERY --}}
 
     <article class="stat-card">
 
         <div class="stat-card-top">
 
             <div class="stat-icon">
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -272,11 +458,10 @@
                     <path d="M5 17H3V6h11v11H9"/>
                     <path d="M14 10h4l3 3v4h-2"/>
                 </svg>
-
             </div>
 
             <span class="stat-change">
-                Live
+                Delivery
             </span>
 
         </div>
@@ -286,7 +471,7 @@
         </span>
 
         <strong class="stat-number">
-            18
+            {{ number_format($stats['out_for_delivery']) }}
         </strong>
 
         <p>
@@ -296,13 +481,13 @@
     </article>
 
 
+    {{-- DELIVERED TODAY --}}
 
     <article class="stat-card">
 
         <div class="stat-card-top">
 
             <div class="stat-icon">
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -313,11 +498,10 @@
                     <circle cx="12" cy="12" r="9"/>
                     <path d="m8 12 3 3 5-6"/>
                 </svg>
-
             </div>
 
             <span class="stat-change positive">
-                +14%
+                Completed
             </span>
 
         </div>
@@ -327,7 +511,7 @@
         </span>
 
         <strong class="stat-number">
-            46
+            {{ number_format($stats['delivered_today']) }}
         </strong>
 
         <p>
@@ -336,9 +520,7 @@
 
     </article>
 
-
 </section>
-
 
 
 {{-- =========================================================
@@ -352,7 +534,7 @@
         <div>
 
             <span class="card-eyebrow">
-                TODAY'S WORKFLOW
+                OPERATIONS WORKFLOW
             </span>
 
             <h2>
@@ -360,7 +542,8 @@
             </h2>
 
             <p>
-                Current parcel distribution across each logistics stage.
+                Current parcel distribution across
+                each logistics stage.
             </p>
 
         </div>
@@ -371,177 +554,62 @@
 
     </div>
 
-
     <div class="parcel-flow">
 
+        @foreach($flowStages as $stage)
 
-        <div class="flow-stage">
+            @if(!$loop->first)
 
-            <div class="flow-number">
-                8
+                <div class="flow-connector">
+
+                    <div class="connector-line"></div>
+
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path d="m9 18 6-6-6-6"/>
+                    </svg>
+
+                </div>
+
+            @endif
+
+            <div class="flow-stage {{ $stage['class'] }}">
+
+                <div class="flow-number">
+                    {{ number_format($stage['value']) }}
+                </div>
+
+                <strong>
+                    {{ $stage['label'] }}
+                </strong>
+
+                <span>
+                    {{ $stage['description'] }}
+                </span>
+
             </div>
 
-            <strong>
-                Pickup Requested
-            </strong>
-
-            <span>
-                Waiting for approval
-            </span>
-
-        </div>
-
-
-        <div class="flow-connector">
-
-            <div class="connector-line"></div>
-
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-            >
-                <path d="m9 18 6-6-6-6"/>
-            </svg>
-
-        </div>
-
-
-        <div class="flow-stage">
-
-            <div class="flow-number">
-                34
-            </div>
-
-            <strong>
-                Incoming
-            </strong>
-
-            <span>
-                Moving to center
-            </span>
-
-        </div>
-
-
-        <div class="flow-connector">
-
-            <div class="connector-line"></div>
-
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-            >
-                <path d="m9 18 6-6-6-6"/>
-            </svg>
-
-        </div>
-
-
-        <div class="flow-stage current">
-
-            <div class="flow-number">
-                21
-            </div>
-
-            <strong>
-                Sorting
-            </strong>
-
-            <span>
-                At sorting center
-            </span>
-
-        </div>
-
-
-        <div class="flow-connector">
-
-            <div class="connector-line"></div>
-
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-            >
-                <path d="m9 18 6-6-6-6"/>
-            </svg>
-
-        </div>
-
-
-        <div class="flow-stage">
-
-            <div class="flow-number">
-                18
-            </div>
-
-            <strong>
-                Out for Delivery
-            </strong>
-
-            <span>
-                With assigned riders
-            </span>
-
-        </div>
-
-
-        <div class="flow-connector">
-
-            <div class="connector-line"></div>
-
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-            >
-                <path d="m9 18 6-6-6-6"/>
-            </svg>
-
-        </div>
-
-
-        <div class="flow-stage completed">
-
-            <div class="flow-number">
-                46
-            </div>
-
-            <strong>
-                Delivered
-            </strong>
-
-            <span>
-                Completed today
-            </span>
-
-        </div>
-
+        @endforeach
 
     </div>
 
 </section>
 
 
-
 {{-- =========================================================
-     NEW: ANALYTICS / STATISTICS
+     ANALYTICS AND DELIVERY PERFORMANCE
      ========================================================= --}}
 
 <section class="analytics-grid">
 
 
-    {{-- Parcel activity graph --}}
+    {{-- PARCEL ACTIVITY --}}
+
     <article class="dashboard-card analytics-chart-card">
 
         <div class="card-heading">
@@ -557,62 +625,45 @@
                 </h2>
 
                 <p>
-                    Incoming and successfully delivered parcels this week.
+                    Incoming and successfully delivered
+                    parcels this week.
                 </p>
 
             </div>
 
-
             <div class="analytics-period">
-
-                <span class="live-pulse"></span>
-
                 Last 7 days
-
             </div>
 
         </div>
-
 
         <div class="chart-summary">
 
             <div class="chart-summary-item">
 
-                <span class="chart-summary-dot incoming-dot"></span>
+                <span
+                    class="chart-summary-dot incoming-dot"
+                ></span>
 
                 <div>
-
-                    <span>
-                        Incoming
-                    </span>
-
-                    <strong>
-                        185
-                    </strong>
-
+                    <span>Incoming</span>
+                    <strong>—</strong>
                 </div>
 
             </div>
-
 
             <div class="chart-summary-item">
 
-                <span class="chart-summary-dot delivered-dot"></span>
+                <span
+                    class="chart-summary-dot delivered-dot"
+                ></span>
 
                 <div>
-
-                    <span>
-                        Delivered
-                    </span>
-
-                    <strong>
-                        158
-                    </strong>
-
+                    <span>Delivered</span>
+                    <strong>—</strong>
                 </div>
 
             </div>
-
 
             <div class="chart-trend">
 
@@ -621,28 +672,41 @@
                 </span>
 
                 <strong>
-                    +8.6%
+                    —
                 </strong>
 
             </div>
 
         </div>
 
-
         <div class="chart-container">
 
-            <canvas
-                id="parcelActivityChart"
-                aria-label="Parcel activity for the last seven days"
-            ></canvas>
+            <div
+                style="
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    min-height:220px;
+                    padding:24px;
+                    text-align:center;
+                "
+            >
+
+                <p>
+                    Parcel activity will appear here
+                    once order and delivery records
+                    are connected to this Logistics provider.
+                </p>
+
+            </div>
 
         </div>
 
     </article>
 
 
+    {{-- DELIVERY PERFORMANCE --}}
 
-    {{-- Delivery performance --}}
     <article class="dashboard-card performance-card">
 
         <div class="card-heading">
@@ -665,9 +729,7 @@
 
         </div>
 
-
         <div class="performance-content">
-
 
             <div class="success-rate">
 
@@ -687,25 +749,27 @@
                             cx="60"
                             cy="60"
                             r="50"
+                            style="
+                                stroke-dasharray:314.16;
+                                stroke-dashoffset:314.16;
+                            "
                         />
 
                     </svg>
 
-
                     <div class="success-ring-content">
 
                         <strong>
-                            94%
+                            —
                         </strong>
 
                         <span>
-                            Success
+                            No data
                         </span>
 
                     </div>
 
                 </div>
-
 
                 <div class="success-copy">
 
@@ -714,28 +778,28 @@
                     </span>
 
                     <strong>
-                        Excellent performance
+                        Awaiting delivery records
                     </strong>
 
                     <p>
-                        Most assigned parcels are being delivered
-                        successfully.
+                        Delivery performance will be
+                        calculated from completed and
+                        unsuccessful delivery records.
                     </p>
 
                 </div>
 
             </div>
 
-
-
             <div class="performance-list">
-
 
                 <div class="performance-row">
 
                     <div>
 
-                        <span class="performance-indicator delivered"></span>
+                        <span
+                            class="performance-indicator delivered"
+                        ></span>
 
                         <span>
                             Delivered
@@ -743,18 +807,17 @@
 
                     </div>
 
-                    <strong>
-                        126
-                    </strong>
+                    <strong>—</strong>
 
                 </div>
-
 
                 <div class="performance-row">
 
                     <div>
 
-                        <span class="performance-indicator pending"></span>
+                        <span
+                            class="performance-indicator pending"
+                        ></span>
 
                         <span>
                             Pending
@@ -762,18 +825,17 @@
 
                     </div>
 
-                    <strong>
-                        7
-                    </strong>
+                    <strong>—</strong>
 
                 </div>
-
 
                 <div class="performance-row">
 
                     <div>
 
-                        <span class="performance-indicator failed"></span>
+                        <span
+                            class="performance-indicator failed"
+                        ></span>
 
                         <span>
                             Failed
@@ -781,16 +843,11 @@
 
                     </div>
 
-                    <strong>
-                        4
-                    </strong>
+                    <strong>—</strong>
 
                 </div>
 
-
             </div>
-
-
 
             <div class="performance-footer">
 
@@ -801,33 +858,34 @@
                     </span>
 
                     <strong>
-                        ↑ 6.4%
+                        —
                     </strong>
 
                 </div>
 
                 <p>
-                    Delivery success improved this week.
+                    Weekly comparisons will become
+                    available when delivery records
+                    are connected.
                 </p>
 
             </div>
-
 
         </div>
 
     </article>
 
-
 </section>
 
 
-
 {{-- =========================================================
-     RECENT PICKUPS + RIDERS
+     RECENT PICKUPS AND RIDERS
      ========================================================= --}}
 
 <div class="dashboard-grid">
 
+
+    {{-- RECENT PICKUP REQUESTS --}}
 
     <section class="dashboard-card pickup-card">
 
@@ -851,7 +909,6 @@
 
         </div>
 
-
         <div class="table-wrapper">
 
             <table class="operations-table">
@@ -859,231 +916,41 @@
                 <thead>
 
                     <tr>
-
                         <th>Request</th>
                         <th>Seller</th>
                         <th>Parcels</th>
                         <th>Area</th>
                         <th>Status</th>
                         <th>Action</th>
-
                     </tr>
 
                 </thead>
 
-
                 <tbody>
 
-
                     <tr>
 
-                        <td>
+                        <td
+                            colspan="6"
+                            style="
+                                padding:35px 20px;
+                                text-align:center;
+                            "
+                        >
 
-                            <strong class="table-id">
-                                PU-1028
+                            <strong>
+                                No pickup records connected yet
                             </strong>
 
-                            <span class="table-subtext">
-                                10:42 AM
-                            </span>
-
-                        </td>
-
-
-                        <td>
-
-                            <div class="seller-cell">
-
-                                <span class="seller-avatar">
-                                    MA
-                                </span>
-
-                                <div>
-
-                                    <strong>
-                                        Maven Apparel
-                                    </strong>
-
-                                    <span>
-                                        Seller
-                                    </span>
-
-                                </div>
-
-                            </div>
-
-                        </td>
-
-
-                        <td>
-                            4
-                        </td>
-
-                        <td>
-                            Santa Cruz
-                        </td>
-
-                        <td>
-
-                            <span class="status-badge pending">
-                                Pending
-                            </span>
-
-                        </td>
-
-                        <td>
-
-                            <button
-                                type="button"
-                                class="table-action-button"
-                            >
-                                Review
-                            </button>
+                            <p style="margin-top:8px;">
+                                Pickup requests will appear
+                                here once the pickup module
+                                is connected to MySQL.
+                            </p>
 
                         </td>
 
                     </tr>
-
-
-
-                    <tr>
-
-                        <td>
-
-                            <strong class="table-id">
-                                PU-1027
-                            </strong>
-
-                            <span class="table-subtext">
-                                10:18 AM
-                            </span>
-
-                        </td>
-
-
-                        <td>
-
-                            <div class="seller-cell">
-
-                                <span class="seller-avatar">
-                                    HS
-                                </span>
-
-                                <div>
-
-                                    <strong>
-                                        Home Studio
-                                    </strong>
-
-                                    <span>
-                                        Seller
-                                    </span>
-
-                                </div>
-
-                            </div>
-
-                        </td>
-
-                        <td>
-                            7
-                        </td>
-
-                        <td>
-                            Pila
-                        </td>
-
-                        <td>
-
-                            <span class="status-badge approved">
-                                Approved
-                            </span>
-
-                        </td>
-
-                        <td>
-
-                            <button
-                                type="button"
-                                class="table-action-button"
-                            >
-                                Details
-                            </button>
-
-                        </td>
-
-                    </tr>
-
-
-
-                    <tr>
-
-                        <td>
-
-                            <strong class="table-id">
-                                PU-1026
-                            </strong>
-
-                            <span class="table-subtext">
-                                9:56 AM
-                            </span>
-
-                        </td>
-
-
-                        <td>
-
-                            <div class="seller-cell">
-
-                                <span class="seller-avatar">
-                                    GC
-                                </span>
-
-                                <div>
-
-                                    <strong>
-                                        Galleria Crafts
-                                    </strong>
-
-                                    <span>
-                                        Seller
-                                    </span>
-
-                                </div>
-
-                            </div>
-
-                        </td>
-
-                        <td>
-                            2
-                        </td>
-
-                        <td>
-                            Victoria
-                        </td>
-
-                        <td>
-
-                            <span class="status-badge assigned">
-                                Assigned
-                            </span>
-
-                        </td>
-
-                        <td>
-
-                            <button
-                                type="button"
-                                class="table-action-button"
-                            >
-                                Track
-                            </button>
-
-                        </td>
-
-                    </tr>
-
 
                 </tbody>
 
@@ -1094,8 +961,8 @@
     </section>
 
 
+    {{-- RIDER AVAILABILITY --}}
 
-    {{-- Rider availability --}}
     <section class="dashboard-card rider-card">
 
         <div class="card-heading">
@@ -1112,19 +979,18 @@
 
             </div>
 
-            <a href="#">
+            <a href="{{ route('logistics.riders.index') }}">
                 Manage
             </a>
 
         </div>
-
 
         <div class="availability-summary">
 
             <div>
 
                 <strong>
-                    7
+                    {{ $stats['available_riders'] }}
                 </strong>
 
                 <span>
@@ -1133,11 +999,10 @@
 
             </div>
 
-
             <div>
 
                 <strong>
-                    5
+                    —
                 </strong>
 
                 <span>
@@ -1146,11 +1011,10 @@
 
             </div>
 
-
             <div>
 
                 <strong>
-                    12
+                    {{ $stats['active_riders'] }}
                 </strong>
 
                 <span>
@@ -1161,127 +1025,43 @@
 
         </div>
 
-
         <div class="rider-list">
 
+            <div
+                style="
+                    padding:24px;
+                    text-align:center;
+                "
+            >
 
-            <div class="rider-row">
+                <strong>
+                    No rider records connected yet
+                </strong>
 
-                <div class="rider-avatar">
-                    JR
-                </div>
-
-                <div class="rider-details">
-
-                    <strong>
-                        Juan Reyes
-                    </strong>
-
-                    <span>
-                        Santa Cruz Area
-                    </span>
-
-                </div>
-
-                <span class="rider-status available">
-                    Available
-                </span>
+                <p style="margin-top:8px;">
+                    Registered riders and their
+                    barangay assignments will appear
+                    once Rider Management is connected.
+                </p>
 
             </div>
-
-
-            <div class="rider-row">
-
-                <div class="rider-avatar">
-                    MC
-                </div>
-
-                <div class="rider-details">
-
-                    <strong>
-                        Miguel Cruz
-                    </strong>
-
-                    <span>
-                        Pila Area
-                    </span>
-
-                </div>
-
-                <span class="rider-status delivering">
-                    Delivering
-                </span>
-
-            </div>
-
-
-            <div class="rider-row">
-
-                <div class="rider-avatar">
-                    AS
-                </div>
-
-                <div class="rider-details">
-
-                    <strong>
-                        Andrea Santos
-                    </strong>
-
-                    <span>
-                        Victoria Area
-                    </span>
-
-                </div>
-
-                <span class="rider-status available">
-                    Available
-                </span>
-
-            </div>
-
-
-            <div class="rider-row">
-
-                <div class="rider-avatar">
-                    DP
-                </div>
-
-                <div class="rider-details">
-
-                    <strong>
-                        Daniel Perez
-                    </strong>
-
-                    <span>
-                        Pagsanjan Area
-                    </span>
-
-                </div>
-
-                <span class="rider-status delivering">
-                    Delivering
-                </span>
-
-            </div>
-
 
         </div>
 
     </section>
 
-
 </div>
 
 
-
 {{-- =========================================================
-     BOTTOM
+     DELIVERY ACTIVITY AND QUICK ACTIONS
      ========================================================= --}}
 
 <div class="dashboard-bottom-grid">
 
 
-    {{-- Delivery activity --}}
+    {{-- DELIVERY ACTIVITY --}}
+
     <section class="dashboard-card activity-card">
 
         <div class="card-heading">
@@ -1298,136 +1078,41 @@
 
             </div>
 
-            <a href="#">
+            <a href="{{ route('logistics.monitoring.index') }}">
                 Monitor all
             </a>
 
         </div>
 
-
         <div class="activity-list">
 
+            <div
+                style="
+                    padding:24px;
+                    text-align:center;
+                "
+            >
 
-            <div class="activity-entry">
+                <strong>
+                    No delivery activity connected yet
+                </strong>
 
-                <div class="activity-marker delivered">
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
-                        <path d="m7 12 3 3 7-7"/>
-                    </svg>
-
-                </div>
-
-
-                <div class="activity-content">
-
-                    <strong>
-                        Parcel LMR-2418 delivered
-                    </strong>
-
-                    <p>
-                        Juan Reyes completed the delivery in Santa Cruz.
-                    </p>
-
-                    <span>
-                        6 minutes ago
-                    </span>
-
-                </div>
+                <p style="margin-top:8px;">
+                    Rider pickup, parcel movement,
+                    and delivery events will appear
+                    after the delivery backend
+                    is connected.
+                </p>
 
             </div>
-
-
-
-            <div class="activity-entry">
-
-                <div class="activity-marker moving">
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
-                        <path d="M5 12h14"/>
-                        <path d="m13 6 6 6-6 6"/>
-                    </svg>
-
-                </div>
-
-
-                <div class="activity-content">
-
-                    <strong>
-                        3 parcels out for delivery
-                    </strong>
-
-                    <p>
-                        Miguel Cruz started a delivery route in Pila.
-                    </p>
-
-                    <span>
-                        19 minutes ago
-                    </span>
-
-                </div>
-
-            </div>
-
-
-
-            <div class="activity-entry">
-
-                <div class="activity-marker sorting">
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
-                        <path d="M4 6h16"/>
-                        <path d="M7 12h10"/>
-                        <path d="M10 18h4"/>
-                    </svg>
-
-                </div>
-
-
-                <div class="activity-content">
-
-                    <strong>
-                        Batch SC-084 entered sorting
-                    </strong>
-
-                    <p>
-                        8 parcels were received at Santa Cruz Hub.
-                    </p>
-
-                    <span>
-                        34 minutes ago
-                    </span>
-
-                </div>
-
-            </div>
-
 
         </div>
 
     </section>
 
 
+    {{-- QUICK ACTIONS --}}
 
-    {{-- Quick actions --}}
     <section class="dashboard-card quick-actions-card">
 
         <div class="card-heading">
@@ -1446,11 +1131,10 @@
 
         </div>
 
-
         <div class="quick-actions-grid">
 
 
-            <a href="#">
+            <a href="{{ route('logistics.pickup.index') }}">
 
                 <span class="quick-icon">
 
@@ -1473,7 +1157,8 @@
                     </strong>
 
                     <span>
-                        8 pending requests
+                        {{ $stats['pending_pickups'] }}
+                        pending requests
                     </span>
 
                 </div>
@@ -1481,8 +1166,7 @@
             </a>
 
 
-
-            <a href="#">
+            <a href="{{ route('logistics.riders.applications') }}">
 
                 <span class="quick-icon">
 
@@ -1506,7 +1190,7 @@
                     </strong>
 
                     <span>
-                        3 waiting for review
+                        Review registered riders
                     </span>
 
                 </div>
@@ -1514,8 +1198,7 @@
             </a>
 
 
-
-            <a href="#">
+            <a href="{{ route('logistics.assignment.index') }}">
 
                 <span class="quick-icon">
 
@@ -1549,8 +1232,7 @@
             </a>
 
 
-
-            <a href="#">
+            <a href="{{ route('logistics.reports.index') }}">
 
                 <span class="quick-icon">
 
@@ -1576,25 +1258,22 @@
                     </strong>
 
                     <span>
-                        Create operations summary
+                        View operations summary
                     </span>
 
                 </div>
 
             </a>
 
-
         </div>
 
     </section>
 
-
 </div>
 
 
-
 {{-- =========================================================
-     DEVELOPMENT NOTICE
+     BACKEND STATUS NOTICE
      ========================================================= --}}
 
 <div class="development-notice">
@@ -1611,32 +1290,23 @@
         <path d="M12 8h.01"/>
     </svg>
 
-
     <div>
 
         <strong>
-            Development Mode
+            Backend Integration in Progress
         </strong>
 
         <span>
-            Dashboard statistics and analytics currently use demonstration
-            data. These values will come from actual parcel, pickup,
-            delivery and rider records once the database modules are connected.
+            Logistics provider information is retrieved
+            from the MySQL database. Parcel, pickup,
+            sorting, rider, and delivery statistics are
+            not yet connected to operational records.
+            Zero values are placeholders until those
+            modules are implemented.
         </span>
 
     </div>
 
 </div>
-
-
-{{-- =========================================================
-     CHART.JS
-
-     CDN only.
-     No npm / Vite required.
-     ========================================================= --}}
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-
 
 @endsection

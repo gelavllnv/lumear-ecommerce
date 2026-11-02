@@ -114,6 +114,22 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        'logistics_testing' => [
+            'driver' => 'mysql',
+            'host' => env('LOGISTICS_DB_HOST', '127.0.0.1'),
+            'port' => env('LOGISTICS_DB_PORT', '3306'),
+            'database' => env('LOGISTICS_DB_DATABASE', 'lumear_logistics_test'),
+            'username' => env('LOGISTICS_DB_USERNAME', 'root'),
+            'password' => env('LOGISTICS_DB_PASSWORD', ''),
+            'unix_socket' => '',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
     ],
 
     /*
