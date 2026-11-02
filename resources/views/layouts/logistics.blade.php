@@ -2,53 +2,34 @@
 <html lang="en" data-theme="dark">
 
 <head>
-
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <title>@yield('title', 'Lumear Logistics')</title>
 
-    <title>
-        @yield('title', 'Lumear Logistics')
-    </title>
-
-
-    {{-- =====================================================
-         APPLY SAVED THEME BEFORE PAGE LOADS
-
-         This prevents the page from flashing light mode
-         before JavaScript loads.
-         ===================================================== --}}
-
+    {{-- Saved theme --}}
     <script>
-
         (function () {
-
-            const savedTheme =
-                localStorage.getItem(
-                    "lumear_logistics_theme"
+            try {
+                const savedTheme = localStorage.getItem(
+                    'lumear_logistics_theme'
                 );
 
-            document.documentElement.setAttribute(
-                "data-theme",
-                savedTheme === "light"
-                    ? "light"
-                    : "dark"
-            );
-
+                document.documentElement.setAttribute(
+                    'data-theme',
+                    savedTheme === 'light' ? 'light' : 'dark'
+                );
+            } catch (error) {
+                document.documentElement.setAttribute(
+                    'data-theme',
+                    'dark'
+                );
+            }
         })();
-
     </script>
 
-
-    {{-- Google Fonts --}}
-    <link
-        rel="preconnect"
-        href="https://fonts.googleapis.com"
-    >
-
+    {{-- Fonts --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
         rel="preconnect"
         href="https://fonts.gstatic.com"
@@ -60,31 +41,231 @@
         rel="stylesheet"
     >
 
-
-    {{-- Logistics ERP CSS --}}
+    {{-- Existing dashboard stylesheet --}}
     <link
         rel="stylesheet"
         href="{{ asset('css/logistics/dashboard.css') }}"
     >
 
+    <style>
+        .logistics-logout-form,
+        .logistics-profile-logout-form {
+            width: 100%;
+            margin: 0;
+        }
+
+        .logistics-logout-button {
+            width: 100%;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .logistics-profile-logout-button {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            border: 0;
+            background: transparent;
+            color: #d78e94;
+            font: inherit;
+            font-size: 12px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .logistics-profile-logout-button:hover {
+            background: rgba(135, 54, 50, .12);
+        }
+
+        .center-summary-copy strong,
+        .profile-copy strong {
+            overflow-wrap: anywhere;
+        }
+
+        .logistics-empty-notification {
+            padding: 22px 18px;
+            text-align: center;
+            font-size: 12px;
+            opacity: .75;
+        }
+
+        .logistics-center-location {
+            display: block;
+            margin-top: 5px;
+            font-size: 10px;
+            opacity: .7;
+        }
+
+        .logistics-profile-owner {
+            display: block;
+            padding: 12px 20px;
+            font-size: 11px;
+            opacity: .75;
+            overflow-wrap: anywhere;
+        }
+
+        .topbar-search input:focus {
+            outline: none;
+        }
+    </style>
+
+    @stack('styles')
 </head>
 
-
 <body>
+
+@php
+    /*
+    |--------------------------------------------------------------------------
+    | CURRENT AUTHENTICATED LOGISTICS PROVIDER
+    |--------------------------------------------------------------------------
+    |
+    | The layout is shared by all Logistics pages.
+    | Fetch the provider belonging to the authenticated user,
+    | instead of displaying hardcoded demonstration information.
+    |
+    | The Logistics routes should remain protected by
+    | EnsureApprovedLogistics middleware.
+    |
+    */
+
+    $logisticsUser = auth()->user();
+
+    $layoutProvider = null;
+
+    if ($logisticsUser) {
+        $layoutProvider = \Illuminate\Support\Facades\DB::table(
+            'logistics_providers'
+        )
+            ->where('user_id', $logisticsUser->id)
+            ->first();
+    }
+
+    $logisticsBusinessName = $layoutProvider->name
+        ?? 'Logistics Provider';
+
+    $logisticsMunicipality = $layoutProvider->municipality_name
+        ?? 'Municipality not set';
+
+    $logisticsProvince = $layoutProvider->province_name
+        ?? 'Province not set';
+
+    $logisticsStatus = $layoutProvider->status
+        ?? 'pending';
+
+    $logisticsOwnerName = $logisticsUser->name
+        ?? 'Logistics Operator';
+
+    $logisticsInitials = collect(
+        preg_split('/\s+/', trim($logisticsBusinessName))
+    )
+        ->filter()
+        ->take(2)
+        ->map(fn ($word) => mb_strtoupper(mb_substr($word, 0, 1)))
+        ->implode('');
+
+    $logisticsInitials = $logisticsInitials ?: 'LG';
+
+    /*
+    |--------------------------------------------------------------------------
+    | ROUTE HELPER
+    |--------------------------------------------------------------------------
+    |
+    | Avoid RouteNotFoundException when a module has not
+    | yet been registered.
+    |
+    | Unavailable links return to the dashboard.
+    |
+    */
+
+    $logisticsUrl = function ($routeName) {
+        if (\Illuminate\Support\Facades\Route::has($routeName)) {
+            return route($routeName);
+        }
+
+        return \Illuminate\Support\Facades\Route::has(
+            'logistics.dashboard'
+        )
+            ? route('logistics.dashboard')
+            : url('/logistics/dashboard');
+    };
+
+    $navigationGroups = [
+        [
+            'label' => 'Overview',
+            'items' => [
+                [
+                    'label' => 'Dashboard',
+                    'route' => 'logistics.dashboard',
+                    'icon' => 'dashboard',
+                ],
+            ],
+        ],
+        [
+            'label' => 'Operations',
+            'items' => [
+                [
+                    'label' => 'Pickup Requests',
+                    'route' => 'logistics.pickup.index',
+                    'icon' => 'package',
+                ],
+                [
+                    'label' => 'Incoming Parcels',
+                    'route' => 'logistics.incoming.index',
+                    'icon' => 'incoming',
+                ],
+                [
+                    'label' => 'Parcel Sorting',
+                    'route' => 'logistics.sorting.index',
+                    'icon' => 'sorting',
+                ],
+                [
+                    'label' => 'Delivery Assignment',
+                    'route' => 'logistics.assignment.index',
+                    'icon' => 'truck',
+                ],
+                [
+                    'label' => 'Delivery Monitoring',
+                    'route' => 'logistics.monitoring.index',
+                    'icon' => 'clock',
+                ],
+            ],
+        ],
+        [
+            'label' => 'Communication',
+            'items' => [
+                [
+                    'label' => 'Messages',
+                    'route' => 'logistics.messages.index',
+                    'icon' => 'message',
+                ],
+            ],
+        ],
+        [
+            'label' => 'Reports',
+            'items' => [
+                [
+                    'label' => 'Generate Reports',
+                    'route' => 'logistics.reports.index',
+                    'icon' => 'report',
+                ],
+            ],
+        ],
+    ];
+@endphp
 
 
 <div class="erp-layout">
 
-
     {{-- =====================================================
-         MOBILE OVERLAY
+         MOBILE SIDEBAR OVERLAY
          ===================================================== --}}
 
     <div
         class="sidebar-overlay"
         id="sidebarOverlay"
     ></div>
-
 
 
     {{-- =====================================================
@@ -96,12 +277,11 @@
         id="erpSidebar"
     >
 
-
         {{-- Brand --}}
         <div class="sidebar-brand">
 
             <a
-                href="{{ route('logistics.dashboard') }}"
+                href="{{ $logisticsUrl('logistics.dashboard') }}"
                 class="brand-link"
             >
 
@@ -112,19 +292,11 @@
                 >
 
                 <div class="brand-copy">
-
-                    <span class="brand-name">
-                        Lumear
-                    </span>
-
-                    <span class="brand-module">
-                        Logistics
-                    </span>
-
+                    <span class="brand-name">Lumear</span>
+                    <span class="brand-module">Logistics</span>
                 </div>
 
             </a>
-
 
             <button
                 type="button"
@@ -132,7 +304,6 @@
                 id="sidebarClose"
                 aria-label="Close sidebar"
             >
-
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -143,21 +314,19 @@
                     <path d="M18 6 6 18"/>
                     <path d="m6 6 12 12"/>
                 </svg>
-
             </button>
 
         </div>
 
 
-
         {{-- =================================================
-             SORTING CENTER INFORMATION
+             REGISTERED SORTING CENTER
              ================================================= --}}
 
         <div class="center-summary">
 
             <div class="center-avatar">
-                SC
+                {{ $logisticsInitials }}
             </div>
 
             <div class="center-summary-copy">
@@ -167,14 +336,21 @@
                 </span>
 
                 <strong>
-                    Santa Cruz Hub
+                    {{ $logisticsBusinessName }}
                 </strong>
+
+                <span class="logistics-center-location">
+                    {{ $logisticsMunicipality }},
+                    {{ $logisticsProvince }}
+                </span>
 
                 <span class="center-status">
 
                     <i></i>
 
-                    Operational
+                    {{ $logisticsStatus === 'approved'
+                        ? 'Operational'
+                        : ucfirst($logisticsStatus) }}
 
                 </span>
 
@@ -183,328 +359,186 @@
         </div>
 
 
-
         {{-- =================================================
-             NAVIGATION
+             SIDEBAR NAVIGATION
              ================================================= --}}
 
         <nav class="sidebar-navigation">
 
+            @foreach($navigationGroups as $group)
 
-            {{-- Overview --}}
-            <div class="navigation-group">
+                <div class="navigation-group">
 
-                <span class="navigation-label">
-                    Overview
-                </span>
-
-
-                <a
-                    href="{{ route('logistics.dashboard') }}"
-                    class="navigation-item {{ request()->routeIs('logistics.dashboard') ? 'active' : '' }}"
-                >
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <rect x="3" y="3" width="7" height="7" rx="1"/>
-                        <rect x="14" y="3" width="7" height="7" rx="1"/>
-                        <rect x="3" y="14" width="7" height="7" rx="1"/>
-                        <rect x="14" y="14" width="7" height="7" rx="1"/>
-                    </svg>
-
-                    <span>
-                        Dashboard
+                    <span class="navigation-label">
+                        {{ $group['label'] }}
                     </span>
 
-                </a>
+                    @foreach($group['items'] as $item)
 
-            </div>
+                        @php
+                            $isActive = request()->routeIs(
+                                $item['route']
+                            ) || request()->routeIs(
+                                $item['route'] . '.*'
+                            );
 
+                            $iconName = $item['icon'];
+                        @endphp
 
+                        <a
+                            href="{{ $logisticsUrl($item['route']) }}"
+                            class="navigation-item {{ $isActive ? 'active' : '' }}"
+                        >
 
-            {{-- Operations --}}
-            <div class="navigation-group">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
 
-                <span class="navigation-label">
-                    Operations
-                </span>
+                                @switch($iconName)
 
+                                    @case('dashboard')
+                                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                        @break
 
-                <a
-                    href="{{ route('logistics.pickup.index') }}"
-                    class="navigation-item {{ request()->routeIs('logistics.pickup.*') ? 'active' : '' }}"
-                >
+                                    @case('package')
+                                        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+                                        <path d="m3.3 7 8.7 5 8.7-5"/>
+                                        @break
 
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
-                        <path d="m3.3 7 8.7 5 8.7-5"/>
-                        <path d="M12 22V12"/>
-                    </svg>
+                                    @case('incoming')
+                                        <path d="M4 7h16v13H4z"/>
+                                        <path d="M8 7V4h8v3"/>
+                                        <path d="M8 12h8"/>
+                                        @break
 
-                    <span>
-                        Pickup Requests
-                    </span>
+                                    @case('sorting')
+                                        <path d="M4 5h16"/>
+                                        <path d="M7 10h10"/>
+                                        <path d="M10 15h4"/>
+                                        <path d="M12 15v5"/>
+                                        @break
 
-                    <span class="nav-badge">
-                        8
-                    </span>
+                                    @case('truck')
+                                        <circle cx="7" cy="17" r="2"/>
+                                        <circle cx="17" cy="17" r="2"/>
+                                        <path d="M5 17H3V6h11v11H9"/>
+                                        <path d="M14 10h4l3 3v4h-2"/>
+                                        @break
 
-                </a>
+                                    @case('clock')
+                                        <circle cx="12" cy="12" r="9"/>
+                                        <path d="M12 7v5l3 2"/>
+                                        @break
 
+                                    @case('message')
+                                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+                                        @break
 
-                <a
-                    href="#"
-                    class="navigation-item"
-                >
+                                    @case('report')
+                                        <path d="M4 20V10"/>
+                                        <path d="M10 20V4"/>
+                                        <path d="M16 20v-7"/>
+                                        <path d="M22 20H2"/>
+                                        @break
 
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <path d="M4 7h16v13H4z"/>
-                        <path d="M8 7V4h8v3"/>
-                        <path d="M8 12h8"/>
-                    </svg>
+                                @endswitch
 
-                    <span>
-                        Incoming Parcels
-                    </span>
+                            </svg>
 
-                </a>
+                            <span>
+                                {{ $item['label'] }}
+                            </span>
 
+                        </a>
 
-                <a
-                    href="#"
-                    class="navigation-item"
-                >
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <path d="M4 5h16"/>
-                        <path d="M7 10h10"/>
-                        <path d="M10 15h4"/>
-                        <path d="M12 15v5"/>
-                    </svg>
-
-                    <span>
-                        Parcel Sorting
-                    </span>
-
-                </a>
-
-
-                <a
-                    href="#"
-                    class="navigation-item"
-                >
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <circle cx="7" cy="17" r="2"/>
-                        <circle cx="17" cy="17" r="2"/>
-                        <path d="M5 17H3V6h11v11H9"/>
-                        <path d="M14 10h4l3 3v4h-2"/>
-                    </svg>
-
-                    <span>
-                        Delivery Assignment
-                    </span>
-
-                </a>
-
-
-                <a
-                    href="#"
-                    class="navigation-item"
-                >
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <circle cx="12" cy="12" r="9"/>
-                        <path d="M12 7v5l3 2"/>
-                    </svg>
-
-                    <span>
-                        Delivery Monitoring
-                    </span>
-
-                </a>
-
-            </div>
-
-
-
-            {{-- Management --}}
-            <div class="navigation-group">
-
-                <span class="navigation-label">
-                    Management
-                </span>
-
-
-                <button
-                    type="button"
-                    class="navigation-item navigation-dropdown-button"
-                    id="riderMenuButton"
-                >
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M3 21v-2a6 6 0 0 1 12 0v2"/>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        <path d="M21 21v-2a6 6 0 0 0-4.5-5.8"/>
-                    </svg>
-
-                    <span>
-                        Rider Management
-                    </span>
-
-                    <svg
-                        class="dropdown-arrow"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
-                        <path d="m9 18 6-6-6-6"/>
-                    </svg>
-
-                </button>
-
-
-                <div
-                    class="navigation-submenu"
-                    id="riderSubmenu"
-                >
-
-                    <a href="#">
-
-                        Applications
-
-                        <span>
-                            3
-                        </span>
-
-                    </a>
-
-
-                    <a href="#">
-                        Rider List
-                    </a>
+                    @endforeach
 
                 </div>
 
-            </div>
+                {{-- Rider Management after Operations --}}
+                @if($group['label'] === 'Operations')
 
+                    <div class="navigation-group">
 
+                        <span class="navigation-label">
+                            Management
+                        </span>
 
-            {{-- Communication --}}
-            <div class="navigation-group">
+                        <button
+                            type="button"
+                            class="navigation-item navigation-dropdown-button {{ request()->routeIs('logistics.riders.*') ? 'active' : '' }}"
+                            id="riderMenuButton"
+                            aria-expanded="{{ request()->routeIs('logistics.riders.*') ? 'true' : 'false' }}"
+                            aria-controls="riderSubmenu"
+                        >
 
-                <span class="navigation-label">
-                    Communication
-                </span>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                            >
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M3 21v-2a6 6 0 0 1 12 0v2"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                <path d="M21 21v-2a6 6 0 0 0-4.5-5.8"/>
+                            </svg>
 
+                            <span>
+                                Rider Management
+                            </span>
 
-                <a
-                    href="#"
-                    class="navigation-item"
-                >
+                            <svg
+                                class="dropdown-arrow"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="m9 18 6-6-6-6"/>
+                            </svg>
 
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
-                    </svg>
+                        </button>
 
-                    <span>
-                        Messages
-                    </span>
+                        <div
+                            class="navigation-submenu"
+                            id="riderSubmenu"
+                        >
 
-                    <span class="notification-dot"></span>
+                            <a
+                                href="{{ $logisticsUrl('logistics.riders.applications') }}"
+                                class="{{ request()->routeIs('logistics.riders.applications') ? 'active' : '' }}"
+                            >
+                                Applications
+                            </a>
 
-                </a>
+                            <a
+                                href="{{ $logisticsUrl('logistics.riders.index') }}"
+                                class="{{ request()->routeIs('logistics.riders.index') ? 'active' : '' }}"
+                            >
+                                Rider List
+                            </a>
 
-            </div>
+                        </div>
 
+                    </div>
 
+                @endif
 
-            {{-- Reports --}}
-            <div class="navigation-group">
-
-                <span class="navigation-label">
-                    Reports
-                </span>
-
-
-                <a
-                    href="#"
-                    class="navigation-item"
-                >
-
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                    >
-                        <path d="M4 20V10"/>
-                        <path d="M10 20V4"/>
-                        <path d="M16 20v-7"/>
-                        <path d="M22 20H2"/>
-                    </svg>
-
-                    <span>
-                        Generate Reports
-                    </span>
-
-                </a>
-
-            </div>
+            @endforeach
 
         </nav>
-
 
 
         {{-- =================================================
@@ -514,8 +548,8 @@
         <div class="sidebar-bottom">
 
             <a
-                href="#"
-                class="navigation-item"
+                href="{{ $logisticsUrl('logistics.account.index') }}"
+                class="navigation-item {{ request()->routeIs('logistics.account.*') ? 'active' : '' }}"
             >
 
                 <svg
@@ -536,34 +570,41 @@
             </a>
 
 
-            <a
-                href="{{ route('logistics.login') }}"
-                class="navigation-item logout-item"
+            <form
+                action="{{ $logisticsUrl('logistics.logout') }}"
+                method="POST"
+                class="logistics-logout-form"
             >
+                @csrf
 
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
+                <button
+                    type="submit"
+                    class="navigation-item logout-item logistics-logout-button"
                 >
-                    <path d="M10 17l5-5-5-5"/>
-                    <path d="M15 12H3"/>
-                    <path d="M14 3h7v18h-7"/>
-                </svg>
 
-                <span>
-                    Logout
-                </span>
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                    >
+                        <path d="M10 17l5-5-5-5"/>
+                        <path d="M15 12H3"/>
+                        <path d="M14 3h7v18h-7"/>
+                    </svg>
 
-            </a>
+                    <span>
+                        Logout
+                    </span>
+
+                </button>
+
+            </form>
 
         </div>
 
-
     </aside>
-
 
 
     {{-- =====================================================
@@ -572,23 +613,18 @@
 
     <div class="erp-main">
 
-
-        {{-- =================================================
-             TOPBAR
-             ================================================= --}}
-
+        {{-- TOPBAR --}}
         <header class="erp-topbar">
-
 
             <div class="topbar-left">
 
+                {{-- Mobile menu --}}
                 <button
                     type="button"
                     class="mobile-menu-button"
                     id="mobileMenuButton"
                     aria-label="Open sidebar"
                 >
-
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -600,10 +636,10 @@
                         <path d="M4 12h16"/>
                         <path d="M4 18h16"/>
                     </svg>
-
                 </button>
 
 
+                {{-- Search UI --}}
                 <div class="topbar-search">
 
                     <svg
@@ -620,6 +656,7 @@
                     <input
                         type="search"
                         placeholder="Search parcel ID, rider or order..."
+                        aria-label="Search logistics"
                     >
 
                 </div>
@@ -627,34 +664,25 @@
             </div>
 
 
-
             <div class="topbar-actions">
 
-
-                {{-- Current Date --}}
+                {{-- Current date --}}
                 <div class="topbar-date">
-
                     <span id="currentDate">
-                        Loading date...
+                        {{ now()->format('D, M j, Y') }}
                     </span>
-
                 </div>
 
 
-
-                {{-- =================================================
-                     THEME TOGGLE
-                     ================================================= --}}
-
+                {{-- Theme toggle --}}
                 <button
                     type="button"
                     class="theme-toggle"
                     id="themeToggle"
-                    aria-label="Switch to light mode"
+                    aria-label="Switch theme"
                     title="Switch theme"
                 >
 
-                    {{-- Sun --}}
                     <svg
                         class="theme-sun"
                         xmlns="http://www.w3.org/2000/svg"
@@ -674,8 +702,6 @@
                         <path d="m19.07 4.93-1.41 1.41"/>
                     </svg>
 
-
-                    {{-- Moon --}}
                     <svg
                         class="theme-moon"
                         xmlns="http://www.w3.org/2000/svg"
@@ -690,7 +716,6 @@
                 </button>
 
 
-
                 {{-- =================================================
                      NOTIFICATIONS
                      ================================================= --}}
@@ -702,6 +727,8 @@
                         class="topbar-icon-button"
                         id="notificationButton"
                         aria-label="Notifications"
+                        aria-expanded="false"
+                        aria-controls="notificationDropdown"
                     >
 
                         <svg
@@ -715,10 +742,7 @@
                             <path d="M10 21h4"/>
                         </svg>
 
-                        <span class="topbar-alert"></span>
-
                     </button>
-
 
                     <div
                         class="topbar-dropdown notification-dropdown"
@@ -732,83 +756,21 @@
                             </strong>
 
                             <span>
-                                3 new
+                                No new alerts
                             </span>
 
                         </div>
 
+                        <div class="logistics-empty-notification">
 
-                        <div class="notification-entry unread">
+                            No notifications yet.
 
-                            <span class="notification-symbol">
-                                P
-                            </span>
-
-                            <div>
-
-                                <strong>
-                                    New pickup request
-                                </strong>
-
-                                <p>
-                                    Seller requested pickup for 4 parcels.
-                                </p>
-
-                                <small>
-                                    8 minutes ago
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="notification-entry unread">
-
-                            <span class="notification-symbol">
-                                R
-                            </span>
-
-                            <div>
-
-                                <strong>
-                                    Rider application
-                                </strong>
-
-                                <p>
-                                    A new rider application needs review.
-                                </p>
-
-                                <small>
-                                    24 minutes ago
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="notification-entry">
-
-                            <span class="notification-symbol">
-                                D
-                            </span>
-
-                            <div>
-
-                                <strong>
-                                    Delivery completed
-                                </strong>
-
-                                <p>
-                                    Parcel LMR-2418 has been delivered.
-                                </p>
-
-                                <small>
-                                    1 hour ago
-                                </small>
-
-                            </div>
+                            <p style="margin-top:8px;">
+                                Pickup requests, rider applications,
+                                and delivery updates will appear
+                                once notifications are connected
+                                to the database.
+                            </p>
 
                         </div>
 
@@ -817,9 +779,8 @@
                 </div>
 
 
-
                 {{-- =================================================
-                     PROFILE
+                     LOGISTICS PROFILE
                      ================================================= --}}
 
                 <div class="topbar-dropdown-wrapper">
@@ -828,20 +789,22 @@
                         type="button"
                         class="profile-button"
                         id="profileButton"
+                        aria-expanded="false"
+                        aria-controls="profileDropdown"
                     >
 
                         <div class="profile-avatar">
-                            SC
+                            {{ $logisticsInitials }}
                         </div>
 
                         <div class="profile-copy">
 
                             <strong>
-                                Santa Cruz Hub
+                                {{ $logisticsBusinessName }}
                             </strong>
 
                             <span>
-                                Logistics Operator
+                                {{ $logisticsOwnerName }}
                             </span>
 
                         </div>
@@ -859,35 +822,64 @@
                     </button>
 
 
+                    {{-- Profile dropdown --}}
                     <div
                         class="topbar-dropdown profile-dropdown"
                         id="profileDropdown"
                     >
 
-                        <a href="#">
+                        <div class="logistics-profile-owner">
+
+                            <strong>
+                                {{ $logisticsBusinessName }}
+                            </strong>
+
+                            <div style="margin-top:5px;">
+                                {{ $logisticsMunicipality }},
+                                {{ $logisticsProvince }}
+                            </div>
+
+                            <div style="margin-top:5px;">
+                                {{ $logisticsUser->email ?? '' }}
+                            </div>
+
+                        </div>
+
+                        <a
+                            href="{{ $logisticsUrl('logistics.account.index') }}"
+                        >
                             My Account
                         </a>
 
-                        <a href="{{ route('login') }}">
+                        <a
+                            href="{{ $logisticsUrl('login') }}"
+                        >
                             Marketplace
                         </a>
 
-                        <a
-                            href="{{ route('logistics.login') }}"
-                            class="profile-logout"
+                        <form
+                            action="{{ $logisticsUrl('logistics.logout') }}"
+                            method="POST"
+                            class="logistics-profile-logout-form"
                         >
-                            Logout
-                        </a>
+                            @csrf
+
+                            <button
+                                type="submit"
+                                class="profile-logout logistics-profile-logout-button"
+                            >
+                                Logout
+                            </button>
+
+                        </form>
 
                     </div>
 
                 </div>
 
-
             </div>
 
         </header>
-
 
 
         {{-- =================================================
@@ -900,17 +892,16 @@
 
         </main>
 
-
     </div>
-
 
 </div>
 
 
-{{-- Logistics ERP JavaScript --}}
+{{-- Existing Logistics JavaScript --}}
 <script src="{{ asset('js/logistics/dashboard.js') }}"></script>
 
+{{-- Page-specific JavaScript --}}
+@stack('scripts')
 
 </body>
-
 </html>
