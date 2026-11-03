@@ -1,3 +1,7 @@
+import 'screen/google_onboarding_screen.dart';
+import 'screen/password_security_screen.dart';
+import 'product_categories.dart';
+
 import 'package:flutter/material.dart';
 
 import 'register_page.dart';
@@ -42,6 +46,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    ProductCategories.reset();
     DemoAccounts.signOut();
   }
 
@@ -184,11 +189,30 @@ class _LoginPageState extends State<LoginPage> {
       final token =
           await (widget.googleIdTokenProvider ?? GoogleLogin.idToken)();
       if (!mounted || token == null) return;
-      final result = await ApiService.post(
+      var result = await ApiService.post(
         '/auth/google',
         body: {'id_token': token},
       );
       if (!mounted) return;
+      if (result is Map && result['requires_account_type'] == true) {
+        setState(() => isLoading = false);
+        final details = await Navigator.push<Map<String, dynamic>>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GoogleOnboardingScreen(
+              initialName: result['name'] as String? ?? '',
+              existingRole: result['existing_role'] as String?,
+            ),
+          ),
+        );
+        if (!mounted || details == null) return;
+        setState(() => isLoading = true);
+        result = await ApiService.post(
+          '/auth/google',
+          body: {'id_token': token, ...details},
+        );
+        if (!mounted) return;
+      }
       if (result is! Map ||
           result['token'] is! String ||
           (result['token'] as String).isEmpty ||
@@ -425,19 +449,13 @@ class _LoginPageState extends State<LoginPage> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: () => showDialog<void>(
-                                    context: context,
-                                    builder: (c) => AlertDialog(
-                                      title: const Text('Password assistance'),
-                                      content: const Text(
-                                        'Password recovery is not configured yet. Contact your administrator for account recovery.',
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PasswordSecurityScreen(
+                                        connected: backendEnabled,
+                                        initialEmail: emailController.text,
                                       ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(c),
-                                          child: const Text('Got it'),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                   child: const Text(

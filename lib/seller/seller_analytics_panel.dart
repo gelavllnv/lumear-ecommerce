@@ -186,6 +186,7 @@ class _SellerAnalyticsPanelState extends State<SellerAnalyticsPanel> {
           TextButton(onPressed: refresh, child: const Text('Retry analytics')),
         ],
         if (snapshot != null && !loading) ...[
+          if (snapshot.notice != null) Text(snapshot.notice!),
           const Text(
             'Completed merchandise sales; shipping excluded. Earnings deduct commission and refunds. Conversion: completed orders / shop visits.',
           ),
@@ -216,10 +217,13 @@ class _SellerAnalyticsPanelState extends State<SellerAnalyticsPanel> {
                           children: [
                             Text(metric.value),
                             Text(
-                              analyticsValue(
-                                metric.key,
-                                snapshot.current[metric.key] ?? 0,
-                              ),
+                              !snapshot.trafficAvailable &&
+                                      metric.key == 'conversion'
+                                  ? 'Unavailable'
+                                  : analyticsValue(
+                                      metric.key,
+                                      snapshot.current[metric.key] ?? 0,
+                                    ),
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             Text(
@@ -253,7 +257,7 @@ class _SellerAnalyticsPanelState extends State<SellerAnalyticsPanel> {
             for (final p in snapshot.products)
               line(
                 '${p['name']} · ${p['units']} units',
-                '${p['views']} views · ${p['cart_rate']}% add-to-cart · ${p['purchases']} purchases\n${analyticsValue('revenue', p['revenue'] as num)} revenue · ${p['stock']} in stock${p['low_performing'] == true ? '\nLow performing: review listing and pricing' : ''}${(p['stock'] as num) <= 5 ? '\n${p['stock'] == 0 ? 'Out of stock' : 'Low stock'}' : ''}',
+                '${snapshot.trafficAvailable ? '${p['views']} views · ${p['cart_rate']}% add-to-cart · ' : ''}${p['purchases']} purchases\n${analyticsValue('revenue', p['revenue'] as num)} revenue · ${p['stock']} in stock${p['low_performing'] == true ? '\nLow performing: review listing and pricing' : ''}${(p['stock'] as num) <= 5 ? '\n${p['stock'] == 0 ? 'Out of stock' : 'Low stock'}' : ''}',
               ),
             OutlinedButton(
               onPressed: () => widget.openSection(2),
@@ -281,7 +285,9 @@ class _SellerAnalyticsPanelState extends State<SellerAnalyticsPanel> {
                 children: [
                   line(
                     '${p['name']} · ${p['active'] == true ? 'Active' : 'Paused'}',
-                    '${p['kind']} · ${p['views']} views · ${p['claims']} claims · ${p['redemptions']} redemptions\n${analyticsValue('revenue', p['revenue'] as num)} revenue · ${analyticsValue('conversion', p['conversion'] as num)} conversion',
+                    snapshot.trafficAvailable
+                        ? '${p['kind']} · ${p['views']} views · ${p['claims']} claims · ${p['redemptions']} redemptions\n${analyticsValue('revenue', p['revenue'] as num)} revenue · ${analyticsValue('conversion', p['conversion'] as num)} conversion'
+                        : '${p['kind']} · ${p['redemptions']} redemptions · Attribution unavailable',
                   ),
                   if ((p['warning'] as String? ?? '').isNotEmpty)
                     Text('${p['warning']}'),
@@ -312,22 +318,25 @@ class _SellerAnalyticsPanelState extends State<SellerAnalyticsPanel> {
             ))
               line(
                 o.id,
-                '${o.buyer} · ${o.rawStatus == 'packed' ? 'Packed' : o.status.label}',
+                '${o.buyer} · ${o.fulfillmentLabel}',
                 action: TextButton(
                   onPressed: busy
                       ? null
-                      : () => perform(
-                          () =>
-                              o.rawStatus == 'packed' ||
-                                  o.status == SellerOrderStatus.ready
-                              ? widget.commerce.markShipped(o)
-                              : widget.commerce.markPacked(o),
-                        ),
+                      : () {
+                          if (o.canAccept) {
+                            perform(() => widget.commerce.accept(o));
+                          } else if (o.canPack) {
+                            perform(() => widget.commerce.markPacked(o));
+                          } else {
+                            widget.openSection(1);
+                          }
+                        },
                   child: Text(
-                    o.rawStatus == 'packed' ||
-                            o.status == SellerOrderStatus.ready
-                        ? 'Mark shipped'
-                        : 'Mark packed',
+                    o.canAccept
+                        ? 'Accept order'
+                        : o.canPack
+                        ? 'Mark packed'
+                        : 'Manage pickup',
                   ),
                 ),
               ),

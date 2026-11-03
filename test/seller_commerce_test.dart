@@ -8,12 +8,13 @@ void main() {
       final data = SellerCommerce();
       addTearDown(data.dispose);
       expect(data.grossSales, 125000);
-      expect(data.fees, 12500);
-      expect(data.netEarnings, 112500);
+      expect(data.fees, 10000);
+      expect(data.netEarnings, 115000);
       expect(data.awaitingSettlement + data.paidOut, data.netEarnings);
       expect(data.pendingSales, 170000);
+      await data.accept(data.orders.first);
       await data.prepare(data.orders.first);
-      expect(data.netEarnings, 112500);
+      expect(data.netEarnings, 115000);
       expect(data.pendingSales, 170000);
     },
   );
@@ -41,8 +42,9 @@ void main() {
       final data = SellerCommerce();
       addTearDown(data.dispose);
       final order = data.orders.first;
+      await data.accept(order);
       await data.prepare(order);
-      expect(order.status, SellerOrderStatus.ready);
+      expect(order.rawStatus, 'packed');
       await expectLater(data.cancel(order, 'Unavailable'), throwsStateError);
       await expectLater(data.prepare(order), throwsStateError);
     },

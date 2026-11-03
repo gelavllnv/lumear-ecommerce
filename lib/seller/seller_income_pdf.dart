@@ -1,3 +1,5 @@
+import '../services/marketplace_policy.dart';
+
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -83,7 +85,7 @@ Future<Uint8List> buildSellerIncomePdf(
         amount(
           report.hasLegacyCommission
               ? 'Recorded commission'
-              : 'Platform commission (10%)',
+              : 'Platform commission (${MarketplacePolicy.commissionPercent}%)',
           report.commission,
         ),
         amount('Refunds', report.refunds),
@@ -92,7 +94,7 @@ Future<Uint8List> buildSellerIncomePdf(
         pw.Text('Completed orders: ${report.rows.length}'),
         pw.SizedBox(height: 14),
         pw.Text(
-          'Shipping is ₱50.00 per shop order and is excluded from sales, commission and seller income. Seller share is 90% before refunds. This is a sales report, not a payout balance.',
+          'Shipping is ₱50.00 per shop order and is excluded from sales, commission and seller income. Seller share is ${MarketplacePolicy.sellerSharePercent}% before refunds. This is a sales report, not a payout balance.',
           style: const pw.TextStyle(fontSize: 9),
         ),
         if (report.hasLegacyDates)
@@ -102,7 +104,7 @@ Future<Uint8List> buildSellerIncomePdf(
           ),
         if (report.hasLegacyCommission)
           pw.Text(
-            'Some historical commissions differ from 10%. Recorded server amounts are preserved.',
+            'Some historical commissions differ from ${MarketplacePolicy.commissionPercent}%. Recorded server amounts are preserved.',
             style: const pw.TextStyle(fontSize: 9),
           ),
         pw.SizedBox(height: 18),

@@ -125,6 +125,9 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
       final p = await commerce.load();
       if (!mounted) return;
       shop.status = p['status'] ?? '';
+      shop.accountProfile = Map<String, dynamic>.from(
+        p['account_profile'] ?? {},
+      );
       shop.readImages(p);
       shop.update(
         owner: p['owner'],

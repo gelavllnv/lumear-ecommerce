@@ -1,3 +1,4 @@
+import 'password_security_screen.dart';
 import '../services/top_notification.dart';
 import '../services/marketplace_policy.dart';
 import '../design/lumear_theme.dart';
@@ -1182,11 +1183,15 @@ class _BuyerWorkspaceState extends State<BuyerWorkspace> {
       label: const Text('Edit profile'),
     ),
     OutlinedButton.icon(
-      onPressed: () => form('Change password', {
-        'current_password': 'Current password',
-        'new_password': 'New password',
-        'confirm_password': 'Confirm new password',
-      }, (v, p) => ApiService.post('/auth/password', body: v)),
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PasswordSecurityScreen(
+            connected: true,
+            changePassword: true,
+          ),
+        ),
+      ),
       icon: const Icon(Icons.lock_outline),
       label: const Text('Change password'),
     ),

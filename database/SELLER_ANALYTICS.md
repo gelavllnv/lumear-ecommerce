@@ -51,8 +51,8 @@ Example response (illustrative values):
 
 ```json
 {
-  "current": {"sales":100000,"orders":4,"earnings":90000,"conversion":2,"units":3,"aov":50000,"cancelled":1,"returned":0},
-  "previous": {"sales":80000,"orders":3,"earnings":72000,"conversion":1,"units":2,"aov":40000,"cancelled":0,"returned":0},
+  "current": {"sales":100000,"orders":4,"earnings":92000,"conversion":2,"units":3,"aov":50000,"cancelled":1,"returned":0},
+  "previous": {"sales":80000,"orders":3,"earnings":73600,"conversion":1,"units":2,"aov":40000,"cancelled":0,"returned":0},
   "daily": [{"date":"2026-10-01","revenue":100000}],
   "products": [{"id":"11","name":"Market tote","views":100,"cart_rate":8,"purchases":2,"units":3,"revenue":100000,"low_performing":false,"stock":3}],
   "customers": {"new":1,"returning":1,"repeat":0,"locations":[{"name":"Quezon City","buyers":2}]},
@@ -157,8 +157,9 @@ uses illustrative message/payout/return notices and a three-day delay threshold.
 | --- | --- |
 | `PATCH /seller/promotions/{id}` | `{"active":false}`; IDs use `voucher:7` or `flash_sale:8`; authorize shop and pause transactionally |
 | `PATCH /seller/notifications/{id}` | `{"read":true}`; scope to authenticated recipient |
-| `POST /seller/orders/{id}/pack` | `{}`; pending/accepted → packed, append history |
-| `POST /seller/orders/{id}/ship` | `{}`; packed/ready_to_ship → in_transit after validating the fulfillment provider's handoff requirements; append history |
+| `POST /seller/orders/{id}/accept` | `{}`; pending → accepted, append history |
+| `POST /seller/orders/{id}/pack` | `{}`; accepted → packed, append history |
+| `POST /seller/orders/{id}/pickup` | `{"courier_id":"approved-partner-id"}`; packed → ready_to_ship; courier handoff owns shipment |
 | `PATCH /seller/products/{id}` | Existing product editor contract, including stock |
 | `/chat/threads` and thread messages | Existing authenticated buyer/seller inbox contract |
 
@@ -168,6 +169,9 @@ transitions, make same-state retries safe and append order history once. Shippin
 must not change payment status or release earnings. Re-fetch workspace after order
 mutations and analytics after every action. The client disables duplicate clicks;
 backend authorization, concurrency and retry protection remain mandatory.
+The dashboard sends packed orders to Manage pickup; it never marks them shipped.
+See [account and fulfillment contract](ACCOUNT_AND_FULFILLMENT.md) for courier
+workspace fields, product archiving and the shared web/app transition policy.
 
 PDFs are generated locally from one loaded snapshot using the selected dates,
 including comparisons, daily revenue, products, customers, promotions and current

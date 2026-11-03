@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -74,14 +75,15 @@ void main() {
         isTrue,
       );
       final order = commerce.orders.first;
+      await commerce.accept(order);
       await commerce.markPacked(order);
       expect(order.rawStatus, 'packed');
       expect(order.cancellable, isFalse);
       expect(commerce.cancel(order, 'Already packed'), throwsStateError);
       expect(commerce.markPacked(order), throwsStateError);
-      await commerce.markShipped(order);
-      expect(order.status, SellerOrderStatus.inTransit);
-      expect(commerce.markShipped(order), throwsStateError);
+      await commerce.requestPickup(order, 'demo');
+      expect(order.status, SellerOrderStatus.ready);
+      expect(commerce.requestPickup(order, 'demo'), throwsStateError);
     },
   );
 
@@ -178,6 +180,11 @@ void main() {
       );
       expect(ascii.decode(bytes.take(5).toList()), '%PDF-');
       expect(bytes.length, greaterThan(10000));
+      if (const bool.fromEnvironment('WRITE_REPORT_PREVIEWS')) {
+        final file = File('tmp/pdfs/seller-analytics.pdf');
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(bytes);
+      }
     },
   );
 
@@ -216,6 +223,9 @@ void main() {
     await tester.tap(find.text('Pause promotion').first);
     await tester.pumpAndSettle();
     expect(find.text('Weekend voucher · Paused'), findsOneWidget);
+    await tester.ensureVisible(find.text('Accept order').first);
+    await tester.tap(find.text('Accept order').first);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Mark packed').first);
     await tester.tap(find.text('Mark packed').first);
     await tester.pumpAndSettle();

@@ -221,10 +221,10 @@ CREATE TABLE Orders (
     shipping_centavos BIGINT UNSIGNED NOT NULL DEFAULT 5000,
     discount_centavos BIGINT UNSIGNED NOT NULL DEFAULT 0,
     total_centavos BIGINT UNSIGNED NOT NULL,
-    -- Lumear commission: 10% of merchandise subtotal BEFORE voucher discounts.
+    -- Lumear commission: 8% of merchandise subtotal BEFORE voucher discounts.
     -- Shipping is excluded. Round to the nearest centavo, half up.
     commission_centavos BIGINT UNSIGNED GENERATED ALWAYS AS
-        (ROUND(subtotal_centavos * 0.10, 0)) STORED,
+        (ROUND(subtotal_centavos * 0.08, 0)) STORED,
     cancellation_reason TEXT,
     pack_due_at DATETIME,
     delivery_due_at DATETIME,

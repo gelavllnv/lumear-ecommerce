@@ -203,4 +203,100 @@ void main() {
       },
     );
   }
+
+  for (final role in ['buyer', 'seller']) {
+    testWidgets('New Google user chooses $role before account creation', (
+      tester,
+    ) async {
+      var exchanges = 0;
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: lumearTheme(),
+              home: LoginPage(
+                useBackend: true,
+                googleIdTokenProvider: () async => 'verified-google-token',
+              ),
+            ),
+          );
+          final button = find.widgetWithText(
+            OutlinedButton,
+            'Continue with Google',
+          );
+          await tester.ensureVisible(button);
+          await tester.tap(button);
+          await tester.pump(const Duration(milliseconds: 500));
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(find.text('Choose account type'), findsOneWidget);
+          expect(exchanges, 1);
+          await tester.tap(
+            find.text(role == 'buyer' ? 'Buyer' : 'Seller').last,
+          );
+          await tester.pumpAndSettle();
+          expect(exchanges, 2);
+          expect(
+            find.byType(
+              role == 'buyer' ? DashboardScreen : SellerDashboardScreen,
+            ),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+        () => MockClient((request) async {
+          if (request.url.path == '/api/auth/google') {
+            exchanges++;
+            final body = jsonDecode(request.body);
+            expect(body['id_token'], 'verified-google-token');
+            if (exchanges == 1) {
+              expect(body.containsKey('account_type'), isFalse);
+              return http.Response('{"requires_account_type":true}', 200);
+            }
+            expect(body['account_type'], role);
+            return http.Response(
+              jsonEncode({'token': 'new-google-session', 'role': role}),
+              200,
+            );
+          }
+          if (role == 'buyer') {
+            return http.Response(
+              jsonEncode({
+                'profile': {
+                  'name': 'Google buyer',
+                  'email': 'buyer@example.invalid',
+                },
+                'products': [],
+                'cart': [],
+                'orders': [],
+                'addresses': [],
+                'wishlist': [],
+                'notifications': [],
+                'vouchers': [],
+                'capabilities': {},
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'shop': {
+                'owner': 'Google seller',
+                'name': 'Google shop',
+                'email': 'seller@example.invalid',
+                'phone': '',
+                'description': '',
+                'status': 'pending',
+              },
+              'products': [],
+              'orders': [],
+              'earnings': {},
+              'categories': [],
+            }),
+            200,
+          );
+        }),
+      );
+    });
+  }
 }

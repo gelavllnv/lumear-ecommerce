@@ -2,6 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Lumear · Shared MySQL",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define-from-file=config/local-api.json"]
+    },
+    {
       "name": "Lumear · Buyer and seller preview",
       "request": "launch",
       "type": "dart",

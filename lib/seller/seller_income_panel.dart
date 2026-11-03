@@ -1,3 +1,5 @@
+import '../services/marketplace_policy.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
@@ -210,7 +212,7 @@ class _SellerIncomePanelState extends State<SellerIncomePanel> {
                   Text(
                     report.hasLegacyCommission
                         ? 'After recorded commission and refunds.'
-                        : 'After 10% platform commission. Seller share: 90% before refunds.',
+                        : 'After ${MarketplacePolicy.commissionPercent}% platform commission. Seller share: ${MarketplacePolicy.sellerSharePercent}% before refunds.',
                   ),
                 ],
               ),
@@ -235,7 +237,7 @@ class _SellerIncomePanelState extends State<SellerIncomePanel> {
                     child: metric(
                       report.hasLegacyCommission
                           ? 'Recorded Commission'
-                          : 'Commission (10%)',
+                          : 'Commission (${MarketplacePolicy.commissionPercent}%)',
                       incomeMoney(report.commission),
                     ),
                   ),
@@ -332,7 +334,7 @@ class _SellerIncomePanelState extends State<SellerIncomePanel> {
             ),
           if (report.hasLegacyCommission)
             const Text(
-              'Some historical commissions differ from 10%. Recorded server amounts are preserved.',
+              'Some historical commissions differ from ${MarketplacePolicy.commissionPercent}%. Recorded server amounts are preserved.',
             ),
           if (report.demo)
             const Text(

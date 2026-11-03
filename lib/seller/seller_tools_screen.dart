@@ -1,3 +1,4 @@
+import 'seller_income_report.dart';
 import '../services/top_notification.dart';
 import 'product_media.dart';
 
@@ -29,6 +30,7 @@ class SellerToolsScreen extends StatefulWidget {
 class _SellerToolsScreenState extends State<SellerToolsScreen> {
   String query = '';
   String filter = 'All';
+  DateTime? fromDate, toDate;
   bool working = false;
   SellerCommerce get data => widget.commerce;
 
@@ -120,10 +122,12 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
           (p) =>
               p.name.toLowerCase().contains(query) &&
               switch (filter) {
-                'Active' => p.active,
-                'Hidden' => !p.active,
-                'Low stock' => p.stock <= MarketplacePolicy.lowStockThreshold,
-                _ => true,
+                'Active' => p.active && !p.archived,
+                'Hidden' => !p.active && !p.archived,
+                'Archived' => p.archived,
+                'Low stock' =>
+                  !p.archived && p.stock <= MarketplacePolicy.lowStockThreshold,
+                _ => !p.archived,
               },
         )
         .toList();
@@ -135,7 +139,7 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
       ),
       const SizedBox(height: 16),
       search('Search products'),
-      filters(['All', 'Active', 'Hidden', 'Low stock']),
+      filters(['All', 'Active', 'Hidden', 'Archived', 'Low stock']),
       if (visible.isEmpty)
         const _Empty(
           'No products here',
@@ -201,10 +205,15 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
                                   : LumearColors.ink,
                             ),
                           ),
+                          archiveButton(p),
                           SwitchListTile.adaptive(
                             contentPadding: EdgeInsets.zero,
                             title: Text(
-                              p.active ? 'Listing active' : 'Listing hidden',
+                              p.archived
+                                  ? 'Listing archived'
+                                  : p.active
+                                  ? 'Listing active'
+                                  : 'Listing hidden',
                             ),
                             subtitle: Text(
                               !p.editable
@@ -214,7 +223,7 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
                                   : 'Preview visibility',
                             ),
                             value: p.active,
-                            onChanged: working || !p.editable
+                            onChanged: working || !p.editable || p.archived
                                 ? null
                                 : (active) => perform(
                                     () => data.saveProduct(
@@ -228,6 +237,7 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
                                         variety: p.variety,
                                         description: p.description,
                                         active: active,
+                                        archived: p.archived,
                                         media: p.media,
                                       ),
                                     ),
@@ -293,14 +303,54 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
                         DataCell(Text(sellerMoney(p.price))),
                         DataCell(Text('${p.stock}')),
                         DataCell(
-                          Chip(label: Text(p.active ? 'Active' : 'Hidden')),
+                          Row(
+                            children: [
+                              Switch(
+                                value: p.active,
+                                onChanged: working || p.archived || !p.editable
+                                    ? null
+                                    : (active) => perform(
+                                        () => data.saveProduct(
+                                          SellerProduct(
+                                            id: p.id,
+                                            name: p.name,
+                                            price: p.price,
+                                            stock: p.stock,
+                                            category: p.category,
+                                            subcategory: p.subcategory,
+                                            variety: p.variety,
+                                            description: p.description,
+                                            media: p.media,
+                                            active: active,
+                                            archived: p.archived,
+                                            editable: p.editable,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                              Chip(
+                                label: Text(
+                                  p.archived
+                                      ? 'Archived'
+                                      : p.active
+                                      ? 'Active'
+                                      : 'Hidden',
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         DataCell(
-                          TextButton(
-                            onPressed: working || !p.editable
-                                ? null
-                                : () => editProduct(p),
-                            child: const Text('Edit →'),
+                          Row(
+                            children: [
+                              archiveButton(p),
+                              TextButton(
+                                onPressed: working || !p.editable
+                                    ? null
+                                    : () => editProduct(p),
+                                child: const Text('Edit →'),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -312,6 +362,142 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
         },
       ),
     ];
+  }
+
+  Widget archiveButton(SellerProduct p) => TextButton.icon(
+    onPressed: working
+        ? null
+        : () async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (dialog) => AlertDialog(
+                title: Text(
+                  p.archived ? 'Restore product?' : 'Archive product?',
+                ),
+                content: Text(
+                  p.archived
+                      ? 'This listing will return as Hidden. Activate it when you are ready to sell.'
+                      : 'Hide this product from buyers and keep its details and order history.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialog, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialog, true),
+                    child: Text(p.archived ? 'Restore' : 'Archive'),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed == true && mounted) {
+              await perform(() => data.setArchived(p, !p.archived));
+            }
+          },
+    icon: Icon(p.archived ? Icons.unarchive_outlined : Icons.archive_outlined),
+    label: Text(p.archived ? 'Restore' : 'Archive'),
+  );
+
+  bool matchesOrderDates(SellerOrder order) {
+    final d = manilaTime(order.placedAt);
+    final day = DateTime(d.year, d.month, d.day);
+    return (fromDate == null || !day.isBefore(fromDate!)) &&
+        (toDate == null || !day.isAfter(toDate!));
+  }
+
+  Future<void> chooseOrderDate(bool from) async {
+    final now = manilaTime(DateTime.now());
+    final selected = await showDatePicker(
+      context: context,
+      initialDate:
+          (from ? fromDate : toDate) ?? DateTime(now.year, now.month, now.day),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(now.year + 1, 12, 31),
+    );
+    if (selected == null || !mounted) return;
+    if ((from && toDate != null && selected.isAfter(toDate!)) ||
+        (!from && fromDate != null && selected.isBefore(fromDate!))) {
+      showTopNotification(
+        context,
+        const SnackBar(
+          content: Text('From date must be on or before To date.'),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      if (from) {
+        fromDate = selected;
+      } else {
+        toDate = selected;
+      }
+    });
+  }
+
+  Future<void> pickupOrder(SellerOrder order) async {
+    String? courierId;
+    bool sending = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, update) => PopScope(
+          canPop: !sending,
+          child: AlertDialog(
+            title: const Text('Request courier pickup'),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (data.couriers.isEmpty)
+                    const Text(
+                      'No approved logistics partners are available. Refresh the seller workspace or contact support.',
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      initialValue: courierId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Approved logistics partner',
+                      ),
+                      items: [
+                        for (final c in data.couriers)
+                          DropdownMenuItem(value: c.id, child: Text(c.name)),
+                      ],
+                      onChanged: sending
+                          ? null
+                          : (v) => update(() => courierId = v),
+                    ),
+                  if (sending) const LinearProgressIndicator(),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: sending ? null : () => Navigator.pop(dialog),
+                child: const Text('Close'),
+              ),
+              FilledButton(
+                onPressed: sending || courierId == null
+                    ? null
+                    : () async {
+                        update(() => sending = true);
+                        final ok = await perform(
+                          () => data.requestPickup(order, courierId!),
+                        );
+                        if (!dialog.mounted) return;
+                        update(() => sending = false);
+                        if (ok) Navigator.pop(dialog);
+                      },
+                child: const Text('Request pickup'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> editProduct([SellerProduct? product]) async {
@@ -329,15 +515,105 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
     final visible = data.orders
         .where(
           (o) =>
-              (filter == 'All' || o.status.label == filter) &&
+              (filter == 'All' || o.fulfillmentLabel == filter) &&
+              matchesOrderDates(o) &&
               '${o.id} ${o.buyer} ${o.productName}'.toLowerCase().contains(
                 query,
               ),
         )
         .toList();
     return [
-      search('Search order or buyer'),
-      filters(['All', ...SellerOrderStatus.values.map((s) => s.label)]),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 850;
+              final fieldWidth = wide
+                  ? (constraints.maxWidth - 36) / 4
+                  : constraints.maxWidth;
+              final dateWidth = wide
+                  ? fieldWidth
+                  : (constraints.maxWidth - 12) / 2;
+              Widget dateField(bool from) {
+                final date = from ? fromDate : toDate;
+                return SizedBox(
+                  width: dateWidth,
+                  child: InkWell(
+                    onTap: () => chooseOrderDate(from),
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: from ? 'From' : 'To',
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
+                        suffixIcon: const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                        ),
+                      ),
+                      child: Text(
+                        date == null
+                            ? 'dd/mm/yyyy'
+                            : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return Wrap(
+                spacing: 12,
+                runSpacing: 16,
+                children: [
+                  SizedBox(
+                    width: fieldWidth,
+                    child: DropdownButtonFormField<String>(
+                      key: const ValueKey('order-status-filter'),
+                      initialValue: filter,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      items: [
+                        for (final status in [
+                          'All',
+                          'Accepted',
+                          'Cancelled',
+                          'Pending',
+                          'Packed',
+                          'Pickup requested',
+                          'Shipped',
+                          'Delivered',
+                          'Completed',
+                        ])
+                          DropdownMenuItem(
+                            value: status,
+                            child: Text(
+                              status == 'All' ? 'All statuses' : status,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => filter = value);
+                      },
+                    ),
+                  ),
+                  SizedBox(width: fieldWidth, child: search('Search order')),
+                  dateField(true),
+                  dateField(false),
+                  if (fromDate != null || toDate != null)
+                    TextButton(
+                      onPressed: () => setState(() {
+                        fromDate = null;
+                        toDate = null;
+                      }),
+                      child: const Text('Clear dates'),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+      Text('${visible.length} orders'),
       if (visible.isEmpty)
         const _Empty('No matching orders', 'Try another status or search.'),
       for (final o in visible)
@@ -351,7 +627,7 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '${o.buyer}\n${data.connected ? o.productName : '${o.quantity} × ${o.productName}'}\n${o.status.label} · ${sellerMoney(o.subtotal)}',
+                '${o.buyer}\n${data.connected ? o.productName : '${o.quantity} × ${o.productName}'}\n${o.fulfillmentLabel} · ${sellerMoney(o.subtotal)}',
               ),
             ),
             trailing: const Icon(Icons.chevron_right),
@@ -372,7 +648,12 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(order.id, style: Theme.of(context).textTheme.headlineSmall),
-            Text(order.status.label),
+            Text(order.fulfillmentLabel),
+            Text('Payment: ${order.paymentStatus}'),
+            if (order.courierName != null)
+              Text('Courier: ${order.courierName}'),
+            if (order.trackingNumber != null)
+              Text('Tracking: ${order.trackingNumber}'),
             const Divider(height: 28),
             Text(
               order.buyer,
@@ -398,39 +679,50 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
             const SizedBox(height: 16),
             if (order.cancellationReason != null)
               Text('Cancellation: ${order.cancellationReason}'),
-            if (order.status == SellerOrderStatus.toPack) ...[
+            if (order.canAccept || order.canPack) ...[
               const Text(
-                'Check the items and packaging before marking this order ready.',
+                'Accept the order, then check the items and packaging before marking it packed.',
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: working
-                      ? null
-                      : () async {
-                          final ok = await perform(() => data.prepare(order));
-                          if (ok && sheet.mounted) Navigator.pop(sheet);
-                        },
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text('Mark ready for pickup'),
-                ),
+              FilledButton.icon(
+                onPressed: working
+                    ? null
+                    : () async {
+                        final ok = await perform(
+                          () => order.canAccept
+                              ? data.accept(order)
+                              : data.markPacked(order),
+                        );
+                        if (ok && sheet.mounted) Navigator.pop(sheet);
+                      },
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: Text(order.canAccept ? 'Accept order' : 'Mark packed'),
               ),
-              if (order.cancellable)
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () async {
-                      Navigator.pop(sheet);
-                      await cancelOrder(order);
-                    },
-                    child: const Text('Cancel order'),
-                  ),
+              if (order.canCancel)
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(sheet);
+                    await cancelOrder(order);
+                  },
+                  child: const Text('Cancel order'),
                 ),
-            ] else if (order.status == SellerOrderStatus.ready ||
-                order.status == SellerOrderStatus.inTransit)
-              const Text(
-                'Pickup and delivery are confirmed by the delivery service. Waiting for integration.',
+            ] else if (order.canRequestPickup)
+              FilledButton.icon(
+                onPressed: working
+                    ? null
+                    : () async {
+                        Navigator.pop(sheet);
+                        await pickupOrder(order);
+                      },
+                icon: const Icon(Icons.local_shipping_outlined),
+                label: const Text('Request courier pickup'),
+              )
+            else
+              Text(
+                order.fulfillmentLabel == 'Shipped'
+                    ? 'This order is shipped and has no further seller actions.'
+                    : order.status == SellerOrderStatus.ready
+                    ? 'Pickup requested. Waiting for courier confirmation.'
+                    : 'This order has no further seller actions.',
               ),
             const SizedBox(height: 12),
             OutlinedButton(
@@ -444,13 +736,13 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
   );
 
   Future<void> cancelOrder(SellerOrder order) async {
-    final reason = await showDialog<String>(
+    await showDialog<void>(
       context: context,
-      builder: (_) => const _CancelDialog(),
+      barrierDismissible: false,
+      builder: (_) => _CancelDialog(
+        onConfirm: (reason) => perform(() => data.cancel(order, reason)),
+      ),
     );
-    if (reason != null && mounted) {
-      await perform(() => data.cancel(order, reason));
-    }
   }
 
   Future<void> requestPayout() async {
@@ -771,50 +1063,76 @@ class _Empty extends StatelessWidget {
 }
 
 class _CancelDialog extends StatefulWidget {
-  const _CancelDialog();
+  const _CancelDialog({required this.onConfirm});
+  final Future<bool> Function(String) onConfirm;
   @override
   State<_CancelDialog> createState() => _CancelDialogState();
 }
 
 class _CancelDialogState extends State<_CancelDialog> {
-  String reason = 'Item unavailable';
+  final form = GlobalKey<FormState>();
+  final reason = TextEditingController();
+  bool sending = false;
+  @override
+  void dispose() {
+    reason.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => LumearAppearance.build(
     context,
-    () => AlertDialog(
-      title: const Text('Cancel this order?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Reserved stock will be restored in this preview.'),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: reason,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Reason'),
-            items: [
-              for (final r in [
-                'Item unavailable',
-                'Item damaged',
-                'Unable to fulfill',
-              ])
-                DropdownMenuItem(value: r, child: Text(r)),
+    () => PopScope(
+      canPop: !sending,
+      child: AlertDialog(
+        title: const Text('Cancel this order?'),
+        content: Form(
+          key: form,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Explain why this order must be cancelled. The reason will be saved with the order.',
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: reason,
+                enabled: !sending,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Cancellation reason',
+                  hintText: 'For example: Item damaged during packing',
+                ),
+                validator: (v) => v == null || v.trim().isEmpty
+                    ? 'Enter a cancellation reason.'
+                    : null,
+              ),
+              if (sending) const LinearProgressIndicator(),
             ],
-            onChanged: (v) => setState(() => reason = v!),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: sending ? null : () => Navigator.pop(context),
+            child: const Text('Keep order'),
+          ),
+          FilledButton(
+            onPressed: sending
+                ? null
+                : () async {
+                    if (!form.currentState!.validate()) return;
+                    setState(() => sending = true);
+                    final ok = await widget.onConfirm(reason.text.trim());
+                    if (!mounted) return;
+                    setState(() => sending = false);
+                    if (ok && context.mounted) Navigator.pop(context);
+                  },
+            child: const Text('Confirm cancellation'),
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Keep order'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, reason),
-          child: const Text('Confirm cancellation'),
-        ),
-      ],
     ),
   );
 }

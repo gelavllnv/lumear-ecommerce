@@ -212,12 +212,21 @@ class _SellerProductEditorScreenState extends State<SellerProductEditorScreen> {
                                             ),
                                           ),
                                       ],
-                                      onChanged: category == null
+                                      onChanged:
+                                          category == null ||
+                                              ProductCategories.children(
+                                                category,
+                                              ).isEmpty
                                           ? null
                                           : (value) => setState(
                                               () => subcategory = value,
                                             ),
-                                      validator: (value) => value == null
+                                      validator: (value) =>
+                                          value == null &&
+                                              !(ProductCategories.usesShared &&
+                                                  ProductCategories.children(
+                                                    category,
+                                                  ).isEmpty)
                                           ? 'Choose a subcategory.'
                                           : null,
                                     )
@@ -305,11 +314,12 @@ class _SellerProductEditorScreenState extends State<SellerProductEditorScreen> {
                                       fields['stock']!.text.trim(),
                                     ),
                                     category: category!,
-                                    subcategory: subcategory!,
+                                    subcategory: subcategory ?? '',
                                     variety: fields['variety']!.text.trim(),
                                     description: fields['description']!.text
                                         .trim(),
                                     active: widget.product?.active ?? true,
+                                    archived: widget.product?.archived ?? false,
                                     media: List.unmodifiable(media),
                                   ),
                                 );

@@ -5,9 +5,11 @@ abstract final class MarketplacePolicy {
   static const lowStockThreshold = 5;
   static const shippingCentavos = 5000;
   static const shippingPesos = shippingCentavos / 100;
-  static const commissionPercent = 10;
+  static const commissionPercent = 8;
+  static const sellerSharePercent = 100 - commissionPercent;
 
-  static int commissionFor(int subtotal) => (subtotal + 5) ~/ 10;
+  static int commissionFor(int subtotal) =>
+      (subtotal * commissionPercent + 50) ~/ 100;
 
   /// Never replace an authoritative server total with a client-side estimate.
   static void validateShippingQuote(Map<String, dynamic> quote) {

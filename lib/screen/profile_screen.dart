@@ -1,3 +1,6 @@
+import 'account_profile_screen.dart';
+import '../widgets/account_picture.dart';
+import 'password_security_screen.dart';
 import '../design/lumear_theme.dart';
 
 import 'package:flutter/material.dart';
@@ -102,10 +105,22 @@ class ProfileScreen extends StatelessWidget {
   );
 
   Future<void> _editAccount(BuildContext context) async {
-    if (!BuyerData.instance.connected) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => const _AccountEditor(),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountProfileScreen(
+          connected: BuyerData.instance.connected,
+          initialProfile: BuyerData.instance.profile,
+          onSaved: (profile) async {
+            BuyerData.instance.profile = profile;
+            if (BuyerData.instance.connected) {
+              await BuyerData.instance.refresh();
+            } else {
+              BuyerData.instance.notifyProfileChanged();
+            }
+          },
+        ),
+      ),
     );
   }
 
@@ -136,14 +151,14 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    AccountAvatar(
+                      photo: accountPhoto(BuyerData.instance.profile['photo']),
+                      name:
+                          BuyerData.instance.profile['display_name']
+                              as String? ??
+                          BuyerData.instance.profile['name'] as String? ??
+                          '',
                       radius: 30,
-                      backgroundColor: fieldColor,
-                      child: Icon(
-                        Icons.person_outline,
-                        color: maroon,
-                        size: 32,
-                      ),
                     ),
                     SizedBox(width: 17),
                     Expanded(
@@ -151,7 +166,10 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'YOUR LUMEAR.',
+                            BuyerData.instance.profile['display_name']
+                                    as String? ??
+                                BuyerData.instance.profile['name'] as String? ??
+                                'Your account',
                             style: TextStyle(
                               color: cream,
                               fontSize: 22,
@@ -231,6 +249,21 @@ class ProfileScreen extends StatelessWidget {
                 'My Account',
                 'Manage your personal information',
                 () => _editAccount(context),
+              ),
+              _option(
+                context,
+                Icons.lock_outline,
+                'Change password',
+                'Confirm through your registered email',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PasswordSecurityScreen(
+                      connected: BuyerData.instance.connected,
+                      changePassword: true,
+                    ),
+                  ),
+                ),
               ),
               _option(
                 context,
@@ -434,71 +467,6 @@ class ProfileScreen extends StatelessWidget {
         trailing: Icon(Icons.arrow_forward, color: maroon, size: 17),
         onTap: onTap,
       ),
-    ),
-  );
-}
-
-class _AccountEditor extends StatefulWidget {
-  const _AccountEditor();
-  @override
-  State<_AccountEditor> createState() => _AccountEditorState();
-}
-
-class _AccountEditorState extends State<_AccountEditor> {
-  late final name = TextEditingController(
-    text: BuyerData.instance.profile['name'],
-  );
-  bool saving = false;
-  String? error;
-  @override
-  void dispose() {
-    name.dispose();
-    super.dispose();
-  }
-
-  Future<void> save() async {
-    setState(() {
-      saving = true;
-      error = null;
-    });
-    try {
-      await BuyerData.instance.saveProfile(name.text.trim());
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
-    } finally {
-      if (mounted) setState(() => saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => LumearAppearance.build(
-    context,
-    () => AlertDialog(
-      title: const Text('My Account'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(BuyerData.instance.profile['email'] ?? ''),
-          const SizedBox(height: 16),
-          TextField(
-            controller: name,
-            decoration: const InputDecoration(labelText: 'Full name'),
-          ),
-          if (error != null) Text(error!),
-          if (saving) const LinearProgressIndicator(),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: saving ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: saving ? null : save,
-          child: const Text('Save'),
-        ),
-      ],
     ),
   );
 }

@@ -49,3 +49,17 @@ app.*.map.json
 
 # Preserved local seller documents (not part of the Flutter app)
 /private_uploads/
+
+# Local API configuration, dependencies and private runtime state
+/backend/.env.mysql
+/backend/.venv/
+/backend/__pycache__/
+/backend/private_uploads/
+/backend/*.sqlite3
+/backend/*.log
+
+# Exclude nested Git repository
+/lumear-ecommerce/
+
+# Exclude nested Git repository
+/lumear-ecommerce/

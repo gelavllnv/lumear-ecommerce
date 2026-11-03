@@ -2,7 +2,26 @@
 
 This repository contains the Flutter buyer/seller client. The combined project
 will own the backend and database used by buyer, seller, and rider apps.
-No live API URL or database credentials are included here.
+The local API adapter is in [`backend/`](backend/README.md). Credentials stay in
+ignored local configuration; the Flutter local URL is in `config/local-api.json`.
+
+The selected integration database is now the user's supplied
+`lumear-20261103T124903Z-1-001.zip` export, not the older local SQL design.
+See [`database/shared/README.md`](database/shared/README.md) for its schema-only
+reference, field mappings and unresolved backend policy differences. The archive
+contains SQL exports only; backend/API and email delivery are still required.
+The export has been imported into the local MySQL server as
+`lumear_shared_20261103_7c92` (63 tables, 973 rows; verification in
+[`database/shared/LOCAL_IMPORT.md`](database/shared/LOCAL_IMPORT.md)). This does
+not originally configure a backend automatically. The local MySQL adapter now
+connects Flutter to that database. This does not synchronize with another server.
+
+Password recovery/change with email codes, product archive/restore, and courier
+pickup now use the shared contract in
+[`database/ACCOUNT_AND_FULFILLMENT.md`](database/ACCOUNT_AND_FULFILLMENT.md).
+The app screens are implemented; the shared backend must supply these routes and
+email delivery before they work live. Seller shipment is courier-owned rather
+than a direct seller action.
 
 ## Marketplace rules and income reporting
 
@@ -31,8 +50,8 @@ the completed checkout.
   `shipping` field against 5000 and preserve server totals and idempotency.
   The API must enforce this rule when quoting and placing orders; changing
   only Flutter cannot change a deployed backend's prices.
-- Platform commission is **10% of merchandise subtotal, excluding shipping**,
-  rounded half-up to the nearest centavo per order. The seller gets 90% before
+- Platform commission is **8% of merchandise subtotal, excluding shipping**,
+  rounded half-up to the nearest centavo per order. The seller gets 92% before
   refunds or separately agreed promotion deductions. Sample records now follow
   this rule. Connected orders preserve recorded `commission` values; reports
   identify historical exceptions rather than rewriting accounting history.
@@ -147,7 +166,7 @@ The standalone `database/lumear_ecommerce.sql` now includes Subcategories,
 Products.subcategory_id, a composite foreign key to enforce the parent category,
 and all 56 category/subcategory seed records. `database/README.md` contains the
 handoff details and category list. Neither the SQL nor its ZIP is connected to the
-app, imported, or run automatically. Seller commission remains 10% as documented.
+app, imported, or run automatically. Seller commission remains 8% as documented.
 
 ## Registration address
 

@@ -1,5 +1,15 @@
 # Google sign-in setup for Android
 
+## Local API now implemented
+
+`backend/shared_store.py` implements `/auth/google` using Google's official
+verification library and the Web client ID below. Identities are linked in the
+shared `auth_identities` table. Existing accounts keep their role; new accounts
+choose Buyer or Seller. New seller shops remain pending approval. See
+[local setup](backend/README.md). Google registration does not require SMTP.
+
+## Cloud configuration and reference contract
+
 The login button and native Google account picker integration are prepared.
 No Google Cloud project or backend has been created by this change. Demo mode
 explains that Google sign-in is unavailable; it does not authenticate a Google

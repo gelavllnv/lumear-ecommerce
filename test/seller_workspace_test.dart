@@ -4,6 +4,7 @@ import 'package:flutter_application_1/design/lumear_theme.dart';
 import 'package:flutter_application_1/design/brand_art.dart';
 import 'package:flutter_application_1/login_page.dart';
 import 'package:flutter_application_1/seller/seller_dashboard_screen.dart';
+import 'package:flutter_application_1/seller/seller_tools_screen.dart';
 
 void main() {
   testWidgets(
@@ -66,17 +67,37 @@ void main() {
       await tester.tap(find.text('Orders').last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(
+        find.text('SO-1001'),
+        150,
+        scrollable: find
+            .descendant(
+              of: find.byWidgetPredicate(
+                (w) => w is SellerToolsScreen && w.section == 'Orders',
+              ),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.text('SO-1001'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Mark ready for pickup'));
+      await tester.tap(find.text('Accept order'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Accepted ·'), findsOneWidget);
+      await tester.tap(find.text('SO-1001'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark packed'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.textContaining('Ready for pickup · ₱900.00'), findsOneWidget);
+      expect(find.textContaining('Packed · ₱900.00'), findsOneWidget);
       await tester.tap(find.text('Earnings').last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.text('₱1,125.00'), findsOneWidget);
+      await tester.ensureVisible(find.text('All Time'));
+      await tester.tap(find.text('All Time'));
+      await tester.pumpAndSettle();
+      expect(find.text('₱1,150.00'), findsOneWidget);
       final breakdown = find.text('Income Transaction History');
       await tester.scrollUntilVisible(
         breakdown,

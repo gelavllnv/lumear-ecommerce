@@ -1,9 +1,13 @@
 # Lumear buyer and seller app
 
-Flutter buyer and seller interfaces for integration with the rider app's shared
-backend. The standalone database SQL and partner handoff notes are in
-[`database/`](database/README.md). They are not connected to the app. No server,
-database credentials, or deployment setup is bundled.
+Flutter buyer and seller interfaces with a local shared MySQL API in
+[`backend/`](backend/README.md). Connected mode uses the imported database
+`lumear_shared_20261103_7c92`. Credentials stay in ignored backend config.
+
+Start the local API and choose **Lumear · Shared MySQL** in VS Code, or run
+`scripts/run-connected.ps1 -Device YOUR-ANDROID-DEVICE-ID`. Continue with Google
+supports buyers and sellers; new users choose their role, and new shops await
+approval. See [local API setup and limitations](backend/README.md).
 
 Buyer browsing and seller product forms share **8 categories and 48 subcategories**.
 Choose a main category to filter its subcategories; sellers choose both when
@@ -35,7 +39,7 @@ Duplicate emails (including the two built-in account emails) are rejected.
 Some optional features, such as address lookups,
 can still use external internet services.
 
-For future integration, the Flutter API client and connected screens are retained.
+The Flutter API client and connected screens now have a local MySQL adapter.
 See [integration notes](INTEGRATION.md). Existing Render/MySQL services and their
 data are unaffected by removing their source and configuration from this project.
 Previously uploaded seller documents are preserved in the ignored local

@@ -120,8 +120,8 @@ void main() {
       expect((tester.widget<Text>(dates)).data, startsWith('Jan 1,'));
       await tester.tap(find.text('All Time'));
       await tester.pumpAndSettle();
-      expect(find.text('₱1,125.00'), findsOneWidget);
-      expect(find.text('₱125.00'), findsOneWidget);
+      expect(find.text('₱1,150.00'), findsOneWidget);
+      expect(find.text('₱100.00'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       if (const bool.fromEnvironment('WRITE_REPORT_PREVIEWS')) {

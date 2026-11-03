@@ -15,7 +15,7 @@ class SellerStockAlertsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            'Restock products with 5 or fewer units. Out-of-stock and inactive listings are included.',
+            'Restock products with 5 or fewer units. Out-of-stock and Hidden listings are included; archived listings are excluded.',
           ),
           const SizedBox(height: 16),
           if (commerce.lowStockProducts.isEmpty)

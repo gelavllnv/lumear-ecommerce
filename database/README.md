@@ -1,3 +1,15 @@
+# Selected integration source
+
+The user-selected database is the supplied `lumear-20261103T124903Z-1-001.zip`.
+Use [the shared schema reference and mapping](shared/README.md) for integration.
+The older design described below remains a reference and must not replace the
+selected shared database. The export is now imported locally as
+`lumear_shared_20261103_7c92`; see [import verification](shared/LOCAL_IMPORT.md).
+The Flutter development build is now connected through the local API documented
+in [backend setup](../backend/README.md). Online/shared-server deployment is separate.
+
+---
+
 # Lumear database handoff
 
 Send this folder to the integration partner. `lumear_ecommerce.sql` creates a
@@ -100,14 +112,14 @@ schema and agree on ownership of delivery events.
   payouts to prevent double withdrawal. PayoutOrders reserves an order for one
   payout; on rejection release its allocation transactionally before retrying.
   Check that payout amount equals its allocated net order totals.
-- **Seller commission is 10% of the merchandise subtotal before voucher discounts,
+- **Seller commission is 8% of the merchandise subtotal before voucher discounts,
   excluding shipping.** Orders.commission_centavos is generated automatically as
-  `ROUND(subtotal_centavos * 0.10, 0)`; do not supply it in INSERT/UPDATE statements.
+  `ROUND(subtotal_centavos * 0.08, 0)`; do not supply it in INSERT/UPDATE statements.
   Rounding is to the nearest centavo, half up. Example: a PHP 1,000.00 merchandise
   subtotal has a PHP 100.00 commission, leaving PHP 900.00 before refunds or any
   seller-funded promotion deductions. Voucher funding must be agreed separately;
   a discount does not change this commission base. The API returns the generated
-  value as `commission`. The Flutter demo now uses the same 10% rate;
+  value as `commission`. The Flutter demo now uses the same 8% rate;
   this handoff is not connected to a live database.
 - **Fixed base shipping is PHP 50.00 per shop order** (5000 centavos), including
   merchandise subtotals above PHP 1,000. Orders default to 5000 and enforce this
@@ -120,6 +132,9 @@ schema and agree on ownership of delivery events.
 - Store media URLs and file names, not base64 uploads, in ProductMedia. The backend
   validates/stores uploaded files and returns stable URLs. Enforce the app's five
   image/one video limits and file-size/type limits before storing attachments.
+- The teammate's shared database is authoritative for integration. See
+  [account and fulfillment contract](ACCOUNT_AND_FULFILLMENT.md) for the app's
+  password email verification, archive visibility and courier pickup API needs.
 - `password_hash` holds a server-generated password hash (for example Argon2id or
   bcrypt), never plaintext or an SQL SHA hash of a password. NULL allows a
   Google-only account; password login must reject such an account until password
@@ -205,7 +220,7 @@ MySQL references: [CREATE TABLE](https://dev.mysql.com/doc/refman/8.4/en/create-
 
 The fresh-database script now creates 36 tables and seeds the eight main categories
 and 48 subcategories below. Products must reference a valid subcategory within
-their selected main category. The existing 10% commission calculation is unchanged.
+their selected main category. The existing 8% commission calculation is unchanged.
 
 | Main category | Subcategories |
 | --- | --- |

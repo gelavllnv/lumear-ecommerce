@@ -12,6 +12,7 @@ class SellerShop extends ChangeNotifier {
   String email = '';
   String phone = '';
   String status = '';
+  Map<String, dynamic> accountProfile = {};
   ProductMedia? profileImage;
   ProductMedia? coverImage;
 
