@@ -1,18 +1,26 @@
-
 /* =====================================================
-   LUMEAR LOGISTICS — GENERATE REPORTS
-   Frontend-only sample reporting system
+   LUMEAR LOGISTICS — GENERAL REPORTS
+   Live Laravel + MySQL Reporting
+   PDF-ONLY EXPORT + REPORT HISTORY
+   Original Reports UI preserved
    ===================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {
     "use strict";
 
-    if (!document.getElementById("logisticsReportsApp")) return;
+    const app = document.getElementById("logisticsReportsApp");
+    if (!app) return;
 
     const $ = id => document.getElementById(id);
+
+    const API = "/logistics/api/reports";
+    const PDF_API = "/logistics/api/reports/pdf";
+    const HISTORY_API = "/logistics/api/reports/history";
+
     const PAGE_SIZE = 7;
 
     const moduleNames = {
+        all: "All Logistics Modules",
         pickup: "Pickup Requests",
         incoming: "Incoming Parcels",
         sorting: "Parcel Sorting",
@@ -21,174 +29,309 @@ document.addEventListener("DOMContentLoaded", () => {
         rider: "Rider Performance"
     };
 
-    const locations = [
-        "Santa Cruz, Laguna",
-        "Victoria, Laguna",
-        "Pila, Laguna",
-        "Pagsanjan, Laguna",
-        "Calamba, Laguna"
-    ];
-
-    const personnel = [
-        "Carlos Mendoza",
-        "Joshua Reyes",
-        "Mark Villanueva",
-        "Paolo Santos",
-        "Logistics Staff"
-    ];
-
-    const descriptions = {
-        pickup: [
-            "Seller parcel pickup completed",
-            "Pickup request scheduled",
-            "Pickup request cancelled"
-        ],
-        incoming: [
-            "Parcel received at sorting center",
-            "Incoming parcel awaiting verification",
-            "Parcel discrepancy reported"
-        ],
-        sorting: [
-            "Parcel sorted to delivery zone",
-            "Parcel queued for sorting",
-            "Sorting exception recorded"
-        ],
-        assignment: [
-            "Parcel assigned to delivery rider",
-            "Assignment awaiting confirmation",
-            "Rider assignment failed"
-        ],
-        delivery: [
-            "Parcel successfully delivered",
-            "Parcel currently out for delivery",
-            "Delivery attempt failed"
-        ],
-        rider: [
-            "Rider completed delivery shift",
-            "Rider currently handling assignments",
-            "Rider activity exception reported"
-        ]
-    };
-
-    // Deterministic sample records, not actual data from other modules.
-    const records = [];
-
-    Object.keys(moduleNames).forEach((module, moduleIndex) => {
-        for (let i = 0; i < 12; i++) {
-            const day = 2 + ((i * 2 + moduleIndex * 3) % 24);
-            const date = `2026-10-${String(day).padStart(2, "0")}`;
-            const statusIndex = (i + moduleIndex) % 5;
-            const status = statusIndex === 0
-                ? "Exception"
-                : statusIndex <= 2
-                    ? "Completed"
-                    : "In Progress";
-
-            const descriptionIndex = status === "Completed"
-                ? 0
-                : status === "In Progress" ? 1 : 2;
-
-            records.push({
-                id: `LMR-${module.toUpperCase().slice(0, 3)}-${String(i + 1).padStart(4, "0")}`,
-                date,
-                module,
-                description: descriptions[module][descriptionIndex],
-                assignedTo: personnel[(i + moduleIndex) % personnel.length],
-                location: locations[(i + moduleIndex) % locations.length],
-                status
-            });
-        }
-    });
-
     let reportRecords = [];
     let page = 1;
     let toastTimer = null;
+
     let generatedFrom = "";
     let generatedTo = "";
     let generatedType = "all";
 
+    let loading = false;
+    let exporting = false;
+
+    /* =====================================================
+       HELPER FUNCTIONS
+       ===================================================== */
+
     function create(tag, className = "", content = "") {
         const node = document.createElement(tag);
-        if (className) node.className = className;
-        if (content !== "") node.textContent = String(content);
+
+        if (className) {
+            node.className = className;
+        }
+
+        if (content !== "") {
+            node.textContent = String(content);
+        }
+
         return node;
     }
 
     function toast(message, error = false) {
         const element = $("grToast");
+
+        if (!element) {
+            if (error) console.error(message);
+            return;
+        }
+
         element.textContent = message;
         element.classList.toggle("error", error);
         element.classList.add("show");
 
         clearTimeout(toastTimer);
+
         toastTimer = setTimeout(() => {
             element.classList.remove("show");
         }, 3200);
     }
 
     function formatDate(value) {
-        return new Date(`${value}T12:00:00`).toLocaleDateString("en-PH", {
+        if (!value) return "—";
+
+        const date = new Date(
+            `${String(value).slice(0, 10)}T12:00:00`
+        );
+
+        if (Number.isNaN(date.getTime())) {
+            return String(value);
+        }
+
+        return date.toLocaleDateString("en-PH", {
             month: "short",
             day: "numeric",
             year: "numeric"
         });
     }
 
+    function localDate(date) {
+        return [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, "0"),
+            String(date.getDate()).padStart(2, "0")
+        ].join("-");
+    }
+
+    function setDefaultDates() {
+        const today = new Date();
+
+        const firstDay = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            1
+        );
+
+        $("grFrom").value = localDate(firstDay);
+        $("grTo").value = localDate(today);
+    }
+
+    function syncQuickRange() {
+        const quickRange = $("grQuickRange");
+
+        if (quickRange) {
+            quickRange.value = "custom";
+        }
+    }
+
+    function getSelectedFilters() {
+        return {
+            from: $("grFrom").value,
+            to: $("grTo").value,
+            type: $("grType").value,
+            status: $("grStatus").value
+        };
+    }
+
+    /* =====================================================
+       DATE FILTER VALIDATION
+       ===================================================== */
+
     function validateFilters() {
         const from = $("grFrom").value;
         const to = $("grTo").value;
+
         const error = $("grFilterError");
 
-        error.hidden = true;
-        error.textContent = "";
+        if (error) {
+            error.hidden = true;
+            error.textContent = "";
+        }
 
-        if (!from || !to) {
-            error.textContent = "Please select both start and end dates.";
-            error.hidden = false;
+        function showError(message) {
+            if (error) {
+                error.textContent = message;
+                error.hidden = false;
+            }
+
+            toast(message, true);
             return false;
         }
 
+        if (!from || !to) {
+            return showError(
+                "Please select both start and end dates."
+            );
+        }
+
         if (from > to) {
-            error.textContent = "Date From cannot be later than Date To.";
-            error.hidden = false;
-            return false;
+            return showError(
+                "Date From cannot be later than Date To."
+            );
+        }
+
+        const fromDate = new Date(`${from}T12:00:00`);
+        const toDate = new Date(`${to}T12:00:00`);
+
+        const days = Math.round(
+            (toDate - fromDate) / 86400000
+        );
+
+        if (
+            Number.isNaN(days) ||
+            days < 0 ||
+            days > 366
+        ) {
+            return showError(
+                "Please select a valid period of 366 days or less."
+            );
         }
 
         return true;
     }
 
-    function generateReport(showToast = false) {
-        if (!validateFilters()) return;
+    /* =====================================================
+       QUICK DATE RANGE FILTERS
+       ===================================================== */
 
-        generatedFrom = $("grFrom").value;
-        generatedTo = $("grTo").value;
-        generatedType = $("grType").value;
+    function applyQuickRange() {
+        const quickRange = $("grQuickRange");
 
-        reportRecords = records.filter(record => {
-            const matchesDate =
-                record.date >= generatedFrom &&
-                record.date <= generatedTo;
+        if (!quickRange) return;
 
-            const matchesType =
-                generatedType === "all" ||
-                record.module === generatedType;
+        const range = quickRange.value;
 
-            return matchesDate && matchesType;
-        });
+        if (range === "custom") {
+            return;
+        }
 
-        $("grSearch").value = "";
-        $("grStatus").value = "all";
-        page = 1;
+        const today = new Date();
+        const from = new Date(today);
 
-        render();
+        if (range === "today") {
+            // Today only.
+        } else {
+            const days = Number(range);
 
-        if (showToast) {
-            toast(`Report generated with ${reportRecords.length} records.`);
+            if (!Number.isInteger(days) || days < 1) {
+                return;
+            }
+
+            // Include today in the selected number of days.
+            from.setDate(today.getDate() - days + 1);
+        }
+
+        $("grFrom").value = localDate(from);
+        $("grTo").value = localDate(today);
+
+        generateReport(true);
+    }
+
+    /* =====================================================
+       API REQUESTS
+       ===================================================== */
+
+    async function apiRequest(params) {
+        const query = new URLSearchParams(params);
+
+        const response = await fetch(
+            `${API}?${query.toString()}`,
+            {
+                method: "GET",
+                credentials: "same-origin",
+                headers: {
+                    Accept: "application/json"
+                }
+            }
+        );
+
+        const result = await response.json()
+            .catch(() => ({}));
+
+        if (!response.ok) {
+            const errors = result.errors
+                ? Object.values(result.errors)
+                    .flat()
+                    .join(" ")
+                : null;
+
+            throw new Error(
+                errors ||
+                result.message ||
+                `Report request failed (${response.status}).`
+            );
+        }
+
+        return result;
+    }
+
+    /* =====================================================
+       GENERATE REPORT PREVIEW
+       ===================================================== */
+
+    async function generateReport(showToast = false) {
+        if (loading || !validateFilters()) return;
+
+        const filters = getSelectedFilters();
+
+        const button = $("grGenerate");
+        const previousText = button.textContent;
+
+        loading = true;
+        button.disabled = true;
+        button.textContent = "Generating...";
+
+        try {
+            const result = await apiRequest({
+                from: filters.from,
+                to: filters.to,
+                type: filters.type
+            });
+
+            reportRecords = Array.isArray(result.records)
+                ? result.records
+                : [];
+
+            generatedFrom = filters.from;
+            generatedTo = filters.to;
+            generatedType = filters.type;
+
+            // Keep the selected status filter.
+            // Do not reset it to "all".
+
+            if ($("grSearch")) {
+                $("grSearch").value = "";
+            }
+
+            page = 1;
+
+            render();
+
+            if (showToast) {
+                toast(
+                    `Report preview generated with ${
+                        visibleRecords().length
+                    } matching records.`
+                );
+            }
+        } catch (error) {
+            toast(error.message, true);
+        } finally {
+            loading = false;
+            button.disabled = false;
+            button.textContent = previousText;
         }
     }
 
+    /* =====================================================
+       FILTERED RECORDS
+       ===================================================== */
+
     function visibleRecords() {
-        const search = $("grSearch").value.trim().toLowerCase();
+        const search = $("grSearch").value
+            .trim()
+            .toLowerCase();
+
         const status = $("grStatus").value;
 
         return reportRecords.filter(record => {
@@ -197,37 +340,69 @@ document.addEventListener("DOMContentLoaded", () => {
                 record.description,
                 record.assignedTo,
                 record.location,
-                moduleNames[record.module],
+                moduleNames[record.module] ||
+                    record.module,
                 record.status
             ].join(" ").toLowerCase();
 
-            return searchable.includes(search) &&
-                (status === "all" || record.status === status);
+            const matchesSearch =
+                searchable.includes(search);
+
+            const matchesStatus =
+                status === "all" ||
+                record.status === status;
+
+            return matchesSearch && matchesStatus;
         }).sort((a, b) =>
-            b.date.localeCompare(a.date) ||
-            a.id.localeCompare(b.id)
+            String(b.date).localeCompare(
+                String(a.date)
+            ) ||
+            String(a.id).localeCompare(
+                String(b.id)
+            )
         );
     }
 
-    function renderStats() {
-        $("grTotal").textContent = reportRecords.length;
+    function statusFilteredRecords() {
+        const status = $("grStatus").value;
 
-        $("grCompleted").textContent = reportRecords.filter(
+        return reportRecords.filter(record =>
+            status === "all" ||
+            record.status === status
+        );
+    }
+
+    /* =====================================================
+       STATISTICS CARDS
+       ===================================================== */
+
+    function renderStats() {
+        const records = statusFilteredRecords();
+
+        $("grTotal").textContent = records.length;
+
+        $("grCompleted").textContent = records.filter(
             record => record.status === "Completed"
         ).length;
 
-        $("grProgress").textContent = reportRecords.filter(
+        $("grProgress").textContent = records.filter(
             record => record.status === "In Progress"
         ).length;
 
-        $("grExceptions").textContent = reportRecords.filter(
+        $("grExceptions").textContent = records.filter(
             record => record.status === "Exception"
         ).length;
     }
 
+    /* =====================================================
+       STATUS BREAKDOWN
+       ===================================================== */
+
     function renderBreakdown() {
         const container = $("grBreakdown");
         container.replaceChildren();
+
+        const records = statusFilteredRecords();
 
         const categories = [
             ["Completed", "green"],
@@ -236,89 +411,171 @@ document.addEventListener("DOMContentLoaded", () => {
         ];
 
         categories.forEach(([status, color]) => {
-            const count = reportRecords.filter(
+            const count = records.filter(
                 record => record.status === status
             ).length;
 
-            const percentage = reportRecords.length
-                ? (count / reportRecords.length) * 100
+            const percentage = records.length
+                ? (count / records.length) * 100
                 : 0;
 
-            const item = create("div", "gr-breakdown-item");
-            const heading = create("div", "gr-breakdown-heading");
-
-            heading.appendChild(create("span", "", status));
-            heading.appendChild(
-                create("strong", "", `${count} (${Math.round(percentage)}%)`)
+            const item = create(
+                "div",
+                "gr-breakdown-item"
             );
 
-            const track = create("div", "gr-progress-track");
-            const fill = create("div", `gr-progress-fill ${color}`);
+            const heading = create(
+                "div",
+                "gr-breakdown-heading"
+            );
+
+            heading.appendChild(
+                create("span", "", status)
+            );
+
+            heading.appendChild(
+                create(
+                    "strong",
+                    "",
+                    `${count} (${Math.round(percentage)}%)`
+                )
+            );
+
+            const track = create(
+                "div",
+                "gr-progress-track"
+            );
+
+            const fill = create(
+                "div",
+                `gr-progress-fill ${color}`
+            );
+
             fill.style.width = `${percentage}%`;
 
             track.appendChild(fill);
             item.append(heading, track);
+
             container.appendChild(item);
         });
     }
+
+    /* =====================================================
+       ACTIVITY CHART
+       ===================================================== */
 
     function renderChart() {
         const chart = $("grChart");
         chart.replaceChildren();
 
-        $("grChartPeriod").textContent =
-            `${formatDate(generatedFrom)} – ${formatDate(generatedTo)}`;
+        if (!generatedFrom || !generatedTo) return;
 
-        if (!reportRecords.length) {
+        $("grChartPeriod").textContent =
+            `${formatDate(generatedFrom)} – ${
+                formatDate(generatedTo)
+            }`;
+
+        const records = statusFilteredRecords();
+
+        if (!records.length) {
             chart.appendChild(
-                create("p", "gr-demo-note", "No chart data for this period.")
+                create(
+                    "p",
+                    "gr-demo-note",
+                    "No recorded logistics activity for this period."
+                )
             );
+
             return;
         }
 
-        // Group records by date. Limit displayed columns to 12,
-        // combining nearby dates if the period has many active days.
         const totals = new Map();
 
-        reportRecords.forEach(record => {
-            totals.set(record.date, (totals.get(record.date) || 0) + 1);
+        records.forEach(record => {
+            totals.set(
+                record.date,
+                (totals.get(record.date) || 0) + 1
+            );
         });
 
         const dates = [...totals.keys()].sort();
-        const groupSize = Math.max(1, Math.ceil(dates.length / 12));
+
+        const groupSize = Math.max(
+            1,
+            Math.ceil(dates.length / 12)
+        );
+
         const groups = [];
 
-        for (let i = 0; i < dates.length; i += groupSize) {
-            const batch = dates.slice(i, i + groupSize);
+        for (
+            let i = 0;
+            i < dates.length;
+            i += groupSize
+        ) {
+            const batch = dates.slice(
+                i,
+                i + groupSize
+            );
+
             const count = batch.reduce(
-                (sum, date) => sum + totals.get(date), 0
+                (sum, date) =>
+                    sum + totals.get(date),
+                0
             );
 
             groups.push({
                 label: batch.length === 1
-                    ? formatDate(batch[0]).replace(", 2026", "")
-                    : `${batch[0].slice(5)}–${batch.at(-1).slice(5)}`,
+                    ? batch[0].slice(5)
+                    : `${batch[0].slice(5)}–${
+                        batch[batch.length - 1].slice(5)
+                    }`,
                 count
             });
         }
 
-        const maximum = Math.max(1, ...groups.map(group => group.count));
+        const maximum = Math.max(
+            1,
+            ...groups.map(group => group.count)
+        );
 
         groups.forEach(group => {
-            const column = create("div", "gr-chart-column");
-            const value = create("span", "gr-chart-value", group.count);
-            const track = create("div", "gr-chart-bar-track");
-            const bar = create("div", "gr-chart-bar");
+            const column = create(
+                "div",
+                "gr-chart-column"
+            );
 
-            bar.style.height = `${group.count / maximum * 100}%`;
-            bar.title = `${group.label}: ${group.count} records`;
+            const value = create(
+                "span",
+                "gr-chart-value",
+                group.count
+            );
+
+            const track = create(
+                "div",
+                "gr-chart-bar-track"
+            );
+
+            const bar = create(
+                "div",
+                "gr-chart-bar"
+            );
+
+            bar.style.height =
+                `${group.count / maximum * 100}%`;
+
+            bar.title =
+                `${group.label}: ${group.count} records`;
 
             track.appendChild(bar);
 
             column.append(
                 value,
                 track,
-                create("span", "gr-chart-label", group.label)
+                create(
+                    "span",
+                    "gr-chart-label",
+                    group.label
+                )
             );
 
             chart.appendChild(column);
@@ -332,16 +589,22 @@ document.addEventListener("DOMContentLoaded", () => {
         );
     }
 
+    /* =====================================================
+       REPORT TABLE
+       ===================================================== */
+
     function makeCell(row, text, strong = false) {
         const td = create("td");
 
         td.appendChild(
-            create(strong ? "strong" : "span",
-                strong ? "gr-cell-main" : "", text)
+            create(
+                strong ? "strong" : "span",
+                strong ? "gr-cell-main" : "",
+                text ?? "—"
+            )
         );
 
         row.appendChild(td);
-        return td;
     }
 
     function makeRow(record) {
@@ -349,49 +612,81 @@ document.addEventListener("DOMContentLoaded", () => {
 
         makeCell(row, record.id, true);
         makeCell(row, formatDate(record.date));
-        makeCell(row, moduleNames[record.module]);
+
+        makeCell(
+            row,
+            moduleNames[record.module] ||
+                record.module
+        );
+
         makeCell(row, record.description);
         makeCell(row, record.assignedTo);
         makeCell(row, record.location);
 
         const statusCell = create("td");
 
-        const badgeClass = record.status === "Completed"
-            ? "gr-badge-completed"
-            : record.status === "In Progress"
-                ? "gr-badge-progress"
-                : "gr-badge-exception";
+        const badgeClass =
+            record.status === "Completed"
+                ? "gr-badge-completed"
+                : record.status === "In Progress"
+                    ? "gr-badge-progress"
+                    : "gr-badge-exception";
 
         statusCell.appendChild(
-            create("span", `gr-badge ${badgeClass}`, record.status)
+            create(
+                "span",
+                `gr-badge ${badgeClass}`,
+                record.status
+            )
         );
 
         row.appendChild(statusCell);
+
         return row;
     }
 
     function renderTable() {
         const filtered = visibleRecords();
-        const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
-        page = Math.min(Math.max(page, 1), pages);
+        const pages = Math.max(
+            1,
+            Math.ceil(filtered.length / PAGE_SIZE)
+        );
+
+        page = Math.min(
+            Math.max(page, 1),
+            pages
+        );
 
         const start = (page - 1) * PAGE_SIZE;
-        const current = filtered.slice(start, start + PAGE_SIZE);
+
+        const current = filtered.slice(
+            start,
+            start + PAGE_SIZE
+        );
 
         const tbody = $("grTableBody");
         tbody.replaceChildren();
 
-        current.forEach(record => tbody.appendChild(makeRow(record)));
+        current.forEach(record => {
+            tbody.appendChild(makeRow(record));
+        });
 
         $("grEmpty").hidden = filtered.length > 0;
-        $("grRecordCount").textContent = `${filtered.length} records`;
 
-        $("grShowing").textContent = filtered.length
-            ? `Showing ${start + 1}–${start + current.length} of ${filtered.length} records`
-            : "Showing 0 records";
+        $("grRecordCount").textContent =
+            `${filtered.length} records`;
 
-        $("grPageLabel").textContent = `Page ${page} of ${pages}`;
+        $("grShowing").textContent =
+            filtered.length
+                ? `Showing ${start + 1}–${
+                    start + current.length
+                } of ${filtered.length} records`
+                : "Showing 0 records";
+
+        $("grPageLabel").textContent =
+            `Page ${page} of ${pages}`;
+
         $("grPrev").disabled = page <= 1;
         $("grNext").disabled = page >= pages;
     }
@@ -403,116 +698,341 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTable();
     }
 
-    function csvValue(value) {
-        let text = String(value ?? "");
+    /* =====================================================
+       OFFICIAL PDF REPORT GENERATION
+       ===================================================== */
 
-        // Prevent spreadsheet formula interpretation.
-        if (/^\s*[=+\-@]/.test(text)) {
-            text = "'" + text;
+    async function exportPDF() {
+        if (exporting || !validateFilters()) return;
+
+        const filters = getSelectedFilters();
+
+        const button = $("grExport");
+        const originalText = button.textContent;
+
+        exporting = true;
+        button.disabled = true;
+        button.textContent = "Generating PDF...";
+
+        try {
+            const token = document.querySelector(
+                'meta[name="csrf-token"]'
+            )?.content;
+
+            if (!token) {
+                throw new Error(
+                    "CSRF token is missing from the Logistics layout."
+                );
+            }
+
+            const response = await fetch(PDF_API, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    Accept: "application/pdf, application/json",
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": token
+                },
+                body: JSON.stringify({
+                    from: filters.from,
+                    to: filters.to,
+                    type: filters.type,
+                    status: filters.status
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json()
+                    .catch(() => ({}));
+
+                const details = error.errors
+                    ? Object.values(error.errors)
+                        .flat()
+                        .join(" ")
+                    : null;
+
+                throw new Error(
+                    details ||
+                    error.message ||
+                    `PDF generation failed (${response.status}).`
+                );
+            }
+
+            const contentType = response.headers.get(
+                "Content-Type"
+            ) || "";
+
+            if (!contentType.includes("application/pdf")) {
+                throw new Error(
+                    "Server did not return a PDF file."
+                );
+            }
+
+            const blob = await response.blob();
+
+            const disposition = response.headers.get(
+                "Content-Disposition"
+            ) || "";
+
+            const match = disposition.match(
+                /filename="?([^";]+)"?/i
+            );
+
+            const filename = match
+                ? match[1]
+                : `LUMEAR-Logistics-Report-${
+                    filters.from
+                }-to-${filters.to}.pdf`;
+
+            downloadBlob(blob, filename);
+
+            toast(
+                "Official LUMEAR PDF report generated successfully."
+            );
+
+            await loadReportHistory();
+
+        } catch (error) {
+            toast(error.message, true);
+
+        } finally {
+            exporting = false;
+            button.disabled = false;
+            button.textContent = originalText;
         }
-
-        return `"${text.replace(/"/g, '""')}"`;
     }
 
-    function exportCSV() {
-        const filtered = visibleRecords();
-
-        if (!filtered.length) {
-            toast("There are no matching records to export.", true);
-            return;
-        }
-
-        const headers = [
-            "Reference ID",
-            "Date",
-            "Module",
-            "Description",
-            "Assigned To",
-            "Location",
-            "Status"
-        ];
-
-        const rows = filtered.map(record => [
-            record.id,
-            record.date,
-            moduleNames[record.module],
-            record.description,
-            record.assignedTo,
-            record.location,
-            record.status
-        ]);
-
-        const csv = "\uFEFF" + [headers, ...rows]
-            .map(row => row.map(csvValue).join(","))
-            .join("\r\n");
-
-        const blob = new Blob([csv], {
-            type: "text/csv;charset=utf-8"
-        });
-
+    function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
+
         const link = document.createElement("a");
 
         link.href = url;
-        link.download =
-            `lumear-logistics-report-${generatedFrom}-to-${generatedTo}.csv`;
+        link.download = filename;
 
         document.body.appendChild(link);
+
         link.click();
         link.remove();
 
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-        toast("CSV report exported successfully.");
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 1000);
     }
+
+    /* =====================================================
+       GENERATED REPORTS HISTORY
+       ===================================================== */
+
+    async function loadReportHistory() {
+        const tbody = $("grHistoryBody");
+
+        if (!tbody) return;
+
+        try {
+            const response = await fetch(HISTORY_API, {
+                method: "GET",
+                credentials: "same-origin",
+                headers: {
+                    Accept: "application/json"
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(
+                    "Could not load generated reports history."
+                );
+            }
+
+            const result = await response.json();
+
+            const reports = Array.isArray(result.reports)
+                ? result.reports
+                : [];
+
+            tbody.replaceChildren();
+
+            if (!reports.length) {
+                const row = create("tr");
+                const cell = create(
+                    "td",
+                    "",
+                    "No generated PDF reports yet."
+                );
+
+                cell.colSpan = 6;
+
+                row.appendChild(cell);
+                tbody.appendChild(row);
+
+                return;
+            }
+
+            reports.forEach(report => {
+                const row = create("tr");
+
+                const values = [
+                    `RPT-${String(report.id).padStart(5, "0")}`,
+                    moduleNames[report.report_type] ||
+                        report.report_type,
+                    `${formatDate(report.date_from)} – ${
+                        formatDate(report.date_to)
+                    }`,
+                    report.record_count,
+                    formatDate(
+                        String(report.created_at).slice(0, 10)
+                    )
+                ];
+
+                values.forEach(value => {
+                    const cell = create("td");
+
+                    cell.textContent = value ?? "—";
+
+                    row.appendChild(cell);
+                });
+
+                const actionCell = create("td");
+
+                const link = create(
+                    "a",
+                    "gr-btn gr-btn-outline",
+                    "Download PDF"
+                );
+
+                link.href =
+                    `${HISTORY_API}/${report.id}/download`;
+
+                link.setAttribute(
+                    "aria-label",
+                    `Download report RPT-${
+                        String(report.id).padStart(5, "0")
+                    }`
+                );
+
+                actionCell.appendChild(link);
+                row.appendChild(actionCell);
+
+                tbody.appendChild(row);
+            });
+
+        } catch (error) {
+            toast(error.message, true);
+        }
+    }
+
+    /* =====================================================
+       RESET FILTERS
+       ===================================================== */
 
     function resetFilters() {
         $("grType").value = "all";
-        $("grFrom").value = "2026-10-01";
-        $("grTo").value = "2026-10-31";
-        $("grFilterError").hidden = true;
-        generateReport();
-        toast("Report filters have been reset.");
-    }
+        $("grStatus").value = "all";
 
-    // EVENTS
-
-    $("grGenerate").addEventListener("click", () => {
-        generateReport(true);
-    });
-
-    $("grReset").addEventListener("click", resetFilters);
-
-    $("grSearch").addEventListener("input", () => {
-        page = 1;
-        renderTable();
-    });
-
-    $("grStatus").addEventListener("change", () => {
-        page = 1;
-        renderTable();
-    });
-
-    $("grPrev").addEventListener("click", () => {
-        page--;
-        renderTable();
-    });
-
-    $("grNext").addEventListener("click", () => {
-        page++;
-        renderTable();
-    });
-
-    $("grExport").addEventListener("click", exportCSV);
-
-    $("grPrint").addEventListener("click", () => {
-        if (!reportRecords.length) {
-            toast("Generate a report with records before printing.", true);
-            return;
+        if ($("grSearch")) {
+            $("grSearch").value = "";
         }
 
-        window.print();
-    });
+        setDefaultDates();
+        syncQuickRange();
+
+        const error = $("grFilterError");
+
+        if (error) {
+            error.hidden = true;
+            error.textContent = "";
+        }
+
+        generateReport(true);
+    }
+
+    /* =====================================================
+       EVENT LISTENERS
+       ===================================================== */
+
+    // Generate report preview.
+    $("grGenerate").addEventListener(
+        "click",
+        () => generateReport(true)
+    );
+
+    // Reset filters.
+    $("grReset").addEventListener(
+        "click",
+        resetFilters
+    );
+
+    // Search table records.
+    $("grSearch").addEventListener(
+        "input",
+        () => {
+            page = 1;
+            renderTable();
+        }
+    );
+
+    // Filter by record status.
+    $("grStatus").addEventListener(
+        "change",
+        () => {
+            page = 1;
+            render();
+        }
+    );
+
+    // Previous page.
+    $("grPrev").addEventListener(
+        "click",
+        () => {
+            page--;
+            renderTable();
+        }
+    );
+
+    // Next page.
+    $("grNext").addEventListener(
+        "click",
+        () => {
+            page++;
+            renderTable();
+        }
+    );
+
+    // PDF download.
+    $("grExport").addEventListener(
+        "click",
+        exportPDF
+    );
+
+    // Quick date range.
+    if ($("grQuickRange")) {
+        $("grQuickRange").addEventListener(
+            "change",
+            applyQuickRange
+        );
+    }
+
+    // Manual date changes switch to custom range.
+    $("grFrom").addEventListener(
+        "change",
+        syncQuickRange
+    );
+
+    $("grTo").addEventListener(
+        "change",
+        syncQuickRange
+    );
+
+    /* =====================================================
+       INITIAL LOAD
+       ===================================================== */
+
+    setDefaultDates();
+
+    if ($("grQuickRange")) {
+        $("grQuickRange").value = "custom";
+    }
 
     generateReport();
+    loadReportHistory();
 });

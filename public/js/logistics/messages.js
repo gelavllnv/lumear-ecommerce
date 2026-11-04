@@ -1,7 +1,6 @@
-
 /* =====================================================
-   LUMEAR LOGISTICS — MESSAGES
-   Frontend demo with browser localStorage
+   LUMEAR LOGISTICS — LIVE MESSAGES
+   Laravel + MySQL, polling every 3 seconds
    ===================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -11,158 +10,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!app) return;
 
     const $ = id => document.getElementById(id);
+    const API = "/logistics/api/messages";
 
-    const STORAGE_KEY = "lumear_logistics_messages_demo_v1";
-
-    const contacts = [
-        {
-            id: "RDR-001",
-            name: "Carlos Mendoza",
-            role: "Rider",
-            area: "Santa Cruz, Laguna"
-        },
-        {
-            id: "RDR-002",
-            name: "Joshua Reyes",
-            role: "Rider",
-            area: "Victoria, Laguna"
-        },
-        {
-            id: "RDR-003",
-            name: "Mark Villanueva",
-            role: "Rider",
-            area: "Pila, Laguna"
-        },
-        {
-            id: "SEL-001",
-            name: "Luna Essentials",
-            role: "Seller",
-            area: "Santa Cruz, Laguna"
-        },
-        {
-            id: "SEL-002",
-            name: "Galleria Crafts",
-            role: "Seller",
-            area: "Victoria, Laguna"
-        },
-        {
-            id: "ADM-001",
-            name: "LUMEAR Administrator",
-            role: "Admin",
-            area: "LUMEAR Marketplace"
-        }
-    ];
-
-    const sampleConversations = [
-        {
-            contactId: "RDR-001",
-            unread: 2,
-            messages: [
-                {
-                    id: "m1",
-                    sender: "them",
-                    text: "Good morning! I have received the assigned parcels.",
-                    time: "2026-10-25T08:30:00"
-                },
-                {
-                    id: "m2",
-                    sender: "me",
-                    text: "Good morning, Carlos. Please confirm once you start the delivery route.",
-                    time: "2026-10-25T08:32:00"
-                },
-                {
-                    id: "m3",
-                    sender: "them",
-                    text: "Understood. I will update you shortly.",
-                    time: "2026-10-25T08:35:00"
-                }
-            ]
-        },
-        {
-            contactId: "SEL-001",
-            unread: 1,
-            messages: [
-                {
-                    id: "m4",
-                    sender: "them",
-                    text: "Hello! May we confirm the pickup schedule for our parcels?",
-                    time: "2026-10-25T09:05:00"
-                }
-            ]
-        },
-        {
-            contactId: "ADM-001",
-            unread: 0,
-            messages: [
-                {
-                    id: "m5",
-                    sender: "them",
-                    text: "Please review the pending rider applications.",
-                    time: "2026-10-24T14:10:00"
-                },
-                {
-                    id: "m6",
-                    sender: "me",
-                    text: "Noted. We will review the applications.",
-                    time: "2026-10-24T14:15:00"
-                }
-            ]
-        },
-        {
-            contactId: "RDR-002",
-            unread: 0,
-            messages: [
-                {
-                    id: "m7",
-                    sender: "me",
-                    text: "Please check the parcels assigned for Victoria.",
-                    time: "2026-10-24T10:20:00"
-                },
-                {
-                    id: "m8",
-                    sender: "them",
-                    text: "All parcels have been checked.",
-                    time: "2026-10-24T10:25:00"
-                }
-            ]
-        }
-    ];
-
-    function loadConversations() {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-
-            if (stored) {
-                const parsed = JSON.parse(stored);
-
-                if (Array.isArray(parsed)) {
-                    return parsed;
-                }
-            }
-        } catch (error) {
-            console.warn("Unable to load saved messages.", error);
-        }
-
-        return structuredClone(sampleConversations);
-    }
-
-    let conversations = loadConversations();
-    let activeId = conversations[0]?.contactId || null;
+    let contacts = [];
+    let conversations = [];
+    let activeId = null;
     let currentFilter = "all";
     let toastTimer = null;
-
-    function save() {
-        try {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(conversations)
-            );
-            return true;
-        } catch (error) {
-            toast("Unable to save messages in this browser.");
-            return false;
-        }
-    }
+    let refreshing = false;
+    let sending = false;
+    let activeMessages = [];
+    let lastMessageKey = "";
+    let pollingTimer = null;
 
     function create(tag, className = "", value = "") {
         const element = document.createElement(tag);
@@ -174,41 +33,62 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function getContact(id) {
-        return contacts.find(contact => contact.id === id);
+        return contacts.find(
+            contact => Number(contact.id) === Number(id)
+        );
     }
 
     function getConversation(id) {
-        return conversations.find(chat => chat.contactId === id);
+        return conversations.find(
+            chat => Number(chat.contactId) === Number(id)
+        );
     }
 
     function initials(name) {
-        return name.split(/\s+/)
+        const words = String(name || "")
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+
+        return words
             .slice(0, 2)
             .map(word => word[0].toUpperCase())
-            .join("");
+            .join("") || "--";
+    }
+
+    function parseDate(value) {
+        if (!value) return new Date();
+
+        // Laravel returns "YYYY-MM-DD HH:mm:ss" by default.
+        const normalized = String(value).includes("T")
+            ? String(value)
+            : String(value).replace(" ", "T");
+
+        const date = new Date(normalized);
+
+        return Number.isNaN(date.getTime())
+            ? new Date()
+            : date;
     }
 
     function formatTime(value) {
-        return new Date(value).toLocaleTimeString("en-PH", {
+        return parseDate(value).toLocaleTimeString("en-PH", {
             hour: "numeric",
             minute: "2-digit"
         });
     }
 
     function formatDay(value) {
-        return new Date(value).toLocaleDateString("en-PH", {
+        return parseDate(value).toLocaleDateString("en-PH", {
             month: "short",
             day: "numeric",
             year: "numeric"
         });
     }
 
-    function latestMessage(chat) {
-        return chat.messages[chat.messages.length - 1] || null;
-    }
-
     function toast(message) {
         const element = $("lmToast");
+        if (!element) return;
 
         element.textContent = message;
         element.classList.add("show");
@@ -218,6 +98,53 @@ document.addEventListener("DOMContentLoaded", () => {
         toastTimer = setTimeout(() => {
             element.classList.remove("show");
         }, 3000);
+    }
+
+    async function request(path = "", options = {}) {
+        const method = (options.method || "GET").toUpperCase();
+
+        const headers = {
+            Accept: "application/json",
+            ...options.headers
+        };
+
+        if (method !== "GET") {
+            const token = document.querySelector(
+                'meta[name="csrf-token"]'
+            )?.content;
+
+            if (!token) {
+                throw new Error(
+                    "Missing CSRF token in Logistics layout."
+                );
+            }
+
+            headers["Content-Type"] = "application/json";
+            headers["X-CSRF-TOKEN"] = token;
+        }
+
+        const response = await fetch(API + path, {
+            ...options,
+            method,
+            credentials: "same-origin",
+            headers
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const errors = data.errors
+                ? Object.values(data.errors).flat().join(" ")
+                : null;
+
+            throw new Error(
+                errors ||
+                data.message ||
+                `Request failed (${response.status}).`
+            );
+        }
+
+        return data;
     }
 
     function openModal(id) {
@@ -250,16 +177,21 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.key === "Escape") closeModals();
     });
 
+    function latestMessage(chat) {
+        return chat.latest || null;
+    }
+
     function renderStats() {
-        $("lmTotalConversations").textContent = conversations.length;
+        $("lmTotalConversations").textContent =
+            conversations.length;
 
-        $("lmUnreadCount").textContent = conversations.filter(
-            chat => chat.unread > 0
-        ).length;
+        $("lmUnreadCount").textContent =
+            conversations.filter(chat => chat.unread > 0).length;
 
-        $("lmRiderCount").textContent = conversations.filter(
-            chat => getContact(chat.contactId)?.role === "Rider"
-        ).length;
+        $("lmRiderCount").textContent =
+            conversations.filter(chat =>
+                getContact(chat.contactId)?.role === "Rider"
+            ).length;
 
         $("lmInboxCount").textContent = conversations.length;
     }
@@ -273,14 +205,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (!contact) return false;
 
-                const searchText = [
+                const searchable = [
                     contact.name,
                     contact.role,
                     contact.area,
+                    contact.email,
                     contact.id
                 ].join(" ").toLowerCase();
 
-                const matchesSearch = searchText.includes(query);
+                const matchesSearch = searchable.includes(query);
 
                 const matchesFilter =
                     currentFilter === "all" ||
@@ -289,12 +222,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 return matchesSearch && matchesFilter;
             })
-            .sort((a, b) => {
-                const aTime = latestMessage(a)?.time || "";
-                const bTime = latestMessage(b)?.time || "";
-
-                return bTime.localeCompare(aTime);
-            });
+            .sort((a, b) =>
+                Number(b.latest?.id || 0) -
+                Number(a.latest?.id || 0)
+            );
     }
 
     function makeAvatar(contact) {
@@ -310,16 +241,21 @@ document.addEventListener("DOMContentLoaded", () => {
         const filtered = filteredConversations();
 
         list.replaceChildren();
-
         $("lmListEmpty").hidden = filtered.length > 0;
 
         filtered.forEach(chat => {
             const contact = getContact(chat.contactId);
+            if (!contact) return;
+
             const latest = latestMessage(chat);
 
             const button = create(
                 "button",
-                `lm-conversation ${activeId === chat.contactId ? "active" : ""}`
+                `lm-conversation ${
+                    Number(activeId) === Number(chat.contactId)
+                        ? "active"
+                        : ""
+                }`
             );
 
             button.type = "button";
@@ -333,7 +269,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const body = create("div", "lm-conversation-body");
             const top = create("div", "lm-conversation-top");
 
-            top.appendChild(create("strong", "", contact.name));
+            top.appendChild(
+                create("strong", "", contact.name)
+            );
 
             top.appendChild(
                 create(
@@ -344,25 +282,39 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             body.appendChild(top);
+
             body.appendChild(
-                create("span", "lm-conversation-role", contact.role)
+                create(
+                    "span",
+                    "lm-conversation-role",
+                    contact.role
+                )
             );
 
-            const preview = create("div", "lm-conversation-preview");
+            const preview = create(
+                "div",
+                "lm-conversation-preview"
+            );
 
             preview.appendChild(
                 create(
                     "span",
                     "",
                     latest
-                        ? `${latest.sender === "me" ? "You: " : ""}${latest.text}`
+                        ? `${
+                            latest.sender === "me" ? "You: " : ""
+                        }${latest.text}`
                         : "Start a conversation"
                 )
             );
 
             if (chat.unread > 0) {
                 preview.appendChild(
-                    create("span", "lm-unread-badge", chat.unread)
+                    create(
+                        "span",
+                        "lm-unread-badge",
+                        chat.unread
+                    )
                 );
             }
 
@@ -377,45 +329,68 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function markAsRead(id) {
-        const chat = getConversation(id);
+    async function markAsRead(id, silent = false) {
+        if (!id) return;
 
-        if (!chat || chat.unread === 0) return;
+        try {
+            await request(`/${id}/read`, {
+                method: "POST"
+            });
 
-        chat.unread = 0;
-        save();
-        renderStats();
-        renderConversationList();
+            const chat = getConversation(id);
+
+            if (chat) chat.unread = 0;
+
+            renderStats();
+            renderConversationList();
+
+            if (!silent) {
+                toast("Conversation marked as read.");
+            }
+        } catch (error) {
+            if (!silent) toast(error.message);
+        }
     }
 
-    function selectConversation(id, openMobile = false) {
-        const chat = getConversation(id);
+    async function selectConversation(
+        id,
+        openMobile = false
+    ) {
         const contact = getContact(id);
+        if (!contact) return;
 
-        if (!chat || !contact) return;
+        activeId = Number(id);
+        activeMessages = [];
+        lastMessageKey = "";
 
-        activeId = id;
-
-        markAsRead(id);
         renderConversationList();
         renderChat();
 
         if (openMobile) {
             document.querySelector(".lm-workspace")
-                .classList.add("mobile-chat-open");
+                ?.classList.add("mobile-chat-open");
+        }
+
+        await refreshMessages(true);
+
+        if (activeId === Number(id)) {
+            await markAsRead(id, true);
         }
     }
 
     function renderChat() {
         const contact = getContact(activeId);
-        const chat = getConversation(activeId);
         const list = $("lmMessageList");
 
         list.replaceChildren();
 
-        if (!contact || !chat) {
-            $("lmChatName").textContent = "Select a conversation";
-            $("lmChatRole").textContent = "No conversation selected";
+        if (!contact) {
+            $("lmChatName").textContent =
+                "Select a conversation";
+
+            $("lmChatRole").textContent =
+                "No conversation selected";
+
             $("lmChatAvatar").textContent = "--";
 
             list.appendChild(
@@ -428,49 +403,76 @@ document.addEventListener("DOMContentLoaded", () => {
 
             $("lmMessageInput").disabled = true;
             $("lmSendButton").disabled = true;
+
             return;
         }
 
         $("lmChatName").textContent = contact.name;
+
         $("lmChatRole").textContent =
             `${contact.role} · ${contact.area}`;
 
         const avatar = $("lmChatAvatar");
+
         avatar.textContent = initials(contact.name);
         avatar.className =
             `lm-avatar ${contact.role.toLowerCase()}`;
 
         $("lmMessageInput").disabled = false;
-        $("lmSendButton").disabled = false;
+        $("lmSendButton").disabled = sending;
 
         let previousDay = "";
 
-        chat.messages.forEach(message => {
+        activeMessages.forEach(message => {
             const day = formatDay(message.time);
 
             if (day !== previousDay) {
                 list.appendChild(
-                    create("div", "lm-date-separator", day)
+                    create(
+                        "div",
+                        "lm-date-separator",
+                        day
+                    )
                 );
+
                 previousDay = day;
             }
 
             const row = create(
                 "div",
-                `lm-message-row ${message.sender === "me" ? "sent" : "received"}`
+                `lm-message-row ${
+                    message.sender === "me"
+                        ? "sent"
+                        : "received"
+                }`
             );
 
-            const group = create("div", "lm-message-group");
+            const group = create(
+                "div",
+                "lm-message-group"
+            );
 
             group.appendChild(
-                create("div", "lm-bubble", message.text)
+                create(
+                    "div",
+                    "lm-bubble",
+                    message.text
+                )
             );
 
             group.appendChild(
                 create(
                     "span",
                     "lm-message-meta",
-                    `${formatTime(message.time)}${message.sender === "me" ? " · Sent (demo)" : ""}`
+                    `${
+                        formatTime(message.time)
+                    }${
+                        message.sender === "me"
+                            ? message.read
+                                ? " · Read"
+                                : " · Sent"
+                            : ""
+                    }`
                 )
             );
 
@@ -478,7 +480,7 @@ document.addEventListener("DOMContentLoaded", () => {
             list.appendChild(row);
         });
 
-        if (!chat.messages.length) {
+        if (!activeMessages.length) {
             list.appendChild(
                 create(
                     "div",
@@ -493,14 +495,88 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function sendMessage(event) {
+    async function refreshMessages(force = false) {
+        if (!activeId) return;
+
+        const requestedId = activeId;
+
+        try {
+            const data = await request(`/${requestedId}`);
+
+            if (activeId !== requestedId) return;
+
+            const messages = Array.isArray(data.messages)
+                ? data.messages
+                : [];
+
+            const key = messages.map(m =>
+                `${m.id}:${m.read ? 1 : 0}`
+            ).join("|");
+
+            if (force || key !== lastMessageKey) {
+                activeMessages = messages;
+                lastMessageKey = key;
+                renderChat();
+
+                if (messages.some(m =>
+                    m.sender === "them" && !m.read
+                )) {
+                    await markAsRead(requestedId, true);
+                }
+            }
+        } catch (error) {
+            if (force) toast(error.message);
+        }
+    }
+
+    async function refreshInbox(silent = false) {
+        if (refreshing) return;
+        refreshing = true;
+
+        try {
+            const result = await request();
+
+            contacts = Array.isArray(result.contacts)
+                ? result.contacts
+                : [];
+
+            conversations = Array.isArray(result.conversations)
+                ? result.conversations
+                : [];
+
+            if (
+                activeId &&
+                !getContact(activeId)
+            ) {
+                activeId = null;
+                activeMessages = [];
+                lastMessageKey = "";
+                renderChat();
+            }
+
+            if (!activeId && conversations.length) {
+                activeId = Number(
+                    conversations[0].contactId
+                );
+
+                await refreshMessages(true);
+            }
+
+            renderStats();
+            renderConversationList();
+        } catch (error) {
+            if (!silent) toast(error.message);
+        } finally {
+            refreshing = false;
+        }
+    }
+
+    async function sendMessage(event) {
         event.preventDefault();
 
-        const chat = getConversation(activeId);
+        if (!activeId || sending) return;
+
         const input = $("lmMessageInput");
-
-        if (!chat) return;
-
         const text = input.value.trim();
 
         if (!text) return;
@@ -510,39 +586,65 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        chat.messages.push({
-            id: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            sender: "me",
-            text,
-            time: new Date().toISOString()
-        });
+        sending = true;
+        $("lmSendButton").disabled = true;
 
-        if (!save()) {
-            chat.messages.pop();
-            return;
+        const recipientId = activeId;
+
+        try {
+            await request("", {
+                method: "POST",
+                body: JSON.stringify({
+                    recipient_id: recipientId,
+                    body: text
+                })
+            });
+
+            input.value = "";
+            input.style.height = "44px";
+
+            await refreshMessages(true);
+            await refreshInbox(true);
+
+            input.focus();
+        } catch (error) {
+            toast(error.message);
+        } finally {
+            sending = false;
+            $("lmSendButton").disabled = false;
         }
-
-        input.value = "";
-        input.style.height = "44px";
-
-        renderStats();
-        renderConversationList();
-        renderChat();
-        input.focus();
     }
 
     function renderContacts() {
         const list = $("lmContactList");
         list.replaceChildren();
 
-        contacts.forEach(contact => {
-            const button = create("button", "lm-contact");
-            button.type = "button";
+        if (!contacts.length) {
+            list.appendChild(
+                create(
+                    "p",
+                    "lm-chat-placeholder",
+                    "No connected riders or sellers found."
+                )
+            );
+            return;
+        }
 
+        contacts.forEach(contact => {
+            const button = create(
+                "button",
+                "lm-contact"
+            );
+
+            button.type = "button";
             button.appendChild(makeAvatar(contact));
 
             const details = create("div");
-            details.appendChild(create("strong", "", contact.name));
+
+            details.appendChild(
+                create("strong", "", contact.name)
+            );
+
             details.appendChild(
                 create(
                     "small",
@@ -553,27 +655,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             button.appendChild(details);
 
-            button.addEventListener("click", () => {
-                let chat = getConversation(contact.id);
-
-                if (!chat) {
-                    chat = {
-                        contactId: contact.id,
-                        unread: 0,
-                        messages: []
-                    };
-
-                    conversations.push(chat);
-
-                    if (!save()) {
-                        conversations.pop();
-                        return;
-                    }
-                }
-
+            button.addEventListener("click", async () => {
                 closeModals();
-                renderStats();
-                selectConversation(contact.id, true);
+                await selectConversation(contact.id, true);
             });
 
             list.appendChild(button);
@@ -594,13 +678,22 @@ document.addEventListener("DOMContentLoaded", () => {
         [
             ["Contact Name", contact.name],
             ["Account Role", contact.role],
-            ["Account ID", contact.id],
+            ["User ID", contact.id],
+            ["Email", contact.email],
             ["Assigned Area", contact.area]
         ].forEach(([label, value]) => {
-            const item = create("div", "lm-info-item");
+            const item = create(
+                "div",
+                "lm-info-item"
+            );
 
-            item.appendChild(create("span", "", label));
-            item.appendChild(create("strong", "", value));
+            item.appendChild(
+                create("span", "", label)
+            );
+
+            item.appendChild(
+                create("strong", "", value || "—")
+            );
 
             grid.appendChild(item);
         });
@@ -608,16 +701,26 @@ document.addEventListener("DOMContentLoaded", () => {
         openModal("lmInfoModal");
     }
 
-    // EVENTS
+    // SEARCH
 
-    $("lmSearch").addEventListener("input", renderConversationList);
+    $("lmSearch").addEventListener(
+        "input",
+        renderConversationList
+    );
 
-    document.querySelectorAll("[data-lm-filter]").forEach(button => {
+    // FILTERS
+
+    document.querySelectorAll(
+        "[data-lm-filter]"
+    ).forEach(button => {
         button.addEventListener("click", () => {
             currentFilter = button.dataset.lmFilter;
 
-            document.querySelectorAll("[data-lm-filter]")
-                .forEach(item => item.classList.remove("active"));
+            document.querySelectorAll(
+                "[data-lm-filter]"
+            ).forEach(item => {
+                item.classList.remove("active");
+            });
 
             button.classList.add("active");
 
@@ -625,57 +728,108 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    $("lmMessageForm").addEventListener("submit", sendMessage);
+    // SEND MESSAGE
 
-    $("lmMessageInput").addEventListener("keydown", event => {
-        if (event.key === "Enter" && !event.shiftKey &&
-            !event.isComposing) {
-            event.preventDefault();
-            $("lmMessageForm").requestSubmit();
+    $("lmMessageForm").addEventListener(
+        "submit",
+        sendMessage
+    );
+
+    $("lmMessageInput").addEventListener(
+        "keydown",
+        event => {
+            if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.isComposing
+            ) {
+                event.preventDefault();
+                $("lmMessageForm").requestSubmit();
+            }
         }
-    });
+    );
 
-    $("lmMessageInput").addEventListener("input", event => {
-        const textarea = event.target;
-        textarea.style.height = "44px";
-        textarea.style.height =
-            `${Math.min(textarea.scrollHeight, 145)}px`;
-    });
+    // AUTO RESIZE MESSAGE INPUT
 
-    $("lmNewMessage").addEventListener("click", () => {
-        renderContacts();
-        openModal("lmNewModal");
-    });
+    $("lmMessageInput").addEventListener(
+        "input",
+        event => {
+            const textarea = event.target;
 
-    $("lmMarkRead").addEventListener("click", () => {
-        if (!activeId) return;
-
-        markAsRead(activeId);
-        toast("Conversation marked as read.");
-    });
-
-    $("lmChatInfo").addEventListener("click", showContactInfo);
-
-    $("lmBack").addEventListener("click", () => {
-        document.querySelector(".lm-workspace")
-            .classList.remove("mobile-chat-open");
-    });
-
-    window.addEventListener("storage", event => {
-        if (event.key !== STORAGE_KEY) return;
-
-        conversations = loadConversations();
-
-        if (!getConversation(activeId)) {
-            activeId = conversations[0]?.contactId || null;
+            textarea.style.height = "44px";
+            textarea.style.height =
+                `${Math.min(
+                    textarea.scrollHeight,
+                    145
+                )}px`;
         }
+    );
 
-        renderStats();
-        renderConversationList();
-        renderChat();
-    });
+    // NEW MESSAGE
 
-    renderStats();
-    renderConversationList();
+    $("lmNewMessage").addEventListener(
+        "click",
+        () => {
+            renderContacts();
+            openModal("lmNewModal");
+        }
+    );
+
+    // MARK AS READ
+
+    $("lmMarkRead").addEventListener(
+        "click",
+        async () => {
+            if (activeId) {
+                await markAsRead(activeId);
+            }
+        }
+    );
+
+    // CONTACT INFO
+
+    $("lmChatInfo").addEventListener(
+        "click",
+        showContactInfo
+    );
+
+    // MOBILE BACK BUTTON
+
+    $("lmBack").addEventListener(
+        "click",
+        () => {
+            document.querySelector(".lm-workspace")
+                ?.classList.remove("mobile-chat-open");
+        }
+    );
+
+    // AUTOMATIC UPDATES
+
+    async function poll() {
+        if (document.hidden) return;
+
+        await refreshInbox(true);
+        await refreshMessages();
+    }
+
+    document.addEventListener(
+        "visibilitychange",
+        () => {
+            if (!document.hidden) poll();
+        }
+    );
+
+    window.addEventListener(
+        "beforeunload",
+        () => {
+            clearInterval(pollingTimer);
+        }
+    );
+
+    // INITIAL LOAD
+
     renderChat();
+    refreshInbox();
+
+    pollingTimer = setInterval(poll, 3000);
 });

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Support\LogisticsNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -202,6 +203,17 @@ class LogisticsRiderManagementApiController extends Controller
                     'remarks' => $data['remarks'] ?? '',
                     'updated_at' => now(),
                 ]);
+
+            // NEW: Notify Logistics about the decision.
+            LogisticsNotification::create(
+                $providerId,
+                'rider_application',
+                'Rider Application ' . $data['status'],
+                'Application #' . $application->id
+                    . ' for ' . $application->name
+                    . ' was ' . strtolower($data['status']) . '.',
+                null
+            );
         });
 
         return response()->json([
@@ -267,6 +279,16 @@ class LogisticsRiderManagementApiController extends Controller
                     'management_remarks' => $data['remarks'] ?? '',
                     'updated_at' => now(),
                 ]);
+
+            // NEW: Notify Logistics about rider status.
+            LogisticsNotification::create(
+                $providerId,
+                'rider_status',
+                'Rider Status Updated',
+                'Rider #' . $rider->id
+                    . ' status changed to ' . $data['status'] . '.',
+                null
+            );
         });
 
         return response()->json([

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Support\LogisticsNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -267,6 +268,16 @@ class LogisticsSortingApiController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // NEW: Save a real sorting notification.
+            LogisticsNotification::create(
+                $providerId,
+                'parcel_sorted',
+                'Parcel Sorting Completed',
+                'Waybill ' . $shipment->tracking_code
+                    . ' has completed sorting.',
+                '/logistics/parcel-sorting'
+            );
         });
 
         return response()->json([

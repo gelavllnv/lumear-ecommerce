@@ -36,7 +36,6 @@
         href="https://fonts.gstatic.com"
         crossorigin
     >
-
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet"
@@ -109,7 +108,119 @@
         .topbar-search input:focus {
             outline: none;
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | GLOBAL SEARCH
+        |--------------------------------------------------------------------------
+        */
+
+        #logisticsGlobalSearch {
+            position: relative;
+            z-index: 50;
+        }
+
+        #logisticsGlobalSearch input {
+            width: 100%;
+        }
+
+        .logistics-search-results {
+            position: absolute;
+            top: calc(100% + 10px);
+            left: 0;
+            width: min(430px, 90vw);
+            max-height: 380px;
+            overflow-y: auto;
+            background: #241c1f;
+            border: 1px solid rgba(202, 174, 159, .22);
+            border-radius: 14px;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, .3);
+            padding: 8px;
+            z-index: 1000;
+        }
+
+        .logistics-search-results[hidden] {
+            display: none !important;
+        }
+
+        .logistics-search-message {
+            padding: 18px 12px;
+            color: #b9a7a9;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .logistics-search-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 12px;
+            border-radius: 9px;
+            text-decoration: none;
+            transition: background .2s;
+        }
+
+        .logistics-search-item:hover,
+        .logistics-search-item:focus-visible {
+            background: rgba(135, 54, 50, .22);
+            outline: none;
+        }
+
+        .logistics-search-item strong {
+            color: #f4e8e2;
+            font-size: 12px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .logistics-search-item span {
+            color: #baa9a8;
+            font-size: 11px;
+            overflow-wrap: anywhere;
+        }
+
+        .logistics-search-type {
+            display: inline-block;
+            align-self: flex-start;
+            padding: 3px 7px;
+            border-radius: 5px;
+            background: rgba(135, 54, 50, .25);
+            color: #e0b7ae !important;
+            font-size: 10px !important;
+            font-weight: 700;
+        }
+
+        [data-theme="light"] .logistics-search-results {
+            background: #fffaf7;
+            border-color: #e0cfc2;
+            box-shadow: 0 15px 35px rgba(60, 30, 30, .13);
+        }
+
+        [data-theme="light"] .logistics-search-item strong {
+            color: #38272a;
+        }
+
+        [data-theme="light"] .logistics-search-item span,
+        [data-theme="light"] .logistics-search-message {
+            color: #806c6c;
+        }
+
+        [data-theme="light"] .logistics-search-type {
+            color: #873632 !important;
+        }
+
+        @media (max-width: 600px) {
+            .logistics-search-results {
+                width: min(350px, calc(100vw - 30px));
+            }
+        }
     </style>
+
+    {{-- Existing notifications stylesheet --}}
+    <link
+        rel="stylesheet"
+        href="{{ asset('css/logistics/notifications.css') }}"
+    >
 
     @stack('styles')
 </head>
@@ -121,14 +232,6 @@
     |--------------------------------------------------------------------------
     | CURRENT AUTHENTICATED LOGISTICS PROVIDER
     |--------------------------------------------------------------------------
-    |
-    | The layout is shared by all Logistics pages.
-    | Fetch the provider belonging to the authenticated user,
-    | instead of displaying hardcoded demonstration information.
-    |
-    | The Logistics routes should remain protected by
-    | EnsureApprovedLogistics middleware.
-    |
     */
 
     $logisticsUser = auth()->user();
@@ -172,12 +275,6 @@
     |--------------------------------------------------------------------------
     | ROUTE HELPER
     |--------------------------------------------------------------------------
-    |
-    | Avoid RouteNotFoundException when a module has not
-    | yet been registered.
-    |
-    | Unavailable links return to the dashboard.
-    |
     */
 
     $logisticsUrl = function ($routeName) {
@@ -191,6 +288,15 @@
             ? route('logistics.dashboard')
             : url('/logistics/dashboard');
     };
+
+    /*
+    |--------------------------------------------------------------------------
+    | SIDEBAR NAVIGATION
+    |--------------------------------------------------------------------------
+    |
+    | NEW: Finance section with LUMEAR E-Wallet.
+    |
+    */
 
     $navigationGroups = [
         [
@@ -222,6 +328,11 @@
                     'icon' => 'incoming',
                 ],
                 [
+                    'label' => 'QR Waybill Scanner',
+                    'route' => 'logistics.scanner.index',
+                    'icon' => 'scanner',
+                ],
+                [
                     'label' => 'Parcel Sorting',
                     'route' => 'logistics.sorting.index',
                     'icon' => 'sorting',
@@ -248,6 +359,24 @@
                 ],
             ],
         ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | NEW: FINANCE / LUMEAR E-WALLET
+        |--------------------------------------------------------------------------
+        */
+
+        [
+            'label' => 'Finance',
+            'items' => [
+                [
+                    'label' => 'LUMEAR E-Wallet',
+                    'route' => 'logistics.wallet.index',
+                    'icon' => 'wallet',
+                ],
+            ],
+        ],
+
         [
             'label' => 'Reports',
             'items' => [
@@ -261,18 +390,13 @@
     ];
 @endphp
 
-
 <div class="erp-layout">
 
-    {{-- =====================================================
-         MOBILE SIDEBAR OVERLAY
-         ===================================================== --}}
-
+    {{-- MOBILE SIDEBAR OVERLAY --}}
     <div
         class="sidebar-overlay"
         id="sidebarOverlay"
     ></div>
-
 
     {{-- =====================================================
          SIDEBAR
@@ -324,11 +448,7 @@
 
         </div>
 
-
-        {{-- =================================================
-             REGISTERED SORTING CENTER
-             ================================================= --}}
-
+        {{-- REGISTERED SORTING CENTER --}}
         <div class="center-summary">
 
             <div class="center-avatar">
@@ -351,19 +471,16 @@
                 </span>
 
                 <span class="center-status">
-
                     <i></i>
 
                     {{ $logisticsStatus === 'approved'
                         ? 'Operational'
                         : ucfirst($logisticsStatus) }}
-
                 </span>
 
             </div>
 
         </div>
-
 
         {{-- =================================================
              SIDEBAR NAVIGATION
@@ -426,6 +543,17 @@
                                         <path d="M8 12h8"/>
                                         @break
 
+                                    @case('scanner')
+                                        <path d="M4 9V5a1 1 0 0 1 1-1h4"/>
+                                        <path d="M15 4h4a1 1 0 0 1 1 1v4"/>
+                                        <path d="M20 15v4a1 1 0 0 1-1 1h-4"/>
+                                        <path d="M9 20H5a1 1 0 0 1-1-1v-4"/>
+                                        <rect x="8" y="8" width="3" height="3" rx=".3"/>
+                                        <rect x="13" y="8" width="3" height="3" rx=".3"/>
+                                        <rect x="8" y="13" width="3" height="3" rx=".3"/>
+                                        <path d="M14 13h2v3h-3"/>
+                                        @break
+
                                     @case('sorting')
                                         <path d="M4 5h16"/>
                                         <path d="M7 10h10"/>
@@ -447,6 +575,24 @@
 
                                     @case('message')
                                         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+                                        @break
+
+                                    {{--
+                                    |--------------------------------------------------------------------------
+                                    | NEW: E-WALLET ICON
+                                    |--------------------------------------------------------------------------
+                                    --}}
+
+                                    @case('wallet')
+                                        <rect
+                                            x="2"
+                                            y="5"
+                                            width="20"
+                                            height="15"
+                                            rx="3"
+                                        />
+                                        <path d="M16 13h6"/>
+                                        <path d="M5 5V3h14v2"/>
                                         @break
 
                                     @case('report')
@@ -546,11 +692,7 @@
 
         </nav>
 
-
-        {{-- =================================================
-             SIDEBAR BOTTOM
-             ================================================= --}}
-
+        {{-- SIDEBAR BOTTOM --}}
         <div class="sidebar-bottom">
 
             <a
@@ -574,7 +716,6 @@
                 </span>
 
             </a>
-
 
             <form
                 action="{{ $logisticsUrl('logistics.logout') }}"
@@ -612,14 +753,12 @@
 
     </aside>
 
-
     {{-- =====================================================
          MAIN AREA
          ===================================================== --}}
 
     <div class="erp-main">
 
-        {{-- TOPBAR --}}
         <header class="erp-topbar">
 
             <div class="topbar-left">
@@ -644,9 +783,14 @@
                     </svg>
                 </button>
 
+                {{-- =================================================
+                     LIVE GLOBAL SEARCH
+                     ================================================= --}}
 
-                {{-- Search UI --}}
-                <div class="topbar-search">
+                <div
+                    class="topbar-search"
+                    id="logisticsGlobalSearch"
+                >
 
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -654,6 +798,7 @@
                         fill="none"
                         stroke="currentColor"
                         stroke-width="2"
+                        aria-hidden="true"
                     >
                         <circle cx="11" cy="11" r="8"/>
                         <path d="m21 21-4.35-4.35"/>
@@ -661,14 +806,38 @@
 
                     <input
                         type="search"
+                        id="logisticsSearchInput"
                         placeholder="Search parcel ID, rider or order..."
                         aria-label="Search logistics"
+                        aria-controls="logisticsSearchResults"
+                        aria-expanded="false"
+                        autocomplete="off"
+                        maxlength="100"
+                        data-search-url="{{ url('/logistics/api/search') }}"
                     >
+
+                    <div
+                        class="logistics-search-results"
+                        id="logisticsSearchResults"
+                        role="region"
+                        aria-label="Logistics search results"
+                        hidden
+                    >
+
+                        <div
+                            class="logistics-search-message"
+                            id="logisticsSearchMessage"
+                        >
+                            Start typing to search.
+                        </div>
+
+                        <div id="logisticsSearchItems"></div>
+
+                    </div>
 
                 </div>
 
             </div>
-
 
             <div class="topbar-actions">
 
@@ -678,7 +847,6 @@
                         {{ now()->format('D, M j, Y') }}
                     </span>
                 </div>
-
 
                 {{-- Theme toggle --}}
                 <button
@@ -721,9 +889,8 @@
 
                 </button>
 
-
                 {{-- =================================================
-                     NOTIFICATIONS
+                     LIVE DATABASE NOTIFICATIONS
                      ================================================= --}}
 
                 <div class="topbar-dropdown-wrapper">
@@ -735,6 +902,7 @@
                         aria-label="Notifications"
                         aria-expanded="false"
                         aria-controls="notificationDropdown"
+                        style="position: relative;"
                     >
 
                         <svg
@@ -748,6 +916,12 @@
                             <path d="M10 21h4"/>
                         </svg>
 
+                        <span
+                            id="lnBellBadge"
+                            class="ln-bell-badge"
+                            hidden
+                        >0</span>
+
                     </button>
 
                     <div
@@ -755,35 +929,55 @@
                         id="notificationDropdown"
                     >
 
-                        <div class="dropdown-heading">
+                        <div
+                            id="lnNotificationsApp"
+                            class="ln-notifications"
+                        >
 
-                            <strong>
-                                Notifications
-                            </strong>
+                            <div class="ln-header">
 
-                            <span>
-                                No new alerts
-                            </span>
+                                <div>
+                                    <strong>
+                                        Notifications
+                                    </strong>
 
-                        </div>
+                                    <span id="lnUnreadLabel">
+                                        Loading...
+                                    </span>
+                                </div>
 
-                        <div class="logistics-empty-notification">
+                                <button
+                                    type="button"
+                                    id="lnMarkAllRead"
+                                    class="ln-mark-all"
+                                    hidden
+                                >
+                                    Mark all as read
+                                </button>
 
-                            No notifications yet.
+                            </div>
 
-                            <p style="margin-top:8px;">
-                                Pickup requests, rider applications,
-                                and delivery updates will appear
-                                once notifications are connected
-                                to the database.
-                            </p>
+                            <div
+                                id="lnNotificationList"
+                                class="ln-list"
+                                aria-live="polite"
+                            >
+                                <div class="ln-empty">
+                                    Loading notifications...
+                                </div>
+                            </div>
+
+                            <div
+                                id="lnNotificationError"
+                                class="ln-error"
+                                hidden
+                            ></div>
 
                         </div>
 
                     </div>
 
                 </div>
-
 
                 {{-- =================================================
                      LOGISTICS PROFILE
@@ -826,7 +1020,6 @@
                         </svg>
 
                     </button>
-
 
                     {{-- Profile dropdown --}}
                     <div
@@ -887,7 +1080,6 @@
 
         </header>
 
-
         {{-- =================================================
              PAGE CONTENT
              ================================================= --}}
@@ -902,9 +1094,20 @@
 
 </div>
 
-
 {{-- Existing Logistics JavaScript --}}
 <script src="{{ asset('js/logistics/dashboard.js') }}"></script>
+
+{{-- Global Search --}}
+<script
+    src="{{ asset('js/logistics/search.js') }}"
+    defer
+></script>
+
+{{-- Existing Live Notifications --}}
+<script
+    src="{{ asset('js/logistics/notifications.js') }}"
+    defer
+></script>
 
 {{-- Page-specific JavaScript --}}
 @stack('scripts')
