@@ -132,6 +132,13 @@ Route::prefix('logistics')
             ->middleware('auth')
             ->name('logout');
 
+        Route::get('/status', [
+            LogisticsAuthController::class,
+            'status'
+        ])
+            ->middleware('auth')
+            ->name('status');
+
 
         /*
         |--------------------------------------------------------------------------
