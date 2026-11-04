@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Notifications\MarketplaceAlert;
 use App\Models\InventoryMovement;
+use App\Models\LogisticsProvider;
 use App\Models\Product;
 use App\Models\ProductReview;
 use App\Models\ProductReviewReply;
@@ -14,7 +15,7 @@ use App\Models\SellerOnboardingStep;
 use App\Models\SellerOrder;
 use App\Models\OrderTimeline;
 use App\Services\AuditService;
-use App\Services\WalletService;
+use App\Services\FulfillmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,7 +23,7 @@ use Illuminate\Validation\Rule;
 
 class SellerController extends Controller
 {
-    public function __construct(private readonly WalletService $wallets, private readonly AuditService $audit) {}
+    public function __construct(private readonly AuditService $audit, private readonly FulfillmentService $fulfillment) {}
 
     private function seller(Request $request): Seller
     {
@@ -216,20 +217,25 @@ class SellerController extends Controller
         $request->validate(['status' => ['nullable', Rule::in(['pending', 'accepted', 'packed', 'ready_to_ship', 'shipped', 'delivered', 'completed', 'cancelled'])], 'q' => ['nullable', 'string', 'max:100'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
         $seller = $this->seller($request);
         return view('seller.orders', [
-            'sellerOrders' => $seller->sellerOrders()->with(['order.buyer', 'items'])
+            'sellerOrders' => $seller->sellerOrders()->with(['order.buyer', 'items', 'provider', 'shipment'])
                 ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
                 ->when($request->filled('q'), fn ($query) => $query->whereHas('order', fn ($order) => $order->where('reference', 'like', '%'.$request->string('q')->trim().'%')))
                 ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('from')))
                 ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('to')))
                 ->latest()->paginate(30)->withQueryString(),
             'allowedTransitions' => $this->allowedOrderTransitions(),
+            'approvedLogisticsProviders' => LogisticsProvider::where('status', 'approved')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
     public function updateOrder(Request $request, SellerOrder $sellerOrder)
     {
         abort_unless($sellerOrder->seller_id === $this->seller($request)->id, 403);
-        $data = $request->validate(['status' => ['required', Rule::in(['pending', 'accepted', 'packed', 'ready_to_ship', 'shipped', 'delivered', 'completed', 'cancelled'])], 'reason' => ['nullable', 'string', 'min:10', 'max:300']]);
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['accepted', 'packed', 'ready_to_ship', 'cancelled'])],
+            'reason' => ['nullable', 'string', 'min:10', 'max:300'],
+            'logistics_provider_id' => [Rule::requiredIf(fn () => $request->input('status') === 'ready_to_ship'), 'nullable', 'integer', 'exists:logistics_providers,id'],
+        ]);
         if ($data['status'] === 'cancelled' && blank($data['reason'] ?? null)) {
             throw \Illuminate\Validation\ValidationException::withMessages(['reason' => 'Give a cancellation reason containing 10 to 300 characters.']);
         }
@@ -239,7 +245,8 @@ class SellerController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Choose the next available fulfillment action for this order.']);
         }
 
-        DB::transaction(function () use ($request, $sellerOrder, $data, $allowedTransitions): void {
+        $requestedShipment = null;
+        DB::transaction(function () use ($request, $sellerOrder, $data, $allowedTransitions, &$requestedShipment): void {
             $sellerOrder = SellerOrder::with('items')->lockForUpdate()->findOrFail($sellerOrder->id);
             $previousStatus = $sellerOrder->status;
             if (! in_array($data['status'], $allowedTransitions[$previousStatus] ?? [], true)) {
@@ -250,7 +257,14 @@ class SellerController extends Controller
                 'status' => $data['status'],
                 'delivered_at' => $data['status'] === 'delivered' ? now() : $sellerOrder->delivered_at,
             ]);
-            OrderTimeline::create(['order_id' => $sellerOrder->order_id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $request->user()->id, 'status' => $data['status'], 'event' => 'seller_status_updated', 'note' => $data['status'] === 'cancelled' ? trim($data['reason']) : "Changed from {$previousStatus} to {$data['status']}." ]);
+            if ($data['status'] !== 'ready_to_ship') {
+                OrderTimeline::create(['order_id' => $sellerOrder->order_id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $request->user()->id, 'status' => $data['status'], 'event' => 'seller_status_updated', 'note' => $data['status'] === 'cancelled' ? trim($data['reason']) : "Changed from {$previousStatus} to {$data['status']}." ]);
+            }
+
+            if ($data['status'] === 'ready_to_ship') {
+                $provider = LogisticsProvider::whereKey($data['logistics_provider_id'])->lockForUpdate()->firstOrFail();
+                $requestedShipment = $this->fulfillment->requestPickup($sellerOrder, $provider, $request->user());
+            }
 
             if ($data['status'] === 'cancelled') {
                 $variants = ProductVariant::whereIn('id', $sellerOrder->items->pluck('product_variant_id'))->lockForUpdate()->get()->keyBy('id');
@@ -264,16 +278,22 @@ class SellerController extends Controller
                     InventoryMovement::create(['product_variant_id' => $variant->id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $request->user()->id, 'type' => 'order_cancelled_return', 'quantity_delta' => $item->quantity, 'stock_after' => $variant->stock, 'reference' => $sellerOrder->order->reference]);
                 }
             }
-            if ($data['status'] === 'completed') {
-                $this->wallets->releaseCodEarnings($sellerOrder, $request->user()->id, 'SELLER-COMPLETED-'.$sellerOrder->id);
-                if ($sellerOrder->order->sellerOrders()->whereNotIn('status', ['completed', 'cancelled'])->doesntExist()) {
-                    $sellerOrder->order->update(['payment_status' => 'paid']);
-                }
-            }
+
         });
 
-$sellerOrder->loadMissing('order.buyer');
-        $sellerOrder->order->buyer->notify(new MarketplaceAlert('Order update', "Order {$sellerOrder->order->reference} is now {$sellerOrder->status}.", route('orders')));
+        $sellerOrder->refresh()->loadMissing('order.buyer');
+        $message = $requestedShipment ? "Pickup has been requested. Track it with {$requestedShipment->tracking_code}." : "Order {$sellerOrder->order->reference} is now {$sellerOrder->status}.";
+        $sellerOrder->order->buyer->notify(new MarketplaceAlert('Order update', $message, route('orders')));
+
+        if ($requestedShipment) {
+            $requestedShipment->loadMissing('provider.user');
+            $requestedShipment->provider?->user?->notify(new MarketplaceAlert(
+                'New pickup request',
+                "{$sellerOrder->order->reference} is ready for collection. Tracking: {$requestedShipment->tracking_code}.",
+                route('logistics.pickup.show', $sellerOrder)
+            ));
+        }
+
         return redirect()->route('seller.orders')->with('status', 'Fulfillment status updated.');
     }
 
@@ -284,10 +304,10 @@ $sellerOrder->loadMissing('order.buyer');
             'pending' => ['accepted', 'cancelled'],
             'accepted' => ['packed', 'cancelled'],
             'packed' => ['ready_to_ship', 'cancelled'],
-            'ready_to_ship' => ['shipped', 'cancelled'],
-            'shipped' => ['delivered', 'cancelled'],
-            // Buyers, not sellers, confirm receipt and complete COD orders.
-            'delivered' => ['completed'],
+            // Logistics owns parcel pickup and delivery once the seller requests collection.
+            'ready_to_ship' => [],
+            'shipped' => [],
+            'delivered' => [],
             'completed' => [],
             'cancelled' => [],
         ];

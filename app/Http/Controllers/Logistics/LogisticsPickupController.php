@@ -3,23 +3,29 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Models\LogisticsProvider;
+use App\Models\SellerOrder;
+use App\Notifications\MarketplaceAlert;
+use App\Services\FulfillmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class LogisticsPickupController extends Controller
 {
+    public function __construct(private readonly FulfillmentService $fulfillment) {}
+
     /**
      * Get the approved Logistics provider belonging
      * to the currently authenticated user.
      */
-    private function provider()
+    private function provider(): LogisticsProvider
     {
         $user = Auth::user();
 
         abort_unless($user, 401);
 
-        $provider = DB::table('logistics_providers')
+        $provider = LogisticsProvider::query()
             ->where('user_id', $user->id)
             ->where('status', 'approved')
             ->first();
@@ -156,6 +162,36 @@ class LogisticsPickupController extends Controller
         ]);
     }
 
+    public function confirm(int $id)
+    {
+        $provider = $this->provider();
+
+        DB::transaction(function () use ($id, $provider): void {
+            $sellerOrder = SellerOrder::with('shipment')
+                ->where('id', $id)
+                ->where('logistics_provider_id', $provider->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->fulfillment->confirmPickup($sellerOrder, $provider, Auth::user());
+        });
+
+        $sellerOrder = SellerOrder::with(['order.buyer', 'seller.user'])->findOrFail($id);
+        $sellerOrder->order->buyer->notify(new MarketplaceAlert(
+            'Parcel picked up',
+            "Your order {$sellerOrder->order->reference} is now with logistics.",
+            route('orders')
+        ));
+        $sellerOrder->seller?->user?->notify(new MarketplaceAlert(
+            'Parcel picked up',
+            "{$sellerOrder->order->reference} has been collected by the courier.",
+            route('seller.orders')
+        ));
+
+        return redirect()
+            ->route('logistics.pickup.show', $id)
+            ->with('status', 'Pickup confirmed. The parcel is now available to incoming-parcel operations.');
+    }
     /**
      * Show the complete details of a pickup request.
      */

@@ -355,19 +355,23 @@
 
     </section>
 
-    <div class="pickup-details-notice">
-
-        <strong>Pickup processing</strong>
-
-        <p>
-            This page currently supports reviewing real
-            pickup requests. Shipment creation, rider
-            assignment, and pickup confirmation will be
-            enabled after their validation and payment
-            rules are connected.
-        </p>
-
-    </div>
+    @if ($pickup->status === 'ready_to_ship' && $pickup->shipment_status === 'unassigned')
+        <section class="pickup-details-card">
+            <h2>Confirm collection</h2>
+            <p class="pickup-details-notice">
+                Confirm only after your courier has collected this parcel from the seller. This moves the order into logistics and records a buyer-visible tracking milestone.
+            </p>
+            <form method="post" action="{{ route('logistics.pickup.confirm', $pickup->id) }}" class="mt-4">
+                @csrf
+                <button type="submit" class="pickup-details-button">Confirm pickup</button>
+            </form>
+        </section>
+    @else
+        <div class="pickup-details-notice">
+            <strong>Pickup processing</strong>
+            <p>This parcel is already in the logistics workflow. Continue it through Incoming Parcels, Sorting, and Delivery Operations.</p>
+        </div>
+    @endif
 
 </div>
 

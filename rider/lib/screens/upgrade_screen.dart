@@ -36,7 +36,6 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
   static const Color darkMaroon = Color(0xFF62191C);
   static const Color maroon = Color(0xFF873632);
   static const Color brownBeige = Color(0xFF9E7161);
-  static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFF3E9E1);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color textMuted = Color(0xFF8B6F63);

@@ -48,9 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   DateTime? get _deletionDeadline {
     final requestedAt = _deletionRequestedAt;
-    return requestedAt == null
-        ? null
-        : requestedAt.add(const Duration(days: 15));
+    return requestedAt?.add(const Duration(days: 15));
   }
 
   int get _deletionDaysRemaining {

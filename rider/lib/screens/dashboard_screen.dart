@@ -158,7 +158,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ============================================================
 
   static const double radiusSm = 14;
-  static const double radiusMd = 18;
   static const double radiusLg = 24;
   static const double radiusXl = 28;
 
@@ -255,12 +254,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int get _todayDeliveredCount => ParcelStore.parcels.value
       .where((p) => p.status == 'Delivered' && _isToday(p.deliveredAt))
-      .length;
-
-  int get _todayFailedCount => ParcelStore.parcels.value
-      .where(
-        (p) => p.status == 'Delivery Failed' && _isToday(p.statusUpdatedAt),
-      )
       .length;
 
   int get _pickupCount => ParcelStore.parcels.value
@@ -607,7 +600,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: ListView.separated(
                         shrinkWrap: true,
                         itemCount: _notifications.length,
-                        separatorBuilder: (_, __) {
+                        separatorBuilder: (_, _) {
                           return const SizedBox(height: 10);
                         },
                         itemBuilder: (context, index) {

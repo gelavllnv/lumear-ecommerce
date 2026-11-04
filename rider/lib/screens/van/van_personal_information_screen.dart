@@ -91,31 +91,31 @@ class _VanPersonalInformationScreenState
     super.initState();
 
     // Values come from the signup form, saved in RiderProfile.
-    final String rawBirthday = RiderProfile.birthday ?? '';
+    final String rawBirthday = RiderProfile.birthday;
     final DateTime? parsedBirthday = _parseBirthday(rawBirthday);
 
-    _nameController = TextEditingController(text: RiderProfile.name ?? '');
-    _phoneController = TextEditingController(text: RiderProfile.phone ?? '');
-    _emailController = TextEditingController(text: RiderProfile.email ?? '');
+    _nameController = TextEditingController(text: RiderProfile.name);
+    _phoneController = TextEditingController(text: RiderProfile.phone);
+    _emailController = TextEditingController(text: RiderProfile.email);
     _birthdayController = TextEditingController(
       text: parsedBirthday == null ? rawBirthday : _isoDate(parsedBirthday),
     );
     _ageController = TextEditingController(
       text: RiderProfile.age?.toString() ?? '',
     );
-    _regionController = TextEditingController(text: RiderProfile.region ?? '');
+    _regionController = TextEditingController(text: RiderProfile.region);
     _provinceController = TextEditingController(
-      text: RiderProfile.province ?? '',
+      text: RiderProfile.province,
     );
     _municipalityController = TextEditingController(
-      text: RiderProfile.municipality ?? '',
+      text: RiderProfile.municipality,
     );
     _barangayController = TextEditingController(
-      text: RiderProfile.barangay ?? '',
+      text: RiderProfile.barangay,
     );
-    _streetController = TextEditingController(text: RiderProfile.street ?? '');
+    _streetController = TextEditingController(text: RiderProfile.street);
     _houseUnitController = TextEditingController(
-      text: RiderProfile.houseUnit ?? '',
+      text: RiderProfile.houseUnit,
     );
 
     _originalValues = _readValues();

@@ -229,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const info = el("div", "da-rider-name");
             info.appendChild(el("strong", "", rider.name));
-            info.appendChild(el("small", "", rider.id));
+            info.appendChild(el("small", "", rider.code || `RDR-${rider.id}`));
             top.appendChild(info);
             top.appendChild(el(
                 "span",
@@ -319,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cell(
             row,
             rider?.name || "Not assigned",
-            rider?.id || "Awaiting rider"
+            rider?.code || "Awaiting rider"
         );
 
         const statusCell = el("td");
@@ -495,7 +495,9 @@ document.addEventListener("DOMContentLoaded", () => {
         riders.filter(r =>
             r.area === destinations[0] && r.available
         ).forEach(r => {
-            const option = el("option", "", `${r.name} — ${r.id}`);
+            const option = el(
+                "option", "", `${r.name} — ${r.code || `RDR-${r.id}`}`
+            );
             option.value = r.id;
             select.appendChild(option);
         });
@@ -563,14 +565,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (submit) submit.disabled = true;
 
         try {
-            const riderId = Number(
-                String(rider.id).replace(/^RDR-/, "")
-            );
-
             await request("/assign", {
                 method: "POST",
                 body: JSON.stringify({
-                    rider_id: riderId,
+                    rider_id: rider.id,
                     shipment_ids: targets.map(p => p.id),
                     notes: $("daAssignmentNotes").value.trim()
                 })
@@ -645,7 +643,7 @@ document.addEventListener("DOMContentLoaded", () => {
             rows.push([
                 p.tracking, p.recipient, p.contact, p.seller,
                 p.destination, p.type, p.weight, p.batch,
-                p.riderId || "", rider?.name || "", p.status, p.notes
+                rider?.code || "", rider?.name || "", p.status, p.notes
             ]);
         });
 

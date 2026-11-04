@@ -659,7 +659,7 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
         itemCount: _quickReplies.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final String reply = _quickReplies[index];
 

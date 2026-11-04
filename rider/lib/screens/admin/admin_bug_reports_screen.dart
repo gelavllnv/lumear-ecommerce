@@ -157,7 +157,7 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
                                   bottom: _navClearance,
                                 ),
                                 itemCount: reports.length,
-                                separatorBuilder: (_, __) =>
+                                separatorBuilder: (_, _) =>
                                     const SizedBox(height: 12),
                                 itemBuilder: (context, index) {
                                   return _reportCard(reports[index]);
@@ -956,7 +956,7 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: paths.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () => _viewEvidence(paths[index]),

@@ -663,7 +663,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         const Text(
           'Email Address',
-          style: const TextStyle(
+          style: TextStyle(
             color: darkMaroon,
             fontWeight: FontWeight.w600,
             fontSize: 15,
@@ -685,7 +685,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         const Text(
           'We will send a 4-digit verification code to your registered email.',
-          style: const TextStyle(color: brownBeige, fontSize: 11, height: 1.4),
+          style: TextStyle(color: brownBeige, fontSize: 11, height: 1.4),
         ),
 
         const SizedBox(height: 28),
@@ -774,7 +774,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             onPressed: _isLoading ? null : _resendCode,
             child: const Text(
               "Didn't receive the email code? Resend",
-              style: const TextStyle(
+              style: TextStyle(
                 color: darkMaroon,
                 fontWeight: FontWeight.bold,
               ),

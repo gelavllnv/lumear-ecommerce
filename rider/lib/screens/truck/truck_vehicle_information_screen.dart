@@ -251,7 +251,7 @@ class _TruckVehicleInformationScreenState
                     child: Image.file(
                       file,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Padding(
+                      errorBuilder: (_, _, _) => const Padding(
                         padding: EdgeInsets.all(24),
                         child: Text('Unable to display this image.'),
                       ),

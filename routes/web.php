@@ -8,6 +8,7 @@ use App\Http\Controllers\Logistics\LogisticsOperationsController;
 use App\Http\Controllers\Logistics\LogisticsIncomingApiController;
 use App\Http\Controllers\Logistics\LogisticsSortingApiController;
 use App\Http\Controllers\Logistics\LogisticsDeliveryApiController;
+use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\Logistics\LogisticsRiderManagementApiController;
 use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
 use App\Http\Controllers\Logistics\LogisticsHeadAdminDashboardController;
@@ -55,7 +56,7 @@ Route::get('/chat', fn () => redirect()->route('support.index'))->name('chat');
 Route::middleware(['auth', 'verified'])->group(function(){Route::get('/messages',[MessageController::class,'inbox'])->name('messages.index');Route::get('/messages/{conversation}',[MessageController::class,'show'])->name('messages.show');Route::post('/messages/{conversation}',[MessageController::class,'send'])->name('messages.send');Route::get('/help',[SupportController::class,'index'])->name('support.index');Route::post('/help/ask',[SupportController::class,'ask'])->middleware('throttle:12,1')->name('support.ask');});
 Route::middleware(['auth', 'verified', 'buyer'])->group(function () { Route::get('/delivery-address', [BuyerAddressController::class, 'create'])->name('buyer.address.create'); Route::post('/delivery-address', [BuyerAddressController::class, 'store'])->middleware('throttle:6,1')->name('buyer.address.store'); Route::delete('/cart/items/{item}', [CartController::class, 'destroy'])->name('cart.destroy'); });
 Route::middleware(['auth','admin'])->prefix('admin')->as('admin.')->group(function(){Route::get('/two-factor/setup',[AdminTwoFactorController::class,'setup'])->name('2fa.setup');Route::post('/two-factor/setup',[AdminTwoFactorController::class,'confirm'])->name('2fa.confirm');Route::get('/two-factor/challenge',[AdminTwoFactorController::class,'challenge'])->name('2fa.challenge');Route::post('/two-factor/challenge',[AdminTwoFactorController::class,'verify'])->name('2fa.verify');Route::middleware('admin.2fa')->group(function(){Route::get('/',[AdminController::class,'dashboard'])->name('dashboard');Route::get('/reports/print',[AdminController::class,'report'])->name('reports.print');Route::patch('/sellers/{seller}',[AdminController::class,'updateSeller'])->name('sellers.update');Route::patch('/logistics/{provider}',[AdminController::class,'updateLogistics'])->name('logistics.update');Route::patch('/kyc/{kyc}',[AdminController::class,'reviewKyc'])->name('kyc.review');Route::get('/kyc/{kyc}/documents/{document}',[AdminController::class,'downloadKycDocument'])->name('kyc.document');Route::patch('/payouts/{payout}',[AdminController::class,'updatePayout'])->name('payouts.update');Route::patch('/products/{product}/moderation',[AdminController::class,'moderateProduct'])->name('products.moderate');});});
-Route::middleware('auth')->prefix('seller')->as('seller.')->group(function(){Route::get('/status',[SellerController::class,'status'])->name('status');Route::get('/onboarding',[SellerOnboardingController::class,'show'])->name('onboarding');Route::post('/onboarding/store-profile',[SellerOnboardingController::class,'saveStoreProfile'])->middleware('throttle:6,1')->name('onboarding.store-profile');Route::post('/onboarding/kyc',[SellerOnboardingController::class,'submitKyc'])->middleware('throttle:6,1')->name('onboarding.kyc');Route::post('/onboarding/payout-account',[SellerOnboardingController::class,'savePayoutAccount'])->middleware('throttle:6,1')->name('onboarding.payout-account');Route::post('/onboarding/agreement',[SellerOnboardingController::class,'acceptAgreement'])->middleware('throttle:6,1')->name('onboarding.agreement');Route::middleware('seller.approved')->group(function(){Route::get('/dashboard',[SellerController::class,'dashboard'])->name('dashboard');Route::get('/products',[SellerController::class,'products'])->name('products.index');Route::get('/products/create',[SellerController::class,'create'])->name('products.create');Route::post('/products',[SellerController::class,'store'])->name('products.store');Route::get('/products/{product}/edit',[SellerController::class,'edit'])->name('products.edit');Route::put('/products/{product}',[SellerController::class,'update'])->name('products.update');Route::delete('/products/{product}',[SellerController::class,'destroy'])->name('products.destroy');Route::get('/inventory',[SellerController::class,'inventory'])->name('inventory');Route::post('/inventory/{variant}/adjust',[SellerController::class,'adjustInventory'])->name('inventory.adjust');Route::get('/orders',[SellerController::class,'orders'])->name('orders');Route::patch('/orders/{sellerOrder}',[SellerController::class,'updateOrder'])->name('orders.update');Route::get('/messages',[MessageController::class,'inbox'])->name('messages');Route::get('/analytics',[SellerController::class, 'analytics'])->name('analytics');Route::get('/earnings',[SellerFinanceController::class,'index'])->name('earnings');Route::get('/earnings/report',[SellerFinanceController::class,'report'])->name('earnings.report');Route::post('/earnings/payouts',[SellerFinanceController::class,'requestPayout'])->middleware('throttle:6,1')->name('payouts.store');Route::get('/reviews',[SellerController::class,'reviews'])->name('reviews');Route::post('/reviews/{review}/reply',[SellerController::class,'saveReviewReply'])->name('reviews.reply');Route::get('/settings',[SellerController::class,'settings'])->name('settings');Route::put('/settings',[SellerController::class,'saveSettings'])->name('settings.update');});});
+Route::middleware('auth')->prefix('seller')->as('seller.')->group(function(){Route::get('/status',[SellerController::class,'status'])->name('status');Route::get('/onboarding',[SellerOnboardingController::class,'show'])->name('onboarding');Route::post('/onboarding/store-profile',[SellerOnboardingController::class,'saveStoreProfile'])->middleware('throttle:6,1')->name('onboarding.store-profile');Route::post('/onboarding/kyc',[SellerOnboardingController::class,'submitKyc'])->middleware('throttle:6,1')->name('onboarding.kyc');Route::post('/onboarding/payout-account',[SellerOnboardingController::class,'savePayoutAccount'])->middleware('throttle:6,1')->name('onboarding.payout-account');Route::post('/onboarding/agreement',[SellerOnboardingController::class,'acceptAgreement'])->middleware('throttle:6,1')->name('onboarding.agreement');Route::middleware('seller.approved')->group(function(){Route::get('/dashboard',[SellerController::class,'dashboard'])->name('dashboard');Route::get('/products',[SellerController::class,'products'])->name('products.index');Route::get('/products/create',[SellerController::class,'create'])->name('products.create');Route::post('/products',[SellerController::class,'store'])->name('products.store');Route::get('/products/{product}/edit',[SellerController::class,'edit'])->name('products.edit');Route::put('/products/{product}',[SellerController::class,'update'])->name('products.update');Route::delete('/products/{product}',[SellerController::class,'destroy'])->name('products.destroy');Route::get('/inventory',[SellerController::class,'inventory'])->name('inventory');Route::post('/inventory/{variant}/adjust',[SellerController::class,'adjustInventory'])->name('inventory.adjust');Route::get('/orders',[SellerController::class,'orders'])->name('orders');Route::get('/orders/{sellerOrder}/waybill',[WaybillController::class,'print'])->name('orders.waybill');Route::patch('/orders/{sellerOrder}',[SellerController::class,'updateOrder'])->name('orders.update');Route::get('/messages',[MessageController::class,'inbox'])->name('messages');Route::get('/analytics',[SellerController::class, 'analytics'])->name('analytics');Route::get('/earnings',[SellerFinanceController::class,'index'])->name('earnings');Route::get('/earnings/report',[SellerFinanceController::class,'report'])->name('earnings.report');Route::post('/earnings/payouts',[SellerFinanceController::class,'requestPayout'])->middleware('throttle:6,1')->name('payouts.store');Route::get('/reviews',[SellerController::class,'reviews'])->name('reviews');Route::post('/reviews/{review}/reply',[SellerController::class,'saveReviewReply'])->name('reviews.reply');Route::get('/settings',[SellerController::class,'settings'])->name('settings');Route::put('/settings',[SellerController::class,'saveSettings'])->name('settings.update');});});
 Route::middleware(['auth', 'seller.approved'])->prefix('seller')->as('seller.')->group(function () {
     Route::get('/returns', [SellerReturnController::class, 'index'])->name('returns.index');
     Route::patch('/returns/{returnRequest}', [SellerReturnController::class, 'update'])->name('returns.update');
@@ -98,6 +99,11 @@ Route::prefix('logistics')
             LogisticsAuthController::class,
             'logout'
         ])->name('logout');
+
+        Route::get('/status', [
+            LogisticsAuthController::class,
+            'status'
+        ])->middleware('auth')->name('status');
 
 
         /*
@@ -184,6 +190,19 @@ Route::prefix('logistics')
             ])
                 ->whereNumber('id')
                 ->name('pickup.show');
+
+            Route::post('/pickup-requests/{id}/confirm', [
+                LogisticsPickupController::class,
+                'confirm'
+            ])
+                ->whereNumber('id')
+                ->name('pickup.confirm');
+
+            Route::get('/pickup-scan', [WaybillController::class, 'scanner'])
+                ->name('pickup.scan');
+            Route::post('/pickup-scan', [WaybillController::class, 'scan'])
+                ->middleware('throttle:20,1')
+                ->name('pickup.scan.store');
 
 
             /*
@@ -366,6 +385,16 @@ Route::prefix('logistics')
         ])
             ->whereNumber('id')
             ->name('api.incoming.receive');
+
+        Route::post('/api/incoming-parcels/{id}/verify', [
+            LogisticsIncomingApiController::class,
+            'verify'
+        ])->whereNumber('id')->name('api.incoming.verify');
+
+        Route::post('/api/incoming-parcels/{id}/review', [
+            LogisticsIncomingApiController::class,
+            'review'
+        ])->whereNumber('id')->name('api.incoming.review');
 
         Route::get('/api/sorting', [
             LogisticsSortingApiController::class,

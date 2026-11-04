@@ -18,6 +18,28 @@
                     @foreach ($order->sellerOrders as $sellerOrder)
                         <section class="px-5 py-4">
                             <div class="mb-3 flex items-center justify-between gap-3 text-sm"><p class="font-semibold">{{ $sellerOrder->seller->name }}</p><span class="rounded-full bg-maroon-900/5 px-3 py-1 text-xs font-bold capitalize">{{ str_replace('_', ' ', $sellerOrder->status) }}</span></div>
+                            @if ($sellerOrder->shipment)
+                                <div class="mb-4 rounded-xl border border-sand-400/25 bg-cream-100/65 p-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-[.14em] text-maroon-700">Delivery tracking</p>
+                                            <p class="mt-1 text-sm font-semibold">{{ $sellerOrder->shipment->provider?->name ?? 'Assigned courier' }} · {{ $sellerOrder->shipment->tracking_code }}</p>
+                                        </div>
+                                        <span class="rounded-full bg-maroon-900/5 px-3 py-1 text-xs font-bold capitalize">{{ str_replace('_', ' ', $sellerOrder->shipment->status) }}</span>
+                                    </div>
+                                    <ol class="mt-3 space-y-2 border-l border-sand-400/40 pl-4">
+                                        @forelse ($sellerOrder->shipment->events->sortByDesc('occurred_at')->take(4) as $event)
+                                            <li class="text-xs text-maroon-900/70">
+                                                <span class="font-bold text-maroon-900">{{ ucwords(str_replace('_', ' ', $event->status)) }}</span>
+                                                <span class="ml-1">· {{ $event->occurred_at?->format('M j, g:i A') }}</span>
+                                                @if ($event->note)<p class="mt-0.5">{{ $event->note }}</p>@endif
+                                            </li>
+                                        @empty
+                                            <li class="text-xs text-maroon-900/60">Your tracking milestones will appear here once the courier receives the parcel.</li>
+                                        @endforelse
+                                    </ol>
+                                </div>
+                            @endif
                             @if ($sellerOrder->status === 'delivered')
                                 <div class="mb-4 rounded-xl border border-emerald-700/20 bg-emerald-50 p-4"><p class="font-bold text-emerald-950">Have you received this parcel?</p><p class="mt-1 text-sm text-emerald-900/80">Confirming receipt completes this COD order and lets you leave product ratings. It does not charge you again or send money online.</p><form class="mt-3" method="post" action="{{ route('buyer.orders.confirm-receipt', $sellerOrder) }}">@csrf<button class="rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-950">Confirm receipt &amp; release COD confirmation</button></form></div>
                             @elseif ($sellerOrder->status === 'completed')

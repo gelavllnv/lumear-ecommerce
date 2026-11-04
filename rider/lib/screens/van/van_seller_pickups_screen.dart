@@ -10,7 +10,6 @@ import 'van_pickup_widgets.dart';
 
 const Color _darkMaroon = Color(0xFF62191C);
 const Color _maroon = Color(0xFF873632);
-const Color _brownBeige = Color(0xFF9E7161);
 const Color _lightBeige = Color(0xFFCAAE9F);
 const Color _cream = Color(0xFFF3E9E1);
 const Color _surface = Color(0xFFFFFFFF);
@@ -522,7 +521,7 @@ class _VanSellerPickupsScreenState extends State<VanSellerPickupsScreen> {
                       ),
                       padding: const EdgeInsets.only(bottom: 130),
                       itemCount: itemCount,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
+                      separatorBuilder: (_, _) => const SizedBox(height: 14),
                       itemBuilder: (context, index) => itemBuilder(index),
                     ),
                   ),

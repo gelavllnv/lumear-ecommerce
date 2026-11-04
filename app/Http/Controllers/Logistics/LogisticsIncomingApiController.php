@@ -43,7 +43,11 @@ class LogisticsIncomingApiController extends Controller
                 'seller.name as seller_name',
                 'o.shipping_address',
                 'ls.stage as sorting_stage',
-                'ls.received_at'
+                'ls.received_at',
+                'ls.condition',
+                'ls.remarks',
+                'ls.verified_at',
+                'ls.discrepancy_reviewed_at'
             )
             ->orderByDesc('s.created_at')
             ->get();
@@ -79,15 +83,17 @@ class LogisticsIncomingApiController extends Controller
                 'expected' => substr($shipment->created_at, 0, 10),
                 'status' => !$received
                     ? 'Awaiting Arrival'
-                    : ($shipment->sorting_stage === 'sorted'
-                        ? 'Ready for Sorting'
-                        : 'Received'),
+                    : ($shipment->sorting_stage === 'discrepancy'
+                        ? 'Discrepancy'
+                        : ($shipment->sorting_stage === 'sorted' || $shipment->verified_at
+                            ? 'Ready for Sorting'
+                            : 'Received')),
                 'notes' => '',
                 'receivedAt' => $shipment->received_at
                     ? substr($shipment->received_at, 0, 10)
                     : '',
-                'condition' => '',
-                'remarks' => '',
+                'condition' => $shipment->condition ?? '',
+                'remarks' => $shipment->remarks ?? '',
             ];
         });
 
@@ -141,6 +147,8 @@ class LogisticsIncomingApiController extends Controller
                 'shipment_id' => $id,
                 'logistics_provider_id' => $providerId,
                 'stage' => 'received',
+                'condition' => $data['condition'] ?? 'Good condition',
+                'remarks' => $data['remarks'] ?? null,
                 'received_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -166,6 +174,112 @@ class LogisticsIncomingApiController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Parcel received successfully.',
+        ]);
+    }
+
+    public function verify(Request $request, int $id)
+    {
+        return $this->recordInspection($request, $id, false);
+    }
+
+    public function review(Request $request, int $id)
+    {
+        return $this->recordInspection($request, $id, true);
+    }
+
+    private function recordInspection(Request $request, int $id, bool $review): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'condition' => [
+                'required',
+                Rule::in([
+                    'Good condition',
+                    'Damaged packaging',
+                    'Incorrect parcel information',
+                    'Other concern',
+                ]),
+            ],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $providerId = $this->providerId();
+        $hasDiscrepancy = $data['condition'] !== 'Good condition';
+
+        DB::transaction(function () use (
+            $id,
+            $providerId,
+            $data,
+            $review,
+            $hasDiscrepancy
+        ): void {
+            $record = DB::table('logistics_sorting')
+                ->where('shipment_id', $id)
+                ->where('logistics_provider_id', $providerId)
+                ->lockForUpdate()
+                ->first();
+
+            abort_unless($record, 404, 'Received parcel not found.');
+
+            if ($review) {
+                abort_unless(
+                    $record->stage === 'discrepancy',
+                    422,
+                    'Only a flagged parcel can be reviewed.'
+                );
+            } else {
+                abort_unless(
+                    $record->stage === 'received' && !$record->verified_at,
+                    422,
+                    'This parcel has already been verified or is not available for verification.'
+                );
+            }
+
+            $now = now();
+            $update = [
+                'condition' => $data['condition'],
+                'remarks' => $data['remarks'] ?? null,
+                'stage' => $hasDiscrepancy ? 'discrepancy' : 'received',
+                'updated_at' => $now,
+            ];
+
+            if ($review) {
+                $update['discrepancy_reviewed_at'] = $now;
+                $update['discrepancy_reviewed_by'] = Auth::id();
+            }
+
+            if (!$hasDiscrepancy) {
+                $update['verified_at'] = $now;
+                $update['verified_by'] = Auth::id();
+            }
+
+            DB::table('logistics_sorting')
+                ->where('id', $record->id)
+                ->update($update);
+
+            DB::table('delivery_events')->insert([
+                'shipment_id' => $id,
+                'status' => $hasDiscrepancy
+                    ? ($review ? 'sorting_discrepancy_reviewed' : 'sorting_discrepancy_reported')
+                    : 'sorting_verified',
+                'attempt' => 1,
+                'user_id' => Auth::id(),
+                'note' => trim(
+                    ($review ? 'Discrepancy review: ' : 'Parcel verification: ')
+                    . $data['condition']
+                    . '. '
+                    . ($data['remarks'] ?? '')
+                ),
+                'occurred_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => $hasDiscrepancy
+                ? 'Discrepancy recorded for review.'
+                : 'Parcel verified and ready for sorting.',
         ]);
     }
 }

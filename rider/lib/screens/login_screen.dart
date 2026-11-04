@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'dashboard_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
-import 'admin/admin_dashboard_screen.dart';
 import 'truck/truck_dashboard_screen.dart';
 import 'van/van_rider_dashboard_screen.dart';
 
 import 'package:flutter_application_1/models/rider_profile.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
+import 'package:flutter_application_1/services/rider_delivery_sync.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -125,67 +126,30 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    // ============================================================
-    // ADMIN LOGIN (DEMO ONLY)
-    // ============================================================
-
-    if (email == 'lumear@gmail.com' && password == 'adminOne') {
-      setState(() => _isLoggingIn = true);
-
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-
-      setState(() {
-        _isLoggingIn = false;
-        _loginSuccess = true;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-      );
-      return;
-    }
-
-    // ============================================================
-    // RIDER LOGIN (LOCAL ONLY)
-    // The server API was removed. The rider is matched against the
-    // profile saved on this device during sign up (RiderProfile).
-    // ============================================================
-
     setState(() {
       _isLoggingIn = true;
       _loginSuccess = false;
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-
-    final String savedEmail = RiderProfile.email
-        .toString()
-        .trim()
-        .toLowerCase();
-
-    if (savedEmail.isEmpty || savedEmail != email) {
+    try {
+      await RiderApiService.login(email: email, password: password);
+      await RiderDeliverySync.refresh();
+    } on RiderApiException catch (error) {
+      if (!mounted) return;
       setState(() => _isLoggingIn = false);
-      _showLoginMessage(
-        'No rider account found on this device. Please sign up first.',
-      );
+      _showLoginMessage(error.message);
       return;
     }
 
     final String? vehicleType = _canonicalVehicleType(
-      RiderProfile.vehicleType.toString(),
+      RiderProfile.vehicleType,
     );
 
     final String jobType = RiderProfile.jobType.toString().trim().toLowerCase();
 
     if (vehicleType == null) {
       setState(() => _isLoggingIn = false);
-      _showLoginMessage('Unsupported vehicle type for this account.');
+      _showLoginMessage('Your approved rider account has an unsupported vehicle type.');
       return;
     }
 

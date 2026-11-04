@@ -67,6 +67,10 @@ class LogisticsSortingApiController extends Controller
             ->where('ls.logistics_provider_id', $providerId)
             ->where('s.logistics_provider_id', $providerId)
             ->whereIn('ls.stage', ['received', 'sorted'])
+            ->where(function ($query) {
+                $query->where('ls.stage', 'sorted')
+                    ->orWhereNotNull('ls.verified_at');
+            })
             ->select(
                 's.id',
                 's.tracking_code',
@@ -191,7 +195,12 @@ class LogisticsSortingApiController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (!$record || $record->stage !== 'received' || $record->batch_id) {
+                if (
+                    !$record ||
+                    $record->stage !== 'received' ||
+                    !$record->verified_at ||
+                    $record->batch_id
+                ) {
                     throw ValidationException::withMessages([
                         'shipment_ids' => 'A parcel is not available for batch assignment.',
                     ]);
@@ -226,7 +235,9 @@ class LogisticsSortingApiController extends Controller
             abort_unless($record, 404, 'Parcel not found.');
 
             abort_unless(
-                $record->stage === 'received' && $record->batch_id,
+                $record->stage === 'received' &&
+                    $record->verified_at &&
+                    $record->batch_id,
                 422,
                 'Parcel must be assigned to a batch first.'
             );

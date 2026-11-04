@@ -8,7 +8,9 @@ import 'package:flutter_application_1/models/rider_profile.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-import 'login_screen.dart' hide RiderProfile;
+import '../services/rider_api_service.dart';
+
+import 'login_screen.dart';
 import 'terms_conditions_screen.dart';
 
 class _PhLocalNumberFormatter extends TextInputFormatter {
@@ -1336,9 +1338,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   // ============================================================
-  // SIGN UP (local only)
-  // The Node.js signup API was removed. The rider profile is now
-  // saved locally and no data is sent to any server.
+  // SIGN UP
+  // Applications are stored in Laravel and reviewed by the logistics provider
+  // assigned to the rider's municipality.
   // ============================================================
   Future<void> _signUp() async {
     if (_isLoading) return;
@@ -1377,15 +1379,48 @@ class _SignUpScreenState extends State<SignUpScreen> {
     FocusScope.of(context).unfocus();
 
     try {
-      // No server request: the rider profile is saved locally only.
+      setState(() => _isLoading = true);
+      await RiderApiService.register(
+        values: {
+          'name': _fullName,
+          'email': _emailController.text.trim().toLowerCase(),
+          'password': _passwordController.text,
+          'password_confirmation': _confirmPasswordController.text,
+          'phone': '+63${_phoneController.text.trim()}',
+          'sex': _selectedSex!,
+          'birthday': _selectedBirthday!.toIso8601String().substring(0, 10),
+          'region': _selectedRegion!,
+          'province': _selectedProvince!,
+          'municipality': _selectedMunicipality!,
+          'municipality_psgc_code': _selectedMunicipalityCode!,
+          'barangay': _selectedBarangay!,
+          'street': _streetController.text.trim(),
+          'house_unit': _houseUnitController.text.trim(),
+          'vehicle_type': _selectedVehicleType!,
+          'job_type': _selectedJobType!,
+          'license_number': _licenseNumberController.text.trim(),
+          'plate_number': _plateNumberController.text.trim(),
+        },
+        driverLicense: File(_licenseImage!.path),
+        orDocument: _orFile!,
+        crDocument: _crFile!,
+      );
+
       _saveLocalRiderProfile();
-      RiderProfile.status = 'Pending verification';
+      RiderProfile.status = 'Pending approval';
 
       if (!mounted) return;
 
+      setState(() => _isLoading = false);
       _showPendingVerificationDialog();
+    } on RiderApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showMessage(error.message, icon: Icons.error_outline_rounded);
     } catch (e) {
       if (!mounted) return;
+
+      setState(() => _isLoading = false);
 
       _showMessage(
         'Something went wrong while saving your registration. Please try again.',

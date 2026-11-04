@@ -73,7 +73,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   // ============================================================
 
   static const Color darkMaroon = Color(0xFF62191C);
-  static const Color maroon = Color(0xFF873632);
   static const Color brownBeige = Color(0xFF9E7161);
   static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFF3E9E1);
@@ -81,7 +80,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   static const Color textMuted = Color(0xFF8B6F63);
 
   static const Color success = Color(0xFF2E7D32);
-  static const Color warning = Color(0xFFC77700);
   static const Color danger = Color(0xFFB3261E);
 
   static const double radiusSm = 14;
@@ -385,7 +383,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 6),
         itemCount: _tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           final bool selected = _selectedTab == index;
 
@@ -467,7 +465,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       physics: const BouncingScrollPhysics(),
       padding: _listPadding,
       itemCount: parcels.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
         return _parcelCard(parcel: parcels[index], type: type);
       },
@@ -1107,7 +1105,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 : ListView.separated(
                     physics: const BouncingScrollPhysics(),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       return _podHistoryCard(filtered[index]);
                     },

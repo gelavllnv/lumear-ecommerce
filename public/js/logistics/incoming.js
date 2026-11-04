@@ -602,16 +602,15 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        if (currentAction !== "receive") {
-            showToast(
-                "Verification and discrepancy review are not yet connected to the database.",
-                true
-            );
-            return;
-        }
+        const allowedStatus = {
+            receive: "Awaiting Arrival",
+            verify: "Received",
+            review: "Discrepancy"
+        };
 
-        if (parcel.status !== "Awaiting Arrival") {
-            showToast("Parcel has already been received.", true);
+        if (!allowedStatus[currentAction] ||
+            parcel.status !== allowedStatus[currentAction]) {
+            showToast("This parcel is no longer available for that action.", true);
             return;
         }
 
@@ -623,7 +622,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         try {
             const result = await apiRequest(
-                `${API}/${parcel.id}/receive`,
+                `${API}/${parcel.id}/${currentAction === "receive" ? "receive" : currentAction === "verify" ? "verify" : "review"}`,
                 {
                     method: "POST",
                     body: JSON.stringify({

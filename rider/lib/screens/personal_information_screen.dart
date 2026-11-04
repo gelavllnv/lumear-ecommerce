@@ -20,7 +20,10 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
   static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFE0CFC2);
 
-  static const String _baseUrl = 'http://10.102.177.127:8000';
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://lumearofficial.com/api',
+  );
 
   // Same options as the Sex selector on the sign-up screen.
   static const List<String> _sexOptions = ['Male', 'Female', 'Other'];
@@ -889,7 +892,7 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
     try {
       final response = await http
           .patch(
-            Uri.parse('$_baseUrl/api/riders/$riderId/personal-information'),
+            Uri.parse('$_baseUrl/riders/$riderId/personal-information'),
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',

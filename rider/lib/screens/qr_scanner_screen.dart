@@ -241,25 +241,21 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         color: Colors.red,
       );
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
       }
-
-      setState(() {
-        _processing = false;
-      });
 
       // Small delay before scanner becomes active again.
       await Future.delayed(const Duration(milliseconds: 700));
 
-      if (!mounted) {
-        return;
-      }
-
-      try {
-        await _scannerController.start();
-      } catch (error) {
-        debugPrint('Scanner restart ignored: $error');
+      if (mounted) {
+        try {
+          await _scannerController.start();
+        } catch (error) {
+          debugPrint('Scanner restart ignored: $error');
+        }
       }
     }
   }

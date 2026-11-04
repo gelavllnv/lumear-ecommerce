@@ -75,13 +75,15 @@ class LogisticsOperationsController extends Controller
             }
 
             if ($module === 'sorting') {
-                $query->where('sorting.stage', 'received');
+                $query->where('sorting.stage', 'received')
+                    ->whereNotNull('sorting.verified_at');
             }
 
             if ($module === 'assignment') {
-                $query->whereIn('s.status', [
-                    'unassigned', 'assigned', 'in_transit'
-                ]);
+                $query->where('sorting.stage', 'sorted')
+                    ->whereIn('s.status', [
+                        'unassigned', 'assigned', 'picked_up', 'in_transit'
+                    ]);
             }
 
             if ($search !== '') {
@@ -227,7 +229,11 @@ class LogisticsOperationsController extends Controller
                 ->first();
 
             abort_unless($sorting, 422, 'Receive parcel first.');
-            abort_unless($sorting->stage === 'received', 422, 'Already sorted.');
+            abort_unless(
+                $sorting->stage === 'received' && $sorting->verified_at,
+                422,
+                'Parcel must be verified before sorting.'
+            );
 
             DB::table('logistics_sorting')
                 ->where('id', $sorting->id)
@@ -262,10 +268,20 @@ class LogisticsOperationsController extends Controller
 
             abort_unless(
                 in_array($shipment->status, [
-                    'unassigned', 'assigned', 'in_transit'
+                    'unassigned', 'assigned', 'picked_up', 'in_transit'
                 ], true),
                 422,
                 'Shipment cannot be assigned.'
+            );
+
+            abort_unless(
+                DB::table('logistics_sorting')
+                    ->where('shipment_id', $shipment->id)
+                    ->where('logistics_provider_id', $provider->id)
+                    ->where('stage', 'sorted')
+                    ->exists(),
+                422,
+                'Parcel must be received and sorted before assigning a rider.'
             );
 
             $rider = DB::table('riders')
@@ -382,8 +398,21 @@ class LogisticsOperationsController extends Controller
                     'user_id' => $user->id,
                     'logistics_provider_id' => $provider->id,
                     'vehicle_type' => $application->vehicle_type,
+                    'job_type' => $application->job_type ?? null,
                     'plate_no' => $application->plate_no,
+                    'license_no' => $application->license_no ?? null,
+                    'sex' => $application->sex ?? null,
+                    'date_of_birth' => $application->date_of_birth ?? null,
+                    'region' => $application->region ?? null,
+                    'province' => $application->province ?? null,
+                    'municipality' => $application->municipality ?? null,
+                    'barangay' => $application->barangay ?? null,
+                    'street' => $application->street ?? null,
+                    'house_unit' => $application->house_unit ?? null,
+                    'document_paths' => $application->document_paths ?? null,
                     'is_active' => 1,
+                    'management_status' => 'Available',
+                    'management_remarks' => 'Newly approved rider.',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);

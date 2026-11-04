@@ -289,7 +289,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                     ),
                   ),
           ),
-          if (extra != null) extra,
+          ?extra,
         ],
       ),
     );

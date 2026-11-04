@@ -20,7 +20,10 @@ class _VehicleInformationScreenState extends State<VehicleInformationScreen> {
   static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFE0CFC2);
 
-  static const String _baseUrl = 'http://10.102.177.127:8000';
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://lumearofficial.com/api',
+  );
 
   // ============================================================
   // JOB TYPE (same rules as the Sign Up screen)
@@ -226,7 +229,7 @@ class _VehicleInformationScreenState extends State<VehicleInformationScreen> {
     try {
       final response = await http
           .patch(
-            Uri.parse('$_baseUrl/api/riders/$riderId/vehicle-information'),
+            Uri.parse('$_baseUrl/riders/$riderId/vehicle-information'),
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',

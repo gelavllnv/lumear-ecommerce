@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Models\SellerOrder;
+use App\Notifications\MarketplaceAlert;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -62,7 +64,12 @@ class LogisticsDeliveryApiController extends Controller
             ->get()
             ->map(function ($r) use ($serviceArea) {
                 return [
-                    'id' => 'RDR-' . str_pad(
+                    // Keep the database key machine-readable.  The previous
+                    // API returned `RDR-001` here, which forced the browser to
+                    // reverse-engineer the key before it could save an
+                    // assignment.
+                    'id' => (int) $r->id,
+                    'code' => 'RDR-' . str_pad(
                         $r->id, 3, '0', STR_PAD_LEFT
                     ),
                     'name' => $r->name,
@@ -169,12 +176,7 @@ class LogisticsDeliveryApiController extends Controller
                         )
                         : '—',
                     'riderId' => $shipment->rider_id
-                        ? 'RDR-' . str_pad(
-                            $shipment->rider_id,
-                            3,
-                            '0',
-                            STR_PAD_LEFT
-                        )
+                        ? (int) $shipment->rider_id
                         : null,
                     'status' => in_array(
                         $shipment->status,
@@ -462,7 +464,9 @@ class LogisticsDeliveryApiController extends Controller
 
         $providerId = $this->providerId();
 
-        DB::transaction(function () use ($id, $providerId, $data) {
+        $sellerOrderId = null;
+
+        DB::transaction(function () use ($id, $providerId, $data, &$sellerOrderId) {
             $shipment = DB::table('shipments')
                 ->where('id', $id)
                 ->where('logistics_provider_id', $providerId)
@@ -574,13 +578,63 @@ class LogisticsDeliveryApiController extends Controller
                     ]);
             }
 
+            $note = $data['remarks'] ?? 'Status updated by Logistics.';
+
             $this->event(
                 $shipment,
                 $next,
-                $data['remarks'] ??
-                    'Status updated by Logistics.'
+                $note
             );
+
+            $sellerOrderId = (int) $shipment->seller_order_id;
+            $sellerOrder = DB::table('seller_orders')
+                ->where('id', $sellerOrderId)
+                ->first();
+
+            if ($sellerOrder) {
+                DB::table('order_timelines')->insert([
+                    'order_id' => $sellerOrder->order_id,
+                    'seller_order_id' => $sellerOrder->id,
+                    'actor_id' => Auth::id(),
+                    'status' => $next === 'delivered' ? 'delivered' : 'shipped',
+                    'event' => 'logistics_' . $next,
+                    'note' => $note,
+                    'metadata' => json_encode([
+                        'shipment_id' => $shipment->id,
+                        'tracking_code' => $shipment->tracking_code,
+                        'delivery_status' => $next,
+                    ]),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
         });
+
+        if ($sellerOrderId) {
+            $sellerOrder = SellerOrder::with([
+                'order.buyer',
+                'seller.user',
+                'shipment.provider',
+            ])->find($sellerOrderId);
+
+            if ($sellerOrder) {
+                $label = $data['status'];
+                $tracking = $sellerOrder->shipment?->tracking_code;
+                $message = "{$sellerOrder->order->reference}: {$label}."
+                    . ($tracking ? " Tracking: {$tracking}." : '');
+
+                $sellerOrder->order->buyer?->notify(new MarketplaceAlert(
+                    'Courier update',
+                    $message,
+                    route('orders')
+                ));
+                $sellerOrder->seller?->user?->notify(new MarketplaceAlert(
+                    'Delivery update',
+                    $message,
+                    route('seller.orders')
+                ));
+            }
+        }
 
         return response()->json([
             'message' => 'Delivery status updated.',

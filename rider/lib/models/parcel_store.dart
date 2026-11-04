@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
+import '../services/rider_api_service.dart';
 
 class ParcelData {
   final String parcelNumber;
@@ -16,6 +20,7 @@ class ParcelData {
   final double customerLongitude;
   final String qrValue;
   final String status;
+  final int? remoteShipmentId;
 
   // Local demo timestamps used for daily dashboard/report calculations.
   // These become server timestamps when the app is connected to the real API.
@@ -38,12 +43,14 @@ class ParcelData {
     required this.customerLongitude,
     required this.qrValue,
     required this.status,
+    this.remoteShipmentId,
     this.deliveredAt,
     this.statusUpdatedAt,
   });
 
   ParcelData copyWith({
     String? status,
+    int? remoteShipmentId,
     DateTime? deliveredAt,
     DateTime? statusUpdatedAt,
   }) => ParcelData(
@@ -62,6 +69,7 @@ class ParcelData {
     customerLongitude: customerLongitude,
     qrValue: qrValue,
     status: status ?? this.status,
+    remoteShipmentId: remoteShipmentId ?? this.remoteShipmentId,
     deliveredAt: deliveredAt ?? this.deliveredAt,
     statusUpdatedAt: statusUpdatedAt ?? this.statusUpdatedAt,
   );
@@ -267,6 +275,22 @@ class ParcelStore {
     [],
   );
 
+  /// Replaces device-only demo delivery data with the rider's server assignments.
+  static void replaceRemoteParcels(List<ParcelData> assignedParcels) {
+    parcels.value = assignedParcels;
+
+    ParcelData? active;
+    for (final parcel in assignedParcels) {
+      if (parcel.status != 'Delivered' &&
+          parcel.status != 'Returned' &&
+          parcel.status != 'Delivery Failed') {
+        active = parcel;
+        break;
+      }
+    }
+    currentParcel.value = active;
+  }
+
   static SellerPickupRequest? findSellerPickup(String requestId) {
     for (final pickup in sellerPickups.value) {
       if (pickup.requestId == requestId) return pickup;
@@ -327,16 +351,18 @@ class ParcelStore {
       }
     }
     if (expectedParcel == null) {
-      if (!pickup.acceptAnyWaybillQr)
+      if (!pickup.acceptAnyWaybillQr) {
         return SellerPickupScanResult.parcelNotExpected;
+      }
       for (final parcel in pickup.expectedParcels) {
         if (!pickup.scannedTrackingNumbers.contains(parcel.trackingNumber)) {
           expectedParcel = parcel;
           break;
         }
       }
-      if (expectedParcel == null)
+      if (expectedParcel == null) {
         return SellerPickupScanResult.noUnscannedParcels;
+      }
     }
 
     final targetTracking = expectedParcel.trackingNumber;
@@ -347,8 +373,9 @@ class ParcelStore {
             (parcel) => parcel.trackingNumber == targetTracking,
           ),
     );
-    if (assignedElsewhere)
+    if (assignedElsewhere) {
       return SellerPickupScanResult.parcelAssignedElsewhere;
+    }
     if (pickup.scannedTrackingNumbers.contains(targetTracking)) {
       return SellerPickupScanResult.duplicateScan;
     }
@@ -445,8 +472,9 @@ class ParcelStore {
     }
     for (final tracking in pickup.receivedTrackingNumbers) {
       final expected = _expectedParcel(pickup, tracking);
-      if (expected != null)
+      if (expected != null) {
         _upsertParcel(expected.copyWith(status: 'Picked Up'));
+      }
     }
     _replaceSellerPickup(
       pickup.copyWith(
@@ -651,6 +679,21 @@ class ParcelStore {
               : p,
         )
         .toList(growable: false);
+
+    final apiStatus = switch (status) {
+      'Parcel Picked Up' => 'picked_up',
+      'In Transit' => 'in_transit',
+      'Out for Delivery' => 'out_for_delivery',
+      'Delivered' => 'delivered',
+      'Delivery Failed' => 'failed',
+      _ => null,
+    };
+    if (updated.remoteShipmentId != null && apiStatus != null) {
+      // The UI remains responsive; a later refresh always reflects the server.
+      unawaited(
+        RiderApiService.updateShipmentStatus(updated.remoteShipmentId!, apiStatus),
+      );
+    }
   }
 
   static bool awardSuccessfulDelivery(ParcelData completedParcel) {
@@ -665,8 +708,9 @@ class ParcelStore {
     if (stored != null && stored.status != 'Delivered') return false;
     if (earnedParcels.value.any(
       (p) => p.trackingNumber == completedParcel.trackingNumber,
-    ))
+    )) {
       return false;
+    }
 
     final earned = (stored ?? completedParcel).copyWith(
       deliveredAt: (stored ?? completedParcel).deliveredAt ?? DateTime.now(),
