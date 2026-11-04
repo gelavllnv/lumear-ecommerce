@@ -318,11 +318,6 @@
                     'icon' => 'package',
                 ],
                 [
-                    'label' => 'Pickup Scan',
-                    'route' => 'logistics.pickup.scan',
-                    'icon' => 'package',
-                ],
-                [
                     'label' => 'Incoming Parcels',
                     'route' => 'logistics.incoming.index',
                     'icon' => 'incoming',

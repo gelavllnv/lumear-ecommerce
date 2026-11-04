@@ -82,7 +82,7 @@
 
         <section class="qr-area">
             <canvas id="waybillQr" aria-label="Pickup waybill QR code"></canvas>
-            <div><h2>Courier pickup scan</h2><p>Open <strong>Pickup Scan</strong> in the Lumear Logistics website, then scan this code with the warehouse camera or a USB scanner.</p><p>The scan confirms this exact parcel only for the assigned logistics provider.</p></div>
+            <div><h2>Courier pickup scan</h2><p>Open <strong>QR Waybill Scanner</strong> in the Lumear Logistics website, then scan this code with the warehouse camera or a USB scanner.</p><p>The scanner verifies this exact parcel for the assigned logistics provider.</p></div>
         </section>
         <footer class="footer">Lumear waybill · Do not alter the tracking code or QR label. Printed {{ now()->format('M j, Y g:i A') }}</footer>
     </main>

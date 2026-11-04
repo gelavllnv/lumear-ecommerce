@@ -336,14 +336,6 @@ Route::prefix('logistics')
                 ->whereNumber('id')
                 ->name('pickup.confirm');
 
-            Route::get('/pickup-scan', [WaybillController::class, 'scanner'])
-                ->name('pickup.scan');
-
-            Route::post('/pickup-scan', [WaybillController::class, 'scan'])
-                ->middleware('throttle:20,1')
-                ->name('pickup.scan.store');
-
-
             /*
             |--------------------------------------------------------------------------
             | INCOMING PARCELS
