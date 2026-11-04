@@ -35,7 +35,7 @@ def settings(path=None):
                 'MYSQL_PASSWORD', 'MYSQL_SHIPPING_FEE_MINOR', 'SMTP_HOST', 'SMTP_PORT',
                 'SMTP_USERNAME', 'SMTP_PASSWORD', 'SMTP_FROM', 'EMAIL_OTP_SECRET',
                 'MYSQL_SSL_CA', 'MYSQL_SSL_CA_PEM', 'MYSQL_SSL_REQUIRED', 'PRIVATE_UPLOAD_ROOT',
-                'PRIVATE_UPLOAD_STORAGE'):
+                'PRIVATE_UPLOAD_STORAGE', 'OPENAI_API_KEY', 'OPENAI_MODEL'):
         if key in os.environ:
             values[key] = os.environ[key]
     return values
@@ -99,7 +99,7 @@ class MySQLStore:
                     'wallet_accounts', 'wallet_journals', 'seller_payout_requests',
                     'roles', 'role_user', 'categories', 'order_timelines',
                     'inventory_movements', 'idempotency_keys', 'two_factor_credentials',
-                    'saved_products', 'notifications', 'user_profiles', 'auth_identities'}
+                    'saved_products', 'notifications', 'user_profiles', 'auth_identities', 'mobile_notification_preferences'}
         if self.config.get('PRIVATE_UPLOAD_STORAGE') == 'mysql':
             required.add('mobile_private_documents')
         with self.transaction() as db:

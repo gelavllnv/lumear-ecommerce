@@ -37,6 +37,7 @@ class ChatService {
   final bool seller;
   final String _demoUser, _demoName;
   final List<ChatMessage> assistantHistory = [];
+  String? assistantMode;
   static final Map<
     String,
     ({String shop, String buyer, String buyerName, String seller})
@@ -151,6 +152,7 @@ class ChatService {
         },
       );
       final reply = data['reply'];
+      assistantMode = data['mode'] == 'guide' ? 'guide' : 'ai';
       if (reply is! String || reply.trim().isEmpty) {
         throw const ApiException(
           'The assistant did not return a reply. Please try again.',

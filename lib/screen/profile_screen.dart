@@ -1,3 +1,5 @@
+import 'help_center_screen.dart';
+import 'notification_settings_screen.dart';
 import 'account_profile_screen.dart';
 import '../widgets/account_picture.dart';
 import 'password_security_screen.dart';
@@ -300,10 +302,13 @@ class ProfileScreen extends StatelessWidget {
                 Icons.notifications_none_rounded,
                 'Notification Settings',
                 'Manage your notification preferences',
-                () => _showInfoDialog(
+                () => Navigator.push(
                   context,
-                  'Notification Settings',
-                  'Notification preferences are a placeholder for now.',
+                  MaterialPageRoute(
+                    builder: (_) => NotificationSettingsScreen(
+                      connected: BuyerData.instance.connected,
+                    ),
+                  ),
                 ),
               ),
               _option(
@@ -325,10 +330,13 @@ class ProfileScreen extends StatelessWidget {
                 Icons.help_outline_rounded,
                 'Help Center',
                 'Get help and support',
-                () => _showInfoDialog(
+                () => Navigator.push(
                   context,
-                  'Help Center',
-                  'Help and support content has not been configured yet.',
+                  MaterialPageRoute(
+                    builder: (_) => HelpCenterScreen(
+                      connected: BuyerData.instance.connected,
+                    ),
+                  ),
                 ),
               ),
               _option(

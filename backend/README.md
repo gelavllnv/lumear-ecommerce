@@ -105,3 +105,27 @@ Integration records are created within a transaction and always rolled back.
 Tests do not change imported passwords, create/drop schemas or approve real
 sellers. Signed-token tests use a local RSA key; synthetic tokens are not treated
 as real Google sign-ins outside those tests.
+
+## Help, assistant, and notification settings
+
+Profile > Help Center provides searchable guidance from `assets/data/lumear_help.json`.
+The same content grounds the assistant's answers. Without `OPENAI_API_KEY`,
+`POST /chat/assistant` returns a clearly labeled built-in guide answer. With a key,
+it uses OpenAI Responses, the `OPENAI_MODEL` setting (default `gpt-4.1-mini`),
+`store: false`, bounded conversation/output size, and a six-question/minute
+per-user limit. Provider failures return an error; they do not impersonate live AI.
+Only the question/history and marketplace help text are sent; the assistant does
+not receive database records or tools to modify orders. Live replies require a
+valid API key and provider account access; mocked provider tests do not prove that.
+
+Create an OpenAI project key at https://platform.openai.com/api-keys and put it
+only in the ignored `backend/.env.mysql` as `OPENAI_API_KEY=...`. Do not paste the
+key into chats, Flutter source, `.env.mysql.example`, or Git. Restart the local
+API after changing it. Provider usage is governed by your OpenAI account setup.
+Reference: https://developers.openai.com/api/docs/guides/api-keys
+
+Apply `migrations/20261104_notification_preferences.sql` once to existing setups.
+The current local database already has it. `GET/PATCH /notification-preferences`
+saves optional in-app order, promotion, and general preferences per account.
+Filtering does not delete notifications; enabling a category restores visibility.
+Security notices remain visible. Phone push/email delivery is not implemented.

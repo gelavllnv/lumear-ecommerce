@@ -21,6 +21,10 @@ Verification before the mobile profile migration:
 The historical SQL design at `database/lumear_ecommerce.sql` is unrelated to
 this imported shared schema and must not be run against this database.
 
+Additional November 4 support update: applied
+`backend/migrations/20261104_notification_preferences.sql` for per-account
+in-app notification choices. The active schema now has 65 tables.
+
 ---
 
 # Local shared database import

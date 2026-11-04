@@ -23,9 +23,11 @@ class SharedStore(MySQLStore):
     def __init__(self, config=None):
         super().__init__(config)
         self.code_tag = hashlib.sha256(b''.join(Path(__file__).with_name(n).read_bytes()
-            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','server.py','run_api.py'))).hexdigest()[:12]
+            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','server.py','run_api.py'))).hexdigest()[:12]
+        self.code_tag = hashlib.sha256((self.code_tag + (Path(__file__).parent.parent/'assets/data/lumear_help.json').read_text(encoding='utf-8')).encode()).hexdigest()[:12]
         from google_identity import GoogleVerifier
         self.google = GoogleVerifier(self.config.get('GOOGLE_CLIENT_ID',''))
+        self.assistant_attempts = {}
 
     def profile(self, db, user):
         row=self.one(db,'SELECT * FROM user_profiles WHERE user_id=%s',(user['id'],))
@@ -269,10 +271,15 @@ class SharedStore(MySQLStore):
                     media=True, google_sign_in=bool(self.google.audience), email_verification=False)
 
     def notifications(self, db, uid):
+        from support_service import preferences, notification_category
+        settings = preferences(self, db, uid)
         rows = self.rows(db, "SELECT * FROM notifications WHERE notifiable_id=%s AND notifiable_type=%s ORDER BY created_at DESC LIMIT 100", (uid, 'App\\Models\\User'))
         result = []
         for row in rows:
             data = decode(row['data']) or {}
+            category = notification_category(row, data)
+            if category != 'security' and not settings[category]:
+                continue
             result.append(dict(id=row['id'],title=str(data.get('title', 'Account notification')),
                 message=str(data.get('message', data.get('body', ''))),date=timestamp(row['created_at']),read=row['read_at'] is not None))
         return result
@@ -346,7 +353,15 @@ class SharedStore(MySQLStore):
         if path == '/auth/password':
             raise Problem('Use the email-confirmed password change flow.', 410)
         if path == '/chat/assistant':
-            raise Problem('The AI service is not configured. Seller messaging is available.',503)
+            require(method in ('GET','POST'), 'Method not allowed.',405)
+            if method == 'GET':
+                return True, dict(mode='ai' if self.config.get('OPENAI_API_KEY','').strip() else 'guide')
+            from support_service import assistant
+            return True, assistant(self, uid, body)
+        if path == '/notification-preferences':
+            require(method in ('GET','PATCH'), 'Method not allowed.',405)
+            from support_service import preferences, save_preferences
+            return True, preferences(self,db,uid) if method=='GET' else save_preferences(self,db,uid,body)
         if path.startswith('/chat/threads'):
             from shared_support import chat_route
             return True, chat_route(self,db,method,path,body,user,seller)

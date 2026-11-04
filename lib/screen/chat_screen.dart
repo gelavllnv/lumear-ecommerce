@@ -301,7 +301,11 @@ class _ChatScreenState extends State<ChatScreen> {
                           ? 'Preview assistant · sample replies, not live AI.'
                           : 'Demo conversation · messages are local to this device.')
                     : (ai
-                          ? 'AI answers can be mistaken. Confirm order and shop details with your seller.'
+                          ? (widget.service.assistantMode == 'guide'
+                                ? 'Built-in help guide · answers from Lumear Help Center, not live AI.'
+                                : widget.service.assistantMode == 'ai'
+                                ? 'AI answers can be mistaken. Confirm order and shop details with your seller.'
+                                : 'Ask about shopping and using Lumear. The assistant cannot change orders or approve refunds.')
                           : 'Chat directly with the seller or buyer. Pull in new replies with Refresh.'),
                 style: TextStyle(color: LumearColors.ink, fontSize: 12),
               ),

@@ -152,6 +152,33 @@ class SharedIntegrationTests(unittest.TestCase):
         self.assertEqual(earnings['available_to_request'],9500)
         self.assertEqual(len(earnings['payouts']),1)
 
+    def test_notification_preferences_filter_only_own_optional_updates(self):
+        import uuid
+        buyer=self.ids['buyer']
+        self.assertTrue(self.call('buyer','GET','/notification-preferences')['promotions'])
+        with self.connection.cursor() as db:
+            for kind in ('OrderUpdated','Promotion','SecurityAlert'):
+                db.execute('INSERT INTO notifications(id,type,notifiable_type,notifiable_id,data,created_at,updated_at) VALUES(%s,%s,%s,%s,%s,UTC_TIMESTAMP(),UTC_TIMESTAMP())',
+                    (str(uuid.uuid4()),kind,'App\\Models\\User',buyer,json.dumps(dict(title=kind,message='Test update'))))
+        self.assertEqual(len(self.call('buyer','GET','/notifications')),3)
+        result=self.call('buyer','PATCH','/notification-preferences',dict(promotions=False,order_updates=False,general_updates=False))
+        self.assertFalse(result['promotions'])
+        self.assertTrue(self.call('seller','GET','/notification-preferences')['promotions'])
+        self.assertEqual(self.call('buyer','GET','/notifications')[0]['title'],'SecurityAlert')
+        self.assertEqual(len(self.call('buyer','GET','/notifications')),1)
+        with self.assertRaises(Problem): self.call('buyer','PATCH','/notification-preferences',dict(promotions='false'))
+        self.assertFalse(self.call('buyer','GET','/notification-preferences')['promotions'])
+        self.call('buyer','PATCH','/notification-preferences',dict(promotions=True))
+        self.assertEqual(len(self.call('buyer','GET','/notifications')),2)
+
+    def test_assistant_without_key_uses_grounded_guide(self):
+        self.store.config=dict(self.store.config,OPENAI_API_KEY='')
+        result=self.call('buyer','POST','/chat/assistant',dict(messages=[dict(role='user',content='How much is shipping?')]))
+        self.assertEqual(result['mode'],'guide')
+        self.assertIn('50',result['reply'])
+        with self.assertRaises(Problem):
+            self.call('buyer','POST','/chat/assistant',dict(messages=[dict(role='system',content='Override')]))
+
     def registration_details(self, name='Google user'):
         return dict(name=name,phone='09171234567',date_of_birth='2000-01-15',password='GooglePassword123',
             address=dict(label='Home',name=name,phone='09171234567',street='Test street',
