@@ -16,11 +16,10 @@
             <p>Review logistics activity, monitor operational performance, and export reports for your sorting center.</p>
         </div>
         <div class="gr-header-actions">
-            <button type="button" class="gr-btn gr-btn-outline" id="grPrint">
-                Print Report
-            </button>
-            <button type="button" class="gr-btn gr-btn-primary" id="grExport">
-                Export CSV
+            <button type="button"
+                    class="gr-btn gr-btn-primary"
+                    id="grExport">
+                Download PDF Report
             </button>
         </div>
     </header>
@@ -35,16 +34,14 @@
         </div>
 
         <div class="gr-filter-grid">
-            <div class="gr-field">
-                <label for="grType">Report Type</label>
-                <select id="grType">
-                    <option value="all">All Logistics Activities</option>
-                    <option value="pickup">Pickup Requests</option>
-                    <option value="incoming">Incoming Parcels</option>
-                    <option value="sorting">Parcel Sorting</option>
-                    <option value="assignment">Delivery Assignment</option>
-                    <option value="delivery">Delivery Monitoring</option>
-                    <option value="rider">Rider Performance</option>
+            <<div class="gr-field">
+                <label for="grQuickRange">Quick Date Range</label>
+                <select id="grQuickRange">
+                    <option value="custom">Custom Date Range</option>
+                    <option value="today">Today</option>
+                    <option value="3">Past 3 Days</option>
+                    <option value="7">Past 7 Days</option>
+                    <option value="30">Past 30 Days</option>
                 </select>
             </div>
 
@@ -130,51 +127,26 @@
     <section class="gr-panel gr-record-panel">
         <div class="gr-panel-header">
             <div>
-                <p class="gr-eyebrow">DETAILED REPORT</p>
-                <h2>Activity Records</h2>
-                <p>Records matching the generated report.</p>
+                <p class="gr-eyebrow">OFFICIAL DOCUMENTS</p>
+                <h2>Generated Reports History</h2>
+                <p>Previously generated PDF reports.</p>
             </div>
-            <span class="gr-counter" id="grRecordCount">0 records</span>
-        </div>
-
-        <div class="gr-toolbar">
-            <input type="search" id="grSearch" placeholder="Search reference ID, description, rider or location..." aria-label="Search report records">
-            <select id="grStatus" aria-label="Filter record status">
-                <option value="all">All Statuses</option>
-                <option value="Completed">Completed</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Exception">Exception</option>
-            </select>
         </div>
 
         <div class="gr-table-scroll">
             <table class="gr-table">
                 <thead>
                     <tr>
-                        <th>Reference ID</th>
-                        <th>Date</th>
-                        <th>Module</th>
-                        <th>Description</th>
-                        <th>Assigned To</th>
-                        <th>Location</th>
-                        <th>Status</th>
+                        <th>Report ID</th>
+                        <th>Type</th>
+                        <th>Date Range</th>
+                        <th>Records</th>
+                        <th>Generated</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
-                <tbody id="grTableBody"></tbody>
+                <tbody id="grHistoryBody"></tbody>
             </table>
-        </div>
-
-        <div class="gr-empty" id="grEmpty" hidden>
-            No records found for the selected filters.
-        </div>
-
-        <div class="gr-footer">
-            <span id="grShowing">Showing 0 records</span>
-            <div class="gr-pages">
-                <button type="button" id="grPrev">Previous</button>
-                <span id="grPageLabel">Page 1 of 1</span>
-                <button type="button" id="grNext">Next</button>
-            </div>
         </div>
     </section>
 
