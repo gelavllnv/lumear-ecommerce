@@ -5,16 +5,13 @@ will own the backend and database used by buyer, seller, and rider apps.
 The local API adapter is in [`backend/`](backend/README.md). Credentials stay in
 ignored local configuration; the Flutter local URL is in `config/local-api.json`.
 
-The selected integration database is now the user's supplied
-`lumear-20261103T124903Z-1-001.zip` export, not the older local SQL design.
-See [`database/shared/README.md`](database/shared/README.md) for its schema-only
-reference, field mappings and unresolved backend policy differences. The archive
-contains SQL exports only; backend/API and email delivery are still required.
-The export has been imported into the local MySQL server as
-`lumear_shared_20261103_7c92` (63 tables, 973 rows; verification in
-[`database/shared/LOCAL_IMPORT.md`](database/shared/LOCAL_IMPORT.md)). This does
-not originally configure a backend automatically. The local MySQL adapter now
-connects Flutter to that database. This does not synchronize with another server.
+The selected local database is `lumear_ecommerce` at `127.0.0.1:3306`,
+re-imported by the user in MySQL Workbench and selected on November 4, 2026.
+The local adapter uses the ignored `backend/.env.mysql` configuration.
+See [`database/shared/LOCAL_IMPORT.md`](database/shared/LOCAL_IMPORT.md) for
+connection verification and the previous import history. The shared schema
+reference and field mappings remain in [`database/shared/README.md`](database/shared/README.md).
+This local connection does not synchronize with another server.
 
 Password recovery/change with email codes, product archive/restore, and courier
 pickup now use the shared contract in

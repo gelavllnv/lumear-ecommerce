@@ -1,5 +1,11 @@
 # Selected shared database
 
+The active local database is `lumear_ecommerce`, re-imported in Workbench by
+the user and selected on November 4, 2026. It contains the same 63 shared table
+names, with the mobile `user_profiles` table added for compatibility. The ZIP
+and schema reference described below record the earlier source, not a new import.
+See [local connection verification](LOCAL_IMPORT.md).
+
 The user selected `lumear-20261103T124903Z-1-001.zip` on November 3, 2026
 as the database source for the buyer/seller integration. It contains 63 MySQL
 table exports, including row data. No backend source, API routes, mail settings,
@@ -12,7 +18,7 @@ AUTO_INCREMENT counters are removed; column auto-increment definitions remain.
 This is a schema reference, not an import script or migration. The original
 inspection did not import data. A separate user-authorized local import has now
 been completed; see [local import results](LOCAL_IMPORT.md). The Flutter app
-still needs a backend/API connection.
+connects through the local adapter in `backend/`.
 
 This shared schema supersedes the local `database/lumear_ecommerce.sql` design
 as the integration target. Do not import that older design into this database.

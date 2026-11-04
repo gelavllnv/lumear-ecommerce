@@ -2,7 +2,7 @@
 
 Flutter buyer and seller interfaces with a local shared MySQL API in
 [`backend/`](backend/README.md). Connected mode uses the imported database
-`lumear_shared_20261103_7c92`. Credentials stay in ignored backend config.
+`lumear_ecommerce`. Credentials stay in ignored backend config.
 
 Start the local API and choose **Lumear · Shared MySQL** in VS Code, or run
 `scripts/run-connected.ps1 -Device YOUR-ANDROID-DEVICE-ID`. Continue with Google

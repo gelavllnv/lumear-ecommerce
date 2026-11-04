@@ -86,32 +86,50 @@ class SharedStore(MySQLStore):
                 if user:
                     linked=self.one(db,"SELECT provider_user_id FROM auth_identities WHERE provider='google' AND user_id=%s",(user['id'],))
                     require(not linked or linked['provider_user_id']==claims['sub'],'This email belongs to a different linked Google account. Use your original sign-in.',409)
-            if not user:
-                account_type=body.get('account_type')
-                if account_type is None or 'display_name' not in body or 'age' not in body:
-                    return dict(requires_account_type=True,name=claims['name'],email=claims['email'])
-                require(account_type in ('buyer','seller'),'Choose Buyer or Seller.')
-                role=self.one(db,'SELECT id FROM roles WHERE LOWER(name)=%s',(account_type,))
-                require(role,'This account type is not configured in the shared database.',503)
-                # This random password is never returned. Google proves identity;
-                # users do not receive a shared/default password.
-                password=bcrypt.hashpw(secrets.token_urlsafe(36).encode(),bcrypt.gensalt()).decode().replace('$2b$','$2y$',1)
-                name=text(claims['name'],'Name',1,100)
-                db.execute('INSERT INTO users(name,email,password,email_verified_at,created_at,updated_at) VALUES(%s,%s,%s,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())',(name,claims['email'],password))
-                uid=db.lastrowid
-                db.execute('INSERT INTO role_user(role_id,user_id) VALUES(%s,%s)',(role['id'],uid))
-                if account_type=='seller':
-                    slug=(re.sub(r'[^a-z0-9]+','-',name.lower()).strip('-') or 'shop')+'-'+secrets.token_hex(8)
-                    db.execute("INSERT INTO sellers(user_id,name,slug,description,status,commission_bps,created_at,updated_at) VALUES(%s,%s,%s,'','pending',800,UTC_TIMESTAMP(),UTC_TIMESTAMP())",(uid,name+"'s shop",slug))
-                user=self.one(db,'SELECT * FROM users WHERE id=%s',(uid,))
+            is_new = user is None
+            profile = self.one(db,'SELECT * FROM user_profiles WHERE user_id=%s',(user['id'],)) if user else None
+            address = self.one(db,'SELECT id FROM addresses WHERE user_id=%s AND is_default=1',(user['id'],)) if user else None
+            needs_details = is_new or not profile or not profile['date_of_birth'] or not user['phone'] or not address
+            if needs_details:
+                seller=self.one(db,'SELECT id FROM sellers WHERE user_id=%s',(user['id'],)) if user else None
+                existing_role = ('seller' if seller else 'buyer') if user else None
+                if not all(key in body for key in ('name','phone','date_of_birth','address','account_type')):
+                    return dict(requires_account_type=True,is_new_account=is_new,
+                        name=user['name'] if user else claims['name'],email=claims['email'],existing_role=existing_role)
+                role_name=existing_role or body['account_type']
+                require(role_name in ('buyer','seller'),'Choose Buyer or Seller.')
+                name=text(body.get('name'),'Full name',2,100)
+                require(isinstance(body['phone'],str) and re.fullmatch(r'09\d{9}',body['phone']),
+                    'Enter an 11-digit mobile number starting with 09.')
+                try:
+                    dob=datetime.strptime(body['date_of_birth'],'%Y-%m-%d').date()
+                except (ValueError,TypeError):
+                    raise Problem('Enter a valid date of birth.')
+                today=datetime.now(timezone(timedelta(hours=8))).date()
+                age=today.year-dob.year-((today.month,today.day)<(dob.month,dob.day))
+                require(18<=age<=120,'You must be 18 or older (up to 120) to create an account.')
+                require(isinstance(body['address'],dict),'Enter your default delivery address.')
+                require(re.fullmatch(r'\d{4}',str(body['address'].get('postal_code',''))),'Enter a 4-digit postal code.')
+                if is_new:
+                    password=body.get('password')
+                    require(isinstance(password,str) and 8<=len(password) and len(password.encode())<=72,
+                        'Use a password of at least 8 characters and at most 72 bytes.')
+                    hashed=bcrypt.hashpw(password.encode(),bcrypt.gensalt()).decode().replace('$2b$','$2y$',1)
+                    role=self.one(db,'SELECT id FROM roles WHERE LOWER(name)=%s',(role_name,))
+                    require(role,'This account type is not configured in the shared database.',503)
+                    db.execute('INSERT INTO users(name,email,password,phone,email_verified_at,created_at,updated_at) VALUES(%s,%s,%s,%s,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())',
+                        (name,claims['email'],hashed,body['phone']))
+                    uid=db.lastrowid
+                    db.execute('INSERT INTO role_user(role_id,user_id) VALUES(%s,%s)',(role['id'],uid))
+                    if role_name=='seller':
+                        slug=(re.sub(r'[^a-z0-9]+','-',name.lower()).strip('-') or 'shop')+'-'+secrets.token_hex(8)
+                        db.execute("INSERT INTO sellers(user_id,name,slug,description,status,commission_bps,created_at,updated_at) VALUES(%s,%s,%s,'','pending',800,UTC_TIMESTAMP(),UTC_TIMESTAMP())",(uid,name+"'s shop",slug))
+                    user=self.one(db,'SELECT * FROM users WHERE id=%s',(uid,))
+                require(user and not user['is_suspended'],'This account is unavailable.',403)
+                self.save_profile(db,user,dict(body,age=age,display_name=name),onboarding=True)
+                db.execute('UPDATE user_profiles SET date_of_birth=%s WHERE user_id=%s',(dob,user['id']))
+                self.save_address(db,user['id'],dict(body['address'],default=True),str(address['id']) if address else None)
             require(user and not user['is_suspended'],'This account is unavailable.',403)
-            profile=self.one(db,'SELECT display_name,age FROM user_profiles WHERE user_id=%s',(user['id'],))
-            if not profile or profile['age'] is None:
-                if 'display_name' not in body or 'age' not in body:
-                    seller=self.one(db,'SELECT id FROM sellers WHERE user_id=%s',(user['id'],))
-                    return dict(requires_account_type=True,name=profile['display_name'] if profile else user['name'],
-                        email=claims['email'],existing_role='seller' if seller else 'buyer')
-                self.save_profile(db,user,body,onboarding=True)
             if not user['email_verified_at']:
                 db.execute('UPDATE users SET email_verified_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=%s',(user['id'],))
                 user['email_verified_at']=datetime.now(timezone.utc)

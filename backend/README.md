@@ -1,9 +1,9 @@
 # Local shared MySQL API
 
-The adapter connects Flutter to `lumear_shared_20261103_7c92` at
+The adapter connects Flutter to `lumear_ecommerce` at
 `127.0.0.1:3306`. It does not import a substitute schema or seed sample accounts.
-The dedicated local app account has SELECT/INSERT/UPDATE/DELETE access to this
-database only. Credentials are in ignored `backend/.env.mysql`, outside Flutter.
+The local app account requires SELECT/INSERT/UPDATE/DELETE access to the selected
+database. Credentials are in ignored `backend/.env.mysql`, outside Flutter.
 
 ## Start the connection
 
@@ -19,6 +19,10 @@ and a non-secret database fingerprint. On another checkout, create a Python
 environment, install `requirements-mysql.txt`, and create `.env.mysql` from the
 example only if the local config does not already exist.
 
+In VS Code, select **Lumear · Shared MySQL** and press **F5**. Its pre-launch
+task checks/starts the local API and sets up USB forwarding automatically.
+The launcher also uses a short Java TEMP directory for Windows builds.
+
 To start the API, forward USB traffic, and launch Flutter together:
 
 ```powershell
@@ -27,11 +31,19 @@ powershell -ExecutionPolicy Bypass -File scripts/run-connected.ps1 -Device 921b0
 
 Replace the device ID for another phone. The launcher uses a short Java TEMP
 directory to avoid Windows socket-path failures and checks the API database/code
-fingerprints. Alternatively, start the API and choose **Lumear · Shared MySQL**
+fingerprints. Alternatively, start the API and choose **Lumear Â· Shared MySQL**
 in VS Code. Flutter uses `config/local-api.json`; the phone needs
 `adb reverse tcp:8000 tcp:8000`. Keep MySQL and the API running on this PC.
 This local copy is not synchronized with the teammate's hosted database.
 Online use needs a hosted HTTPS API and an updated Flutter API URL.
+
+## Google registration migration
+
+For an existing `user_profiles` table, apply
+`migrations/20261104_google_registration.sql` once to the selected database.
+New installations apply `20261103_user_profiles.sql` first, then this migration.
+The startup check reports a missing birth-date column before serving requests.
+The November 4 local Workbench database already has both migrations.
 
 ## Accounts
 
@@ -45,7 +57,12 @@ match Flutter's public Web client ID. The stable Google subject is stored in
 the existing `auth_identities` table. Tokens/passwords are never logged.
 
 Existing accounts retain their role, including sellers. New Google users choose
-Buyer or Seller in the app. New shops are **pending**, with 8% commission; they
+Buyer or Seller in the app. Before opening Google, Lumear shows a Continue/Cancel
+confirmation. New users must submit full name, verified Google email, contact
+number, date of birth (18–120), password, and a default delivery address before
+receiving a session. Existing Google users missing birth date/contact/address
+must complete those details; their password and role are preserved. The server
+validates and saves all registration data in one transaction. New shops are **pending**, with 8% commission; they
 can edit shop details while waiting for approval. Listing/order actions require
 an approved shop. Google does not approve shops or grant admin access.
 Gmail/Google Workspace addresses can link by verified email; third-party email
@@ -57,7 +74,7 @@ providers need additional verification and are not automatically linked.
   products, COD checkout, order states and cancellation reasons use shared tables.
 - Shipping is PHP 50 per shop order. Checkout preserves the seller's configured
   commission rate and uses inventory transactions and duplicate-request keys.
-- Seller fulfillment is pending → accepted → packed → pickup requested with an
+- Seller fulfillment is pending â†’ accepted â†’ packed â†’ pickup requested with an
   approved courier. Pickup creates one unassigned shipment; courier handoff and
   delivery/settlement updates remain the logistics backend's responsibility.
 - Archive/restore uses `products.publication_status` (`archived` / `hidden`),

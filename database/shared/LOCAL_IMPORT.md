@@ -1,3 +1,28 @@
+# Current local connection — November 4, 2026
+
+The user re-imported and selected **`lumear_ecommerce`** in the saved
+**Local instance MySQL80** Workbench connection. The mobile adapter now uses
+this database at `127.0.0.1:3306`, through ignored `backend/.env.mysql`.
+The old database name below is historical and is no longer the app target.
+
+Verification before the mobile profile migration:
+
+- 63 base tables, matching the shared table names.
+- 28 users, 9 sellers, 13 products, and 18 orders.
+- The user approved SELECT/INSERT/UPDATE/DELETE access for the existing local
+  `lumear_app_20261103`@`localhost` app account on `lumear_ecommerce` only.
+- Applied `backend/migrations/20261103_user_profiles.sql` to add the missing
+  mobile profile table; 64 tables afterward. Existing imported rows were retained.
+- All 7 backend unit/integration checks passed; fixtures were rolled back.
+- Running API `/api/health` reports MySQL, 64 tables, and database fingerprint
+  `b660fe36bb3f` for `lumear_ecommerce`.
+- No replacement import, seed accounts, password changes, or data deletion.
+
+The historical SQL design at `database/lumear_ecommerce.sql` is unrelated to
+this imported shared schema and must not be run against this database.
+
+---
+
 # Local shared database import
 
 Imported on November 3, 2026 through the saved **Local instance MySQL80**

@@ -168,6 +168,18 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Map<String, dynamic> googleSession(dynamic result) {
+    if (result is! Map ||
+        result['token'] is! String ||
+        (result['token'] as String).isEmpty ||
+        !['buyer', 'seller'].contains(result['role'])) {
+      throw const ApiException(
+        'Google sign-in could not create a Lumear session. Please try again.',
+      );
+    }
+    return Map<String, dynamic>.from(result);
+  }
+
   Future<void> loginWithGoogle() async {
     if (isLoading) return;
     final apiUrl = Uri.tryParse(ApiService.baseUrl);
@@ -180,6 +192,27 @@ class _LoginPageState extends State<LoginPage> {
       );
       return;
     }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Continue with Google?'),
+        content: const Text(
+          'Lumear will use your Google name and verified email to sign you in. '
+          'If you are new, you must complete your account details and delivery address before entering the app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
     setState(() {
       isLoading = true;
       loginError = null;
@@ -196,33 +229,30 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       if (result is Map && result['requires_account_type'] == true) {
         setState(() => isLoading = false);
-        final details = await Navigator.push<Map<String, dynamic>>(
+        final session = await Navigator.push<Map<String, dynamic>>(
           context,
           MaterialPageRoute(
             builder: (_) => GoogleOnboardingScreen(
               initialName: result['name'] as String? ?? '',
+              email: result['email'] as String? ?? '',
+              isNewAccount: result['is_new_account'] == true,
               existingRole: result['existing_role'] as String?,
+              onComplete: (details) async {
+                final response = await ApiService.post(
+                  '/auth/google',
+                  body: {'id_token': token, ...details},
+                );
+                return googleSession(response);
+              },
             ),
           ),
         );
-        if (!mounted || details == null) return;
-        setState(() => isLoading = true);
-        result = await ApiService.post(
-          '/auth/google',
-          body: {'id_token': token, ...details},
-        );
-        if (!mounted) return;
+        if (!mounted || session == null) return;
+        result = session;
       }
-      if (result is! Map ||
-          result['token'] is! String ||
-          (result['token'] as String).isEmpty ||
-          !['buyer', 'seller'].contains(result['role'])) {
-        throw const ApiException(
-          'Google sign-in could not create a Lumear session. Please try again.',
-        );
-      }
-      ApiService.setToken(result['token'] as String);
-      openWorkspace(result['role'] == 'seller');
+      final session = googleSession(result);
+      ApiService.setToken(session['token'] as String);
+      openWorkspace(session['role'] == 'seller');
     } catch (error) {
       if (mounted) {
         setState(

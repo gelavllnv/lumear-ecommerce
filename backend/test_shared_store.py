@@ -152,19 +152,46 @@ class SharedIntegrationTests(unittest.TestCase):
         self.assertEqual(earnings['available_to_request'],9500)
         self.assertEqual(len(earnings['payouts']),1)
 
+    def registration_details(self, name='Google user'):
+        return dict(name=name,phone='09171234567',date_of_birth='2000-01-15',password='GooglePassword123',
+            address=dict(label='Home',name=name,phone='09171234567',street='Test street',
+                province='Metro Manila',city='Manila',barangay='Test barangay',postal_code='1000'))
+
+    def test_google_registration_rejects_missing_details_and_underage_without_creating_user(self):
+        claims=dict(sub='incomplete-subject',email='incomplete-'+secrets.token_hex(8)+'@example.invalid',name='Incomplete')
+        result=self.store.google_login(claims,dict(account_type='buyer',age=25,display_name='Incomplete'))
+        self.assertTrue(result['requires_account_type'])
+        for changes in (dict(date_of_birth='2020-01-01'),dict(phone='123'),dict(password='short'),dict(address={})):
+            with self.assertRaises(Problem):
+                self.store.google_login(claims,dict(self.registration_details(),account_type='buyer') | changes)
+        with self.connection.cursor() as db:
+            db.execute('SELECT id FROM users WHERE email=%s',(claims['email'],))
+            self.assertIsNone(db.fetchone())
+
     def test_google_links_existing_seller_and_new_accounts_choose_role(self):
         # Signature/audience verification has separate signed-token tests.
         # Only this database transaction receives synthetic verified claims.
         claims=dict(sub='fixture-seller-subject',email=self.emails['seller'],name='Existing seller')
         with patch.object(self.store.google,'verify',return_value=claims):
             result=self.store.dispatch('POST','/api/auth/google',dict(id_token='fixture-token',account_type='buyer'))
+            self.assertTrue(result['requires_account_type'])
+            self.assertEqual(result['existing_role'],'seller')
+            result=self.store.dispatch('POST','/api/auth/google',dict(id_token='fixture-token',account_type='buyer',
+                **self.registration_details('Existing seller')))
         self.assertEqual(result['role'],'seller')
+        with self.connection.cursor() as db:
+            db.execute('SELECT date_of_birth FROM user_profiles WHERE user_id=%s',(self.ids['seller'],))
+            self.assertEqual(str(db.fetchone()['date_of_birth']),'2000-01-15')
+        with self.connection.cursor() as db:
+            self.assertEqual(len(self.store.addresses(db,self.ids['seller'])),1)
+            self.assertEqual(self.store.login(db,dict(email=self.emails['seller'],password=self.password))['role'],'seller')
         for role in ('buyer','seller'):
             claims=dict(sub='fixture-new-'+role,email='fixture-new-'+secrets.token_hex(8)+'@example.invalid',name='New Google user')
             with patch.object(self.store.google,'verify',return_value=claims):
                 result=self.store.dispatch('POST','/api/auth/google',dict(id_token='fixture-token'))
                 self.assertTrue(result['requires_account_type'])
-                result=self.store.dispatch('POST','/api/auth/google',dict(id_token='fixture-token',account_type=role))
+                result=self.store.dispatch('POST','/api/auth/google',dict(id_token='fixture-token',account_type=role,
+                    **self.registration_details('New Google user')))
                 again=self.store.dispatch('POST','/api/auth/google',dict(id_token='fixture-token',account_type='seller' if role=='buyer' else 'buyer'))
             self.assertEqual(result['role'],role);self.assertEqual(again['role'],role)
             if role=='seller':

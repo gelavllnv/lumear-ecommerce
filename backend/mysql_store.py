@@ -70,7 +70,7 @@ class MySQLStore:
                                              cadata=c.get('MYSQL_SSL_CA_PEM', '').replace('\\n', '\n') or None)
         db = pymysql.connect(host=c.get('MYSQL_HOST', '127.0.0.1'),
             port=int(c.get('MYSQL_PORT', '3306')), user=c.get('MYSQL_USER', 'root'),
-            password=c.get('MYSQL_PASSWORD', ''), database=c.get('MYSQL_DATABASE', 'lumear_shared_20261103_7c92'),
+            password=c.get('MYSQL_PASSWORD', ''), database=c.get('MYSQL_DATABASE', 'lumear_ecommerce'),
             charset='utf8mb4', cursorclass=DictCursor, autocommit=False,
             connect_timeout=5, read_timeout=15, write_timeout=15,
             init_command="SET time_zone = '+00:00'", ssl=tls)
@@ -99,7 +99,7 @@ class MySQLStore:
                     'wallet_accounts', 'wallet_journals', 'seller_payout_requests',
                     'roles', 'role_user', 'categories', 'order_timelines',
                     'inventory_movements', 'idempotency_keys', 'two_factor_credentials',
-                    'saved_products', 'notifications'}
+                    'saved_products', 'notifications', 'user_profiles', 'auth_identities'}
         if self.config.get('PRIVATE_UPLOAD_STORAGE') == 'mysql':
             required.add('mobile_private_documents')
         with self.transaction() as db:
@@ -107,6 +107,10 @@ class MySQLStore:
                 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()')}
             missing = sorted(required - tables)
             require(not missing, 'Missing required tables: ' + ', '.join(missing), 503)
+            profile_columns = {r['COLUMN_NAME'] for r in self.rows(db,
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user_profiles'")}
+            require('date_of_birth' in profile_columns,
+                'Apply backend/migrations/20261104_google_registration.sql before starting the API.', 503)
             return {'status': 'ok', 'application': 'lumear_mobile', 'code_tag': self.code_tag, 'database_tag': hashlib.sha256(self.config.get('MYSQL_DATABASE','').encode()).hexdigest()[:12], 'storage': 'mysql', 'schema_tables': len(tables),
                     'checkout_enabled': self.config.get('MYSQL_SHIPPING_FEE_MINOR', '') != ''}
 

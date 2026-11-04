@@ -6,7 +6,14 @@
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "toolArgs": ["--dart-define-from-file=config/local-api.json"]
+      "toolArgs": [
+        "--dart-define-from-file=config/local-api.json"
+      ],
+      "preLaunchTask": "Lumear: prepare local connection",
+      "env": {
+        "TEMP": "${workspaceFolder}/build/java-tmp",
+        "TMP": "${workspaceFolder}/build/java-tmp"
+      }
     },
     {
       "name": "Lumear · Buyer and seller preview",

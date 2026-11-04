@@ -8,6 +8,31 @@ shared `auth_identities` table. Existing accounts keep their role; new accounts
 choose Buyer or Seller. New seller shops remain pending approval. See
 [local setup](backend/README.md). Google registration does not require SMTP.
 
+## Required registration details
+
+The app shows a Lumear Continue/Cancel confirmation before opening the native
+Google picker. Google controls its own account and consent screens.
+`/auth/google` returns `requires_account_type: true` with `is_new_account`,
+`name`, `email`, and `existing_role` when registration is incomplete.
+The app opens the full registration form instead of a workspace. The form stays
+open while the server saves the account and only closes after a valid Lumear
+session is returned. Save errors remain on the form with all entered details
+preserved for retry; successful completion opens the server-assigned workspace.
+
+The completion request repeats the Google ID token and sends `account_type`,
+`name`, `phone`, `date_of_birth` (`YYYY-MM-DD`), and `address` with recipient
+`name`, `phone`, `street`, `barangay`, `city`, `province`, and `postal_code`.
+New accounts also supply a password (8 characters minimum, 72 bytes maximum).
+The client confirms the password before sending. Google email is read-only;
+the server always uses the token's verified email. Optional profile photos remain
+supported. The server derives age from date of birth and requires age 18–120.
+All details are saved atomically before a Lumear session is issued.
+
+Existing accounts keep their role and password. Accounts with complete details
+can sign in again without repeating registration. New seller shops remain pending.
+Apply `backend/migrations/20261104_google_registration.sql` once after the
+profile-table migration. The current local database already has this column.
+
 ## Cloud configuration and reference contract
 
 The login button and native Google account picker integration are prepared.

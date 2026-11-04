@@ -1,12 +1,12 @@
 # Selected integration source
 
-The user-selected database is the supplied `lumear-20261103T124903Z-1-001.zip`.
-Use [the shared schema reference and mapping](shared/README.md) for integration.
-The older design described below remains a reference and must not replace the
-selected shared database. The export is now imported locally as
-`lumear_shared_20261103_7c92`; see [import verification](shared/LOCAL_IMPORT.md).
-The Flutter development build is now connected through the local API documented
-in [backend setup](../backend/README.md). Online/shared-server deployment is separate.
+The current integration database is the user's Workbench import named
+`lumear_ecommerce`, selected on November 4, 2026. It uses the shared lower-case
+schema described in [the shared reference and mapping](shared/README.md).
+The similarly named SQL design below is historical and must not be imported
+into the populated database. See [local verification](shared/LOCAL_IMPORT.md).
+The Flutter development build connects through the local API documented in
+[backend setup](../backend/README.md). Online/shared-server deployment is separate.
 
 ---
 
