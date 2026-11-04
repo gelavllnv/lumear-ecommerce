@@ -139,20 +139,26 @@ class LogisticsDeliveryApiController extends Controller
         $providerId = $this->providerId();
 
         $shipments = $this->baseShipments($providerId)
+            // A completed sorting record is the source of truth for whether a
+            // parcel can enter delivery assignment. Do not hide it merely
+            // because older workflow records use a legacy shipment status.
             ->where(function ($query) {
                 $query->where('ls.stage', 'sorted')
-                    ->orWhereIn('s.status', [
-                        'assigned',
-                        'out_for_delivery',
-                        'in_transit',
-                    ]);
+                    ->orWhere(function ($assignedOrDispatched) {
+                        $assignedOrDispatched
+                            ->whereNotNull('s.rider_id')
+                            ->whereIn('s.status', [
+                                'assigned',
+                                'in_transit',
+                                'out_for_delivery',
+                            ]);
+                    });
             })
-            ->whereIn('s.status', [
-                'unassigned',
-                'assigned',
-                'picked_up',
-                'in_transit',
-                'out_for_delivery',
+            ->whereNotIn('s.status', [
+                'delivered',
+                'failed',
+                'returned',
+                'cancelled',
             ])
             ->orderByDesc('s.id')
             ->get();
@@ -263,6 +269,7 @@ class LogisticsDeliveryApiController extends Controller
                         $shipment->status,
                         [
                             'unassigned',
+                            'shipped',
                             'assigned',
                             'picked_up',
                             'in_transit',
