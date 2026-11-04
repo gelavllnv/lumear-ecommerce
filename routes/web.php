@@ -13,6 +13,7 @@ use App\Http\Controllers\Logistics\LogisticsIncomingApiController;
 use App\Http\Controllers\Logistics\LogisticsSortingApiController;
 use App\Http\Controllers\Logistics\LogisticsDeliveryApiController;
 use App\Http\Controllers\Logistics\LogisticsRiderManagementApiController;
+use App\Http\Controllers\Logistics\LogisticsMessagingApiController;
 
 // LOGISTICS HEAD ADMIN
 use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
@@ -380,6 +381,36 @@ Route::prefix('logistics')
                 LogisticsOperationsController::class,
                 'password'
             ])->name('ops.password');
+
+            /*
+            |--------------------------------------------------------------------------
+            | LOGISTICS MESSAGING API
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/api/messages', [
+                LogisticsMessagingApiController::class,
+                'index'
+            ])->name('api.messages.index');
+
+            Route::get('/api/messages/{contactId}', [
+                LogisticsMessagingApiController::class,
+                'show'
+            ])
+                ->whereNumber('contactId')
+                ->name('api.messages.show');
+
+            Route::post('/api/messages', [
+                LogisticsMessagingApiController::class,
+                'send'
+            ])->name('api.messages.send');
+
+            Route::post('/api/messages/{contactId}/read', [
+                LogisticsMessagingApiController::class,
+                'markRead'
+            ])
+                ->whereNumber('contactId')
+                ->name('api.messages.read');
 
         });
 

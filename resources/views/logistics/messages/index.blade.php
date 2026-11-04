@@ -21,7 +21,7 @@
         <div class="lm-header-actions">
             <span class="lm-connection">
                 <span></span>
-                Demo Messaging
+                Live Messaging
             </span>
 
             <button type="button" class="lm-btn lm-btn-outline" id="lmNewMessage">
@@ -169,8 +169,8 @@
     </section>
 
     <p class="lm-demo-note">
-        Frontend demonstration only. Messages are stored in this browser and
-        are not yet delivered to real users or the Flutter Rider application.
+        Messages are saved securely in the LUMEAR database.
+        Conversations refresh automatically every 3 seconds.
     </p>
 
     {{-- NEW CONVERSATION MODAL --}}
