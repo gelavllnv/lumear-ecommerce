@@ -10,10 +10,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class LogisticsReportPdfController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | GET AUTHENTICATED LOGISTICS PROVIDER
+    |--------------------------------------------------------------------------
+    */
+
     private function provider()
     {
         $provider = DB::table('logistics_providers')
@@ -26,41 +31,78 @@ class LogisticsReportPdfController extends Controller
         return $provider;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDATE REPORT FILTERS
+    |--------------------------------------------------------------------------
+    */
+
     private function validatedFilters(Request $request): array
     {
         return $request->validate([
-            'from' => ['required', 'date_format:Y-m-d'],
+            'from' => [
+                'required',
+                'date_format:Y-m-d',
+            ],
+
             'to' => [
                 'required',
                 'date_format:Y-m-d',
                 'after_or_equal:from',
             ],
+
             'type' => [
                 'required',
                 Rule::in([
-                    'all', 'pickup', 'incoming',
-                    'sorting', 'assignment',
-                    'delivery', 'rider',
+                    'all',
+                    'pickup',
+                    'incoming',
+                    'sorting',
+                    'assignment',
+                    'delivery',
+                    'rider',
                 ]),
             ],
+
             'status' => [
                 'required',
                 Rule::in([
-                    'all', 'Completed',
-                    'In Progress', 'Exception',
+                    'all',
+                    'Completed',
+                    'In Progress',
+                    'Exception',
                 ]),
             ],
         ]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GENERATE OFFICIAL PDF REPORT
+    |--------------------------------------------------------------------------
+    |
+    | Paper format: A4
+    | Orientation: PORTRAIT (VERTICAL)
+    |
+    | The report continues using real provider-scoped
+    | records from the Logistics Reports API.
+    |
+    */
 
     public function generate(
         Request $request,
         LogisticsReportsApiController $reportsApi
     ) {
         $provider = $this->provider();
+
         $filters = $this->validatedFilters($request);
 
-        // Reuse the existing provider-scoped report API.
+        /*
+        |--------------------------------------------------------------------------
+        | RETRIEVE LIVE LOGISTICS REPORT DATA
+        |--------------------------------------------------------------------------
+        */
+
         $reportRequest = Request::create(
             '/logistics/api/reports',
             'GET',
@@ -76,9 +118,16 @@ class LogisticsReportPdfController extends Controller
         );
 
         $response = $reportsApi->index($reportRequest);
+
         $payload = $response->getData(true);
 
         $records = collect($payload['records'] ?? []);
+
+        /*
+        |--------------------------------------------------------------------------
+        | APPLY STATUS FILTER
+        |--------------------------------------------------------------------------
+        */
 
         if ($filters['status'] !== 'all') {
             $records = $records->where(
@@ -89,24 +138,55 @@ class LogisticsReportPdfController extends Controller
 
         $records = $records->values();
 
+        /*
+        |--------------------------------------------------------------------------
+        | REPORT STATISTICS
+        |--------------------------------------------------------------------------
+        */
+
         $summary = [
             'total' => $records->count(),
-            'completed' => $records->where(
-                'status', 'Completed'
-            )->count(),
-            'progress' => $records->where(
-                'status', 'In Progress'
-            )->count(),
-            'exceptions' => $records->where(
-                'status', 'Exception'
-            )->count(),
+
+            'completed' => $records
+                ->where('status', 'Completed')
+                ->count(),
+
+            'progress' => $records
+                ->where('status', 'In Progress')
+                ->count(),
+
+            'exceptions' => $records
+                ->where('status', 'Exception')
+                ->count(),
         ];
 
+        /*
+        |--------------------------------------------------------------------------
+        | GENERATE REFERENCE AND PHILIPPINE LOCAL TIME
+        |--------------------------------------------------------------------------
+        */
+
+        $philippineTime = now('Asia/Manila');
+
         $reference = 'LMR-' .
-            now()->format('Ymd-His') . '-' .
+            $philippineTime->format('Ymd-His') . '-' .
             strtoupper(Str::random(6));
 
-        $generatedAt = now()->format('F d, Y h:i A');
+        $generatedAt = $philippineTime->format(
+            'F d, Y h:i A'
+        ) . ' PHT';
+
+        /*
+        |--------------------------------------------------------------------------
+        | GENERATE A4 PORTRAIT PDF
+        |--------------------------------------------------------------------------
+        |
+        | Changed from landscape to portrait.
+        |
+        | Portrait dimensions:
+        | 210 mm x 297 mm
+        |
+        */
 
         $pdf = Pdf::loadView(
             'logistics.reports.pdf',
@@ -119,67 +199,141 @@ class LogisticsReportPdfController extends Controller
                 'records' => $records,
                 'summary' => $summary,
             ]
-        )->setPaper('a4', 'landscape');
+        )
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => false,
+                'defaultFont' => 'DejaVu Sans',
+                'dpi' => 96,
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | GET GENERATED PDF CONTENT
+        |--------------------------------------------------------------------------
+        */
 
         $bytes = $pdf->output();
+
+        /*
+        |--------------------------------------------------------------------------
+        | STORE ORIGINAL PDF
+        |--------------------------------------------------------------------------
+        */
 
         $path = 'logistics/reports/' .
             $provider->id . '/' .
             $reference . '.pdf';
 
-        Storage::disk('local')->put($path, $bytes);
+        Storage::disk('local')->put(
+            $path,
+            $bytes
+        );
 
-        DB::table('logistics_generated_reports')->insert([
-            'logistics_provider_id' => $provider->id,
-            'generated_by' => Auth::id(),
-            'report_type' => $filters['type'],
-            'status_filter' => $filters['status'],
-            'date_from' => $filters['from'],
-            'date_to' => $filters['to'],
-            'record_count' => $records->count(),
-            'file_path' => $path,
-            'sha256' => hash('sha256', $bytes),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | SAVE REPORT HISTORY TO MYSQL
+        |--------------------------------------------------------------------------
+        */
+
+        DB::table('logistics_generated_reports')
+            ->insert([
+                'logistics_provider_id' => $provider->id,
+
+                'generated_by' => Auth::id(),
+
+                'report_type' => $filters['type'],
+
+                'status_filter' => $filters['status'],
+
+                'date_from' => $filters['from'],
+
+                'date_to' => $filters['to'],
+
+                'record_count' => $records->count(),
+
+                'file_path' => $path,
+
+                'sha256' => hash(
+                    'sha256',
+                    $bytes
+                ),
+
+                'created_at' => now(),
+
+                'updated_at' => now(),
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | DOWNLOAD GENERATED PORTRAIT PDF
+        |--------------------------------------------------------------------------
+        */
 
         return response()->streamDownload(
             fn () => print($bytes),
             $reference . '.pdf',
-            ['Content-Type' => 'application/pdf']
+            [
+                'Content-Type' => 'application/pdf',
+            ]
         );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET GENERATED REPORT HISTORY
+    |--------------------------------------------------------------------------
+    */
 
     public function history()
     {
         $provider = $this->provider();
 
-        return response()->json([
-            'reports' => DB::table(
-                'logistics_generated_reports'
+        $reports = DB::table(
+            'logistics_generated_reports'
+        )
+            ->where(
+                'logistics_provider_id',
+                $provider->id
             )
-                ->where(
-                    'logistics_provider_id',
-                    $provider->id
-                )
-                ->orderByDesc('id')
-                ->limit(100)
-                ->get([
-                    'id',
-                    'report_type',
-                    'status_filter',
-                    'date_from',
-                    'date_to',
-                    'record_count',
-                    'sha256',
-                    'created_at',
-                ]),
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get([
+                'id',
+                'report_type',
+                'status_filter',
+                'date_from',
+                'date_to',
+                'record_count',
+                'sha256',
+                'created_at',
+            ]);
+
+        return response()->json([
+            'reports' => $reports,
         ]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DOWNLOAD PREVIOUSLY GENERATED PDF
+    |--------------------------------------------------------------------------
+    |
+    | Previously generated reports retain their
+    | original format and content.
+    |
+    */
 
     public function download(int $id)
     {
         $provider = $this->provider();
+
+        /*
+        |--------------------------------------------------------------------------
+        | FIND REPORT BELONGING TO THIS PROVIDER
+        |--------------------------------------------------------------------------
+        */
 
         $report = DB::table(
             'logistics_generated_reports'
@@ -193,6 +347,12 @@ class LogisticsReportPdfController extends Controller
 
         abort_unless($report, 404);
 
+        /*
+        |--------------------------------------------------------------------------
+        | CHECK ORIGINAL PDF FILE
+        |--------------------------------------------------------------------------
+        */
+
         $disk = Storage::disk('local');
 
         abort_unless(
@@ -201,19 +361,38 @@ class LogisticsReportPdfController extends Controller
             'Original report file not found.'
         );
 
-        $bytes = $disk->get($report->file_path);
+        $bytes = $disk->get(
+            $report->file_path
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFY PDF INTEGRITY
+        |--------------------------------------------------------------------------
+        */
 
         if (!hash_equals(
             $report->sha256,
             hash('sha256', $bytes)
         )) {
-            abort(409, 'Report integrity verification failed.');
+            abort(
+                409,
+                'Report integrity verification failed.'
+            );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | DOWNLOAD ORIGINAL VERIFIED PDF
+        |--------------------------------------------------------------------------
+        */
 
         return response()->streamDownload(
             fn () => print($bytes),
             basename($report->file_path),
-            ['Content-Type' => 'application/pdf']
+            [
+                'Content-Type' => 'application/pdf',
+            ]
         );
     }
 }

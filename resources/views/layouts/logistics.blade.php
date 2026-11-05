@@ -369,6 +369,11 @@
                     'route' => 'logistics.wallet.index',
                     'icon' => 'wallet',
                 ],
+                [
+                    'label' => 'COD Remittance',
+                    'route' => 'logistics.remittance.index',
+                    'icon' => 'wallet',
+                ],
             ],
         ],
 
@@ -675,6 +680,13 @@
                                 class="{{ request()->routeIs('logistics.riders.index') ? 'active' : '' }}"
                             >
                                 Rider List
+                            </a>
+
+                            <a
+                                href="{{ $logisticsUrl('logistics.riders.payroll.index') }}"
+                                class="{{ request()->routeIs('logistics.riders.payroll.*') ? 'active' : '' }}"
+                            >
+                                Rider Payroll
                             </a>
 
                         </div>

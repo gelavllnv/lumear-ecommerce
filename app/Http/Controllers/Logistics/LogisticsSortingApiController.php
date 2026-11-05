@@ -18,7 +18,11 @@ class LogisticsSortingApiController extends Controller
             ->where('status', 'approved')
             ->value('id');
 
-        abort_unless($id, 403);
+        abort_unless(
+            $id,
+            403,
+            'Approved Logistics account required.'
+        );
 
         return (int) $id;
     }
@@ -38,6 +42,15 @@ class LogisticsSortingApiController extends Controller
             $address['province'] ?? '',
         ]));
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SORTING DASHBOARD DATA
+    |--------------------------------------------------------------------------
+    |
+    | Only verified parcels appear in sorting.
+    |
+    */
 
     public function index()
     {
@@ -61,20 +74,46 @@ class LogisticsSortingApiController extends Controller
             ]);
 
         $shipments = DB::table('logistics_sorting as ls')
-            ->join('shipments as s', 's.id', '=', 'ls.shipment_id')
-            ->join('seller_orders as so', 'so.id', '=', 's.seller_order_id')
-            ->join('orders as o', 'o.id', '=', 'so.order_id')
-            ->leftJoin('users as seller', 'seller.id', '=', 'so.seller_id')
+            ->join(
+                'shipments as s',
+                's.id',
+                '=',
+                'ls.shipment_id'
+            )
+            ->join(
+                'seller_orders as so',
+                'so.id',
+                '=',
+                's.seller_order_id'
+            )
+            ->join(
+                'orders as o',
+                'o.id',
+                '=',
+                'so.order_id'
+            )
+            ->leftJoin(
+                'users as seller',
+                'seller.id',
+                '=',
+                'so.seller_id'
+            )
             ->where('ls.logistics_provider_id', $providerId)
             ->where('s.logistics_provider_id', $providerId)
-            ->whereIn('ls.stage', ['received', 'sorted'])
+            ->whereNotNull('ls.waybill_verified_at')
+            ->whereIn('ls.stage', [
+                'received',
+                'sorted',
+            ])
             ->select(
                 's.id',
                 's.tracking_code',
                 'o.shipping_address',
                 'seller.name as seller_name',
                 'ls.stage',
-                'ls.batch_id'
+                'ls.batch_id',
+                'ls.waybill_verified_at',
+                'ls.waybill_verification_method'
             )
             ->orderByDesc('ls.id')
             ->get();
@@ -96,13 +135,20 @@ class LogisticsSortingApiController extends Controller
                     ?? $address['recipient_name']
                     ?? $address['name']
                     ?? 'Recipient',
-                'seller' => $shipment->seller_name ?? 'Seller',
-                'destination' => $this->destination($address),
+                'seller' => $shipment->seller_name
+                    ?? 'Seller',
+                'destination' => $this->destination(
+                    $address
+                ),
                 'type' => 'Standard',
                 'weight' => '—',
                 'status' => $shipment->stage === 'sorted'
                     ? 'Sorted'
-                    : ($shipment->batch_id ? 'In Progress' : 'Unsorted'),
+                    : (
+                        $shipment->batch_id
+                            ? 'In Progress'
+                            : 'Unsorted'
+                    ),
                 'batchId' => $shipment->batch_id
                     ? 'BATCH-' . str_pad(
                         $shipment->batch_id,
@@ -111,6 +157,11 @@ class LogisticsSortingApiController extends Controller
                         STR_PAD_LEFT
                     )
                     : null,
+                'waybillVerified' => true,
+                'waybillVerifiedAt' =>
+                    $shipment->waybill_verified_at,
+                'verificationMethod' =>
+                    $shipment->waybill_verification_method,
             ];
         });
 
@@ -120,6 +171,12 @@ class LogisticsSortingApiController extends Controller
             'batches' => $batches,
         ]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE SORTING BATCH
+    |--------------------------------------------------------------------------
+    */
 
     public function createBatch(Request $request)
     {
@@ -131,7 +188,9 @@ class LogisticsSortingApiController extends Controller
 
         $providerId = $this->providerId();
 
-        $id = DB::table('logistics_sorting_batches')->insertGetId([
+        $id = DB::table(
+            'logistics_sorting_batches'
+        )->insertGetId([
             'logistics_provider_id' => $providerId,
             'name' => $data['name'],
             'destination' => $data['destination'],
@@ -147,54 +206,114 @@ class LogisticsSortingApiController extends Controller
         ], 201);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | ASSIGN VERIFIED PARCELS TO BATCH
+    |--------------------------------------------------------------------------
+    */
+
     public function assign(Request $request)
     {
         $data = $request->validate([
             'batch_id' => 'required|integer',
-            'shipment_ids' => 'required|array|min:1|max:100',
-            'shipment_ids.*' => 'required|integer|distinct',
+            'shipment_ids' =>
+                'required|array|min:1|max:100',
+            'shipment_ids.*' =>
+                'required|integer|distinct',
         ]);
 
         $providerId = $this->providerId();
 
-        DB::transaction(function () use ($data, $providerId) {
-            $batch = DB::table('logistics_sorting_batches')
+        DB::transaction(function () use (
+            $data,
+            $providerId
+        ) {
+            $batch = DB::table(
+                'logistics_sorting_batches'
+            )
                 ->where('id', $data['batch_id'])
                 ->where('logistics_provider_id', $providerId)
                 ->first();
 
-            abort_unless($batch, 404, 'Batch not found.');
+            abort_unless(
+                $batch,
+                404,
+                'Sorting batch not found.'
+            );
 
             foreach ($data['shipment_ids'] as $shipmentId) {
                 $shipment = DB::table('shipments as s')
-                    ->join('seller_orders as so', 'so.id', '=', 's.seller_order_id')
-                    ->join('orders as o', 'o.id', '=', 'so.order_id')
+                    ->join(
+                        'seller_orders as so',
+                        'so.id',
+                        '=',
+                        's.seller_order_id'
+                    )
+                    ->join(
+                        'orders as o',
+                        'o.id',
+                        '=',
+                        'so.order_id'
+                    )
                     ->where('s.id', $shipmentId)
-                    ->where('s.logistics_provider_id', $providerId)
-                    ->select('s.id', 'o.shipping_address')
+                    ->where(
+                        's.logistics_provider_id',
+                        $providerId
+                    )
+                    ->select(
+                        's.id',
+                        'o.shipping_address'
+                    )
                     ->first();
 
                 if (!$shipment) {
                     throw ValidationException::withMessages([
-                        'shipment_ids' => 'A shipment does not belong to your Logistics account.',
+                        'shipment_ids' =>
+                            'A shipment does not belong to your Logistics account.',
                     ]);
                 }
 
-                if ($this->destination($shipment->shipping_address) !== $batch->destination) {
+                if (
+                    $this->destination(
+                        $shipment->shipping_address
+                    ) !== $batch->destination
+                ) {
                     throw ValidationException::withMessages([
-                        'shipment_ids' => 'Parcel destination does not match the batch.',
+                        'shipment_ids' =>
+                            'Parcel destination does not match the batch.',
                     ]);
                 }
 
                 $record = DB::table('logistics_sorting')
                     ->where('shipment_id', $shipmentId)
-                    ->where('logistics_provider_id', $providerId)
+                    ->where(
+                        'logistics_provider_id',
+                        $providerId
+                    )
                     ->lockForUpdate()
                     ->first();
 
-                if (!$record || $record->stage !== 'received' || $record->batch_id) {
+                if (!$record) {
                     throw ValidationException::withMessages([
-                        'shipment_ids' => 'A parcel is not available for batch assignment.',
+                        'shipment_ids' =>
+                            'Receive the parcel in Incoming Parcels first.',
+                    ]);
+                }
+
+                if (!$record->waybill_verified_at) {
+                    throw ValidationException::withMessages([
+                        'shipment_ids' =>
+                            'Waybill verification is required before sorting. Scan the QR code or enter the written waybill code.',
+                    ]);
+                }
+
+                if (
+                    $record->stage !== 'received'
+                    || $record->batch_id
+                ) {
+                    throw ValidationException::withMessages([
+                        'shipment_ids' =>
+                            'A parcel is not available for batch assignment.',
                     ]);
                 }
 
@@ -205,31 +324,70 @@ class LogisticsSortingApiController extends Controller
                         'updated_at' => now(),
                     ]);
             }
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,
-            'message' => 'Parcels assigned to sorting batch.',
+            'message' =>
+                'Verified parcels assigned to sorting batch.',
         ]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMPLETE PARCEL SORTING
+    |--------------------------------------------------------------------------
+    */
 
     public function complete(int $id)
     {
         $providerId = $this->providerId();
 
-        DB::transaction(function () use ($id, $providerId) {
+        DB::transaction(function () use (
+            $id,
+            $providerId
+        ) {
             $record = DB::table('logistics_sorting')
                 ->where('shipment_id', $id)
-                ->where('logistics_provider_id', $providerId)
+                ->where(
+                    'logistics_provider_id',
+                    $providerId
+                )
                 ->lockForUpdate()
                 ->first();
 
-            abort_unless($record, 404, 'Parcel not found.');
+            abort_unless(
+                $record,
+                404,
+                'Parcel not found.'
+            );
 
             abort_unless(
-                $record->stage === 'received' && $record->batch_id,
+                $record->waybill_verified_at !== null,
+                422,
+                'Waybill verification is required before sorting.'
+            );
+
+            abort_unless(
+                $record->stage === 'received'
+                && $record->batch_id,
                 422,
                 'Parcel must be assigned to a batch first.'
+            );
+
+            $shipment = DB::table('shipments')
+                ->where('id', $id)
+                ->where(
+                    'logistics_provider_id',
+                    $providerId
+                )
+                ->lockForUpdate()
+                ->first();
+
+            abort_unless(
+                $shipment,
+                404,
+                'Shipment not found.'
             );
 
             DB::table('logistics_sorting')
@@ -240,25 +398,21 @@ class LogisticsSortingApiController extends Controller
                     'updated_at' => now(),
                 ]);
 
-            $shipment = DB::table('shipments')
-                ->where('id', $id)
-                ->where('logistics_provider_id', $providerId)
-                ->first();
-
-            abort_unless($shipment, 404);
-
             DB::table('delivery_events')->insert([
                 'shipment_id' => $id,
                 'status' => 'sorting_completed',
-                'attempt' => max(1, (int) $shipment->attempts),
+                'attempt' => max(
+                    1,
+                    (int) $shipment->attempts
+                ),
                 'user_id' => Auth::id(),
-                'note' => 'Parcel sorted and ready for delivery assignment.',
+                'note' =>
+                    'Verified parcel sorted and ready for delivery assignment.',
                 'occurred_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // NEW: Save a real sorting notification.
             LogisticsNotification::create(
                 $providerId,
                 'parcel_sorted',
@@ -267,7 +421,7 @@ class LogisticsSortingApiController extends Controller
                     . ' has completed sorting.',
                 '/logistics/parcel-sorting'
             );
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,

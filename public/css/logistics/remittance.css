@@ -1,0 +1,449 @@
+/* ============================================================
+   LUMEAR LOGISTICS — COD REMITTANCE
+   ============================================================ */
+
+.remittance-page {
+    --rem-bg: #171719;
+    --rem-panel: #211e20;
+    --rem-border: rgba(224, 207, 194, .13);
+    --rem-text: #f5eee9;
+    --rem-muted: #b8a9a5;
+    --rem-accent: #873632;
+
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 26px 4px 60px;
+    color: var(--rem-text);
+    font-family: inherit;
+}
+
+.remittance-page *,
+.remittance-page *::before,
+.remittance-page *::after {
+    box-sizing: border-box;
+}
+
+.remittance-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-bottom: 28px;
+}
+
+.remittance-eyebrow {
+    color: #caae9f;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    margin: 0 0 9px;
+}
+
+.remittance-heading h1 {
+    margin: 0 0 9px;
+    font-size: clamp(25px, 3vw, 34px);
+    font-weight: 800;
+    color: #fff;
+}
+
+.remittance-heading p {
+    margin: 0;
+    color: var(--rem-muted);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.remittance-heading-label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid var(--rem-border);
+    background: var(--rem-panel);
+    padding: 11px 15px;
+    border-radius: 12px;
+    color: #e0cfc2;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.remittance-heading-dot {
+    width: 8px;
+    height: 8px;
+    background: #53bd8a;
+    border-radius: 50%;
+}
+
+.remittance-alert {
+    padding: 15px 18px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.remittance-alert-success {
+    background: rgba(44, 140, 91, .12);
+    border: 1px solid rgba(66, 189, 117, .35);
+    color: #a8e8c0;
+}
+
+.remittance-alert-error {
+    background: rgba(185, 51, 58, .12);
+    border: 1px solid rgba(215, 84, 92, .35);
+    color: #ffb4b8;
+}
+
+.remittance-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.remittance-stat {
+    background: linear-gradient(145deg, #292124, #201c1e);
+    border: 1px solid var(--rem-border);
+    border-radius: 16px;
+    padding: 22px;
+    min-width: 0;
+}
+
+.remittance-stat span,
+.remittance-stat small {
+    display: block;
+    color: var(--rem-muted);
+    font-size: 12px;
+}
+
+.remittance-stat strong {
+    display: block;
+    color: #fff;
+    font-size: clamp(20px, 2vw, 29px);
+    font-weight: 800;
+    margin: 14px 0 9px;
+    overflow-wrap: anywhere;
+}
+
+.remittance-stat-warning strong {
+    color: #f3b16e;
+}
+
+.remittance-mini-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+    margin-bottom: 28px;
+}
+
+.remittance-mini-stats > div {
+    background: #211e20;
+    border: 1px solid var(--rem-border);
+    padding: 16px 21px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.remittance-mini-stats span {
+    color: var(--rem-muted);
+    font-size: 12px;
+}
+
+.remittance-mini-stats strong {
+    font-size: 23px;
+    color: #fff;
+}
+
+.remittance-panel {
+    background: var(--rem-panel);
+    border: 1px solid var(--rem-border);
+    border-radius: 17px;
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+
+.remittance-panel-heading {
+    padding: 23px 24px;
+    border-bottom: 1px solid var(--rem-border);
+}
+
+.remittance-panel-heading h2 {
+    font-size: 17px;
+    font-weight: 800;
+    margin: 0 0 7px;
+    color: #fff;
+}
+
+.remittance-panel-heading p {
+    color: var(--rem-muted);
+    font-size: 12px;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.remittance-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.remittance-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 750px;
+    text-align: left;
+}
+
+.remittance-table th {
+    background: rgba(0, 0, 0, .17);
+    color: #caae9f;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .65px;
+    padding: 17px 19px;
+    white-space: nowrap;
+}
+
+.remittance-table td {
+    border-top: 1px solid var(--rem-border);
+    padding: 17px 19px;
+    color: #e8dcd6;
+    font-size: 12px;
+    vertical-align: top;
+}
+
+.remittance-table td strong {
+    color: #fff;
+    font-weight: 700;
+}
+
+.remittance-table td small {
+    display: block;
+    margin-top: 6px;
+    color: var(--rem-muted);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.remittance-table tbody tr:hover {
+    background: rgba(255, 255, 255, .025);
+}
+
+.remittance-money {
+    font-weight: 800;
+    white-space: nowrap;
+    color: #fff !important;
+}
+
+.remittance-status {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.status-pending_verification,
+.status-open,
+.status-under_review {
+    background: rgba(240, 173, 78, .13);
+    color: #f3bd76;
+}
+
+.status-verified,
+.status-resolved {
+    background: rgba(61, 171, 110, .14);
+    color: #8ce3af;
+}
+
+.status-rejected,
+.status-cancelled {
+    background: rgba(210, 73, 80, .15);
+    color: #ff9da2;
+}
+
+.status-dismissed {
+    background: rgba(170, 170, 170, .12);
+    color: #d0c8c8;
+}
+
+.remittance-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.remittance-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: background .2s ease, border-color .2s ease;
+}
+
+.remittance-btn-primary {
+    background: #873632;
+    color: white;
+}
+
+.remittance-btn-primary:hover {
+    background: #a34943;
+}
+
+.remittance-btn-secondary {
+    background: #30292b;
+    border-color: var(--rem-border);
+    color: #e0cfc2;
+}
+
+.remittance-btn-secondary:hover {
+    background: #443437;
+}
+
+.remittance-btn-success {
+    background: #26784f;
+    color: white;
+}
+
+.remittance-btn-success:hover {
+    background: #31915f;
+}
+
+.remittance-btn-danger {
+    background: #762f34;
+    color: white;
+}
+
+.remittance-btn-danger:hover {
+    background: #963e45;
+}
+
+.remittance-muted {
+    color: var(--rem-muted);
+    font-size: 11px;
+}
+
+.remittance-review {
+    margin-top: 12px;
+    padding: 14px;
+    background: #181618;
+    border: 1px solid var(--rem-border);
+    border-radius: 12px;
+    min-width: 260px;
+}
+
+.remittance-review[hidden] {
+    display: none !important;
+}
+
+.remittance-review p {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #e0cfc2;
+    line-height: 1.6;
+}
+
+.remittance-review-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.remittance-review-form:last-child {
+    margin-bottom: 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--rem-border);
+}
+
+.remittance-review-form textarea {
+    width: 100%;
+    background: #282326;
+    border: 1px solid #554348;
+    border-radius: 9px;
+    color: white;
+    padding: 11px;
+    resize: vertical;
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.remittance-review-form textarea:focus {
+    outline: none;
+    border-color: #caae9f;
+}
+
+.remittance-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    color: #e0cfc2;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.remittance-confirm input {
+    margin-top: 3px;
+    accent-color: #26784f;
+}
+
+.remittance-empty {
+    text-align: center;
+    padding: 42px 20px !important;
+    color: var(--rem-muted) !important;
+}
+
+.remittance-pagination {
+    padding: 15px 22px;
+    border-top: 1px solid var(--rem-border);
+}
+
+@media (max-width: 1100px) {
+    .remittance-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .remittance-page {
+        padding: 16px 0 35px;
+    }
+
+    .remittance-stats {
+        gap: 10px;
+    }
+
+    .remittance-stat {
+        padding: 15px;
+    }
+
+    .remittance-stat strong {
+        font-size: 19px;
+    }
+
+    .remittance-mini-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .remittance-panel-heading {
+        padding: 18px;
+    }
+
+    .remittance-heading-label {
+        width: 100%;
+    }
+}

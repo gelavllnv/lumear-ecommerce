@@ -21,6 +21,8 @@ use App\Http\Controllers\Logistics\LogisticsWaybillScannerController;
 use App\Http\Controllers\Logistics\LogisticsNotificationController;
 use App\Http\Controllers\Logistics\LogisticsSearchController;
 use App\Http\Controllers\Logistics\LogisticsWalletController;
+use App\Http\Controllers\Logistics\RiderPayrollController;
+use App\Http\Controllers\Logistics\RiderRemittanceController;
 
 // LOGISTICS HEAD ADMIN
 use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
@@ -62,7 +64,6 @@ Route::get('/product/{slug}', function ($slug) {
 });
 
 Route::get('/category/{slug}', function ($slug) {
-
     $category = \App\Support\BuyerCategories::find($slug);
 
     abort_if(!$category, 404);
@@ -90,7 +91,6 @@ Route::get('/account', function () {
 });
 
 Route::get('/search', function () {
-
     $query = request('q', '');
 
     return view('buyer.search', [
@@ -182,22 +182,15 @@ Route::prefix('logistics')
         |--------------------------------------------------------------------------
         | PHILIPPINE ADDRESS API
         |--------------------------------------------------------------------------
-        |
-        | These endpoints are used by registration forms.
-        | They remain accessible before Logistics approval.
-        |
         */
 
         Route::get('/address/provinces', function () {
-
             try {
-
                 $response = Http::timeout(15)
                     ->acceptJson()
                     ->get('https://psgc.cloud/api/v2/provinces');
 
                 if ($response->failed()) {
-
                     return response()->json([
                         'success' => false,
                         'message' => 'Unable to load provinces.',
@@ -207,22 +200,18 @@ Route::prefix('logistics')
                 return response()->json($response->json());
 
             } catch (\Exception $exception) {
-
                 return response()->json([
                     'success' => false,
                     'message' => 'Address service is unavailable.',
                 ], 500);
             }
-
         })->name('address.provinces');
 
 
         Route::get(
             '/address/provinces/{province}/cities-municipalities',
             function ($province) {
-
                 try {
-
                     $response = Http::timeout(15)
                         ->acceptJson()
                         ->get(
@@ -232,7 +221,6 @@ Route::prefix('logistics')
                         );
 
                     if ($response->failed()) {
-
                         return response()->json([
                             'success' => false,
                             'message' => 'Unable to load cities and municipalities.',
@@ -242,13 +230,11 @@ Route::prefix('logistics')
                     return response()->json($response->json());
 
                 } catch (\Exception $exception) {
-
                     return response()->json([
                         'success' => false,
                         'message' => 'Address service is unavailable.',
                     ], 500);
                 }
-
             }
         )->name('address.cities-municipalities');
 
@@ -256,9 +242,7 @@ Route::prefix('logistics')
         Route::get(
             '/address/cities-municipalities/{municipality}/barangays',
             function ($municipality) {
-
                 try {
-
                     $response = Http::timeout(15)
                         ->acceptJson()
                         ->get(
@@ -268,7 +252,6 @@ Route::prefix('logistics')
                         );
 
                     if ($response->failed()) {
-
                         return response()->json([
                             'success' => false,
                             'message' => 'Unable to load barangays.',
@@ -278,13 +261,11 @@ Route::prefix('logistics')
                     return response()->json($response->json());
 
                 } catch (\Exception $exception) {
-
                     return response()->json([
                         'success' => false,
                         'message' => 'Address service is unavailable.',
                     ], 500);
                 }
-
             }
         )->name('address.barangays');
 
@@ -293,10 +274,6 @@ Route::prefix('logistics')
         |--------------------------------------------------------------------------
         | PROTECTED LOGISTICS WORKSPACE
         |--------------------------------------------------------------------------
-        |
-        | All routes below require an authenticated and
-        | approved Logistics provider account.
-        |
         */
 
         Route::middleware([
@@ -357,16 +334,32 @@ Route::prefix('logistics')
             |--------------------------------------------------------------------------
             | PARCEL SORTING
             |--------------------------------------------------------------------------
+            |
+            | IMPORTANT:
+            | The legacy direct sorting endpoint is disabled.
+            |
+            | A parcel must:
+            | 1. Be received by Logistics.
+            | 2. Have its QR or written waybill verified.
+            | 3. Be assigned to a sorting batch.
+            | 4. Complete sorting through the verified API.
+            |
+            | This prevents the older controller from
+            | bypassing waybill verification.
+            |
             */
 
             Route::get('/parcel-sorting', function () {
                 return view('logistics.sorting.index');
             })->name('sorting.index');
 
-            Route::post('/parcel-sorting/{id}/sort', [
-                LogisticsOperationsController::class,
-                'sort'
-            ])
+            Route::post('/parcel-sorting/{id}/sort', function (int $id) {
+                return response()->json([
+                    'success' => false,
+                    'message' =>
+                        'Direct sorting is disabled. Receive the parcel, verify its QR code or written waybill, then use Parcel Sorting.',
+                ], 403);
+            })
                 ->whereNumber('id')
                 ->name('ops.sort');
 
@@ -439,6 +432,23 @@ Route::prefix('logistics')
             ])
                 ->whereNumber('id')
                 ->name('ops.rider-status');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | RIDER PAYROLL
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/riders/payroll', [
+                RiderPayrollController::class,
+                'index'
+            ])->name('riders.payroll.index');
+
+            Route::post('/riders/payroll', [
+                RiderPayrollController::class,
+                'store'
+            ])->name('riders.payroll.store');
 
 
             /*
@@ -537,6 +547,13 @@ Route::prefix('logistics')
             |--------------------------------------------------------------------------
             | QR WAYBILL SCANNER
             |--------------------------------------------------------------------------
+            |
+            | This endpoint now records verification through
+            | LogisticsWaybillScannerController::lookup().
+            |
+            | QR scans and manually entered tracking codes
+            | use the same verification endpoint.
+            |
             */
 
             Route::get('/scanner', [
@@ -573,6 +590,10 @@ Route::prefix('logistics')
             |--------------------------------------------------------------------------
             | PARCEL SORTING API
             |--------------------------------------------------------------------------
+            |
+            | Verification is checked by the controller
+            | before batch assignment and completion.
+            |
             */
 
             Route::get('/api/sorting', [
@@ -750,6 +771,7 @@ Route::prefix('logistics')
                 ->whereNumber('id')
                 ->name('api.notifications.read');
 
+
             /*
             |--------------------------------------------------------------------------
             | LOGISTICS GLOBAL SEARCH API
@@ -761,6 +783,7 @@ Route::prefix('logistics')
                 'index'
             ])->name('api.search');
 
+
             /*
             |--------------------------------------------------------------------------
             | LOGISTICS E-WALLET
@@ -771,6 +794,39 @@ Route::prefix('logistics')
                 LogisticsWalletController::class,
                 'index'
             ])->name('wallet.index');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | COD REMITTANCE MANAGEMENT
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/remittance', [
+                RiderRemittanceController::class,
+                'index'
+            ])->name('remittance.index');
+
+            Route::post('/remittance/{id}/verify', [
+                RiderRemittanceController::class,
+                'verify'
+            ])
+                ->whereNumber('id')
+                ->name('remittance.verify');
+
+            Route::post('/remittance/{id}/reject', [
+                RiderRemittanceController::class,
+                'reject'
+            ])
+                ->whereNumber('id')
+                ->name('remittance.reject');
+
+            Route::get('/remittance/{id}/receipt', [
+                RiderRemittanceController::class,
+                'receipt'
+            ])
+                ->whereNumber('id')
+                ->name('remittance.receipt');
 
         });
 
