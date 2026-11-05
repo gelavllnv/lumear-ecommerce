@@ -203,7 +203,7 @@ class SellerCommerce extends ChangeNotifier {
         2,
         45000,
         SellerOrderStatus.completed,
-        7200,
+        18000,
         false,
       ),
       (
@@ -214,7 +214,7 @@ class SellerCommerce extends ChangeNotifier {
         1,
         35000,
         SellerOrderStatus.completed,
-        2800,
+        7000,
         true,
       ),
     ].indexed) {

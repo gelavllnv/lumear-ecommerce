@@ -47,8 +47,9 @@ the completed checkout.
   `shipping` field against 5000 and preserve server totals and idempotency.
   The API must enforce this rule when quoting and placing orders; changing
   only Flutter cannot change a deployed backend's prices.
-- Platform commission is **8% of merchandise subtotal, excluding shipping**,
-  rounded half-up to the nearest centavo per order. The seller gets 92% before
+- Platform commission is **20% of merchandise subtotal, excluding shipping**,
+  rounded half-up to the nearest centavo per order: 10% admin and 10% app owner.
+  The seller gets 80% before
   refunds or separately agreed promotion deductions. Sample records now follow
   this rule. Connected orders preserve recorded `commission` values; reports
   identify historical exceptions rather than rewriting accounting history.
@@ -163,7 +164,7 @@ The standalone `database/lumear_ecommerce.sql` now includes Subcategories,
 Products.subcategory_id, a composite foreign key to enforce the parent category,
 and all 56 category/subcategory seed records. `database/README.md` contains the
 handoff details and category list. Neither the SQL nor its ZIP is connected to the
-app, imported, or run automatically. Seller commission remains 8% as documented.
+app, imported, or run automatically. New mobile sales use the 80/10/10 split.
 
 ## Registration address
 

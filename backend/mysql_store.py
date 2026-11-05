@@ -99,7 +99,8 @@ class MySQLStore:
                     'wallet_accounts', 'wallet_journals', 'seller_payout_requests',
                     'roles', 'role_user', 'categories', 'order_timelines',
                     'inventory_movements', 'idempotency_keys', 'two_factor_credentials',
-                    'saved_products', 'notifications', 'user_profiles', 'auth_identities', 'mobile_notification_preferences'}
+                    'saved_products', 'notifications', 'user_profiles', 'auth_identities', 'mobile_notification_preferences',
+                    'mobile_sale_allocations', 'mobile_platform_wallets'}
         if self.config.get('PRIVATE_UPLOAD_STORAGE') == 'mysql':
             required.add('mobile_private_documents')
         with self.transaction() as db:
@@ -404,8 +405,12 @@ class MySQLStore:
             return {'message': 'Order already cancelled.'}
         require(o['status'] in ('pending', 'accepted'), 'Only orders that have not been packed can be cancelled.')
         require(o['payment_status'] == 'pending', 'Paid orders require the existing refund workflow.')
-        require(not self.one(db, 'SELECT id FROM wallet_journals WHERE seller_order_id=%s LIMIT 1', (oid,)),
-                'This order has wallet entries and requires the original settlement workflow.')
+        cancel_wallet = getattr(self, 'cancel_wallet_sale', None)
+        if cancel_wallet:
+            cancel_wallet(db, o)
+        else:
+            require(not self.one(db, 'SELECT id FROM wallet_journals WHERE seller_order_id=%s LIMIT 1', (oid,)),
+                    'This order has wallet entries and requires the original settlement workflow.')
         reason = text(body.get('reason'), 'Cancellation reason', 3, 300)
         items = self.rows(db, 'SELECT product_variant_id,SUM(quantity) quantity FROM order_items WHERE seller_order_id=%s GROUP BY product_variant_id ORDER BY product_variant_id', (oid,))
         for item in items:
@@ -466,9 +471,9 @@ class MySQLStore:
         db.execute("INSERT INTO orders(buyer_id,reference,total_minor,payment_method,payment_status,shipping_address,created_at,updated_at) VALUES(%s,%s,%s,'cod','pending',%s,UTC_TIMESTAMP(),UTC_TIMESTAMP())", (uid, ref, q['total'], json.dumps(snapshot)))
         order_id = db.lastrowid
         for group in q['stores']:
-            s = self.one(db, 'SELECT commission_bps FROM sellers WHERE id=%s', (group['seller'],))
-            require(0 <= s['commission_bps'] <= 10000, 'Invalid seller commission configuration.', 503)
-            commission = (group['subtotal'] * s['commission_bps'] + 5000) // 10000
+            # New purchases use the marketplace 80 / 10 / 10 policy.
+            # Recorded commissions on existing orders are never rewritten.
+            commission = (group['subtotal'] * 2000 + 5000) // 10000
             db.execute("INSERT INTO seller_orders(order_id,seller_id,subtotal_minor,shipping_fee_minor,commission_minor,status,note,created_at,updated_at) VALUES(%s,%s,%s,%s,%s,'pending',%s,UTC_TIMESTAMP(),UTC_TIMESTAMP())", (order_id, group['seller'], group['subtotal'], group['shipping'], commission, note))
             soid = db.lastrowid
             for i in group['items']:

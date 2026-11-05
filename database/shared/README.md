@@ -58,10 +58,12 @@ string IDs, integer centavos, JSON booleans, and explicit timestamp offsets.
 
 ## Known policy differences to resolve with the backend owner
 
-- `sellers.commission_bps` defaults to **800 basis points (8%)**. The user
-  selected the same **8% commission / 92% seller share** for the app. This is a
-  schema default, not proof that every seller uses 8%. Preserve recorded server
-  commissions for existing orders; do not rewrite their accounting history.
+- The imported `sellers.commission_bps` default is historical (800 basis points).
+  New mobile purchases now enforce **80% seller / 10% admin / 10% app owner**.
+  Apply `backend/migrations/20261105_wallet_split.sql` for the new allocation
+  ledger. Recorded commissions and balances on existing orders remain intact.
+  The separately supplied web backend must adopt the same policy before web
+  purchases can use this split; the mobile change does not update that server.
 - `shipping_fee_minor` defaults to zero; the app expects PHP 50 per shop order.
   Column defaults do not establish checkout policy. Verify web quote/order logic.
 - Multiple variants per product are permitted by this schema. Flutter currently

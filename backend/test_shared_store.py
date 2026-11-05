@@ -85,7 +85,7 @@ class SharedIntegrationTests(unittest.TestCase):
         order=self.call('buyer','POST','/checkout',body)['orders'][0]
         self.assertEqual(self.call('buyer','POST','/checkout',body)['orders'][0]['id'],order['id'])
         self.assertEqual(order['shipping'],5000)
-        self.assertEqual(order['commission'],1601)
+        self.assertEqual(order['commission'],4003)
         return order
 
     def test_buyer_seller_checkout_cancel_archive_and_scope(self):
@@ -93,6 +93,7 @@ class SharedIntegrationTests(unittest.TestCase):
         self.assertEqual(self.call('buyer','GET','/buyer/workspace')['profile']['email'],self.emails['buyer'])
         seller=self.call('seller','GET','/seller/workspace')
         self.assertEqual(seller['earnings']['wallet_available'],10000)
+        self.assertEqual(seller['earnings']['wallet_pending'],16011)
         self.assertEqual(seller['products'][0]['stock'],8)
         with self.assertRaises(Problem):self.call('buyer','POST',f"/seller/orders/{o['id']}/accept")
         with self.assertRaises(Problem):self.call('seller','POST',f"/seller/orders/{o['id']}/pack")
@@ -102,6 +103,7 @@ class SharedIntegrationTests(unittest.TestCase):
         seller=self.call('seller','GET','/seller/workspace')
         self.assertEqual(seller['orders'][0]['cancellation_reason'],'Item damaged')
         self.assertEqual(seller['products'][0]['stock'],10)
+        self.assertEqual(seller['earnings']['wallet_pending'],0)
         self.call('seller','PATCH',f"/seller/products/{p['id']}/archive",dict(archived=True))
         self.assertFalse(any(row['id']==p['id'] for row in self.call('buyer','GET','/buyer/workspace')['products']))
         with self.assertRaises(Problem):self.call('buyer','POST','/cart',dict(product_id=p['id'],variant_id=p['variants'][0]['id'],quantity=1))
@@ -134,6 +136,37 @@ class SharedIntegrationTests(unittest.TestCase):
         with urlopen(req,timeout=5) as response:snapshot=json.load(response)
         self.assertEqual(snapshot['profile']['email'],self.emails['buyer'])
         self.assertTrue(snapshot['categories'])
+
+    def test_wallet_split_release_requires_paid_completion_and_is_idempotent(self):
+        p=self.product();o=self.checkout(p,'wallet-split-checkout')
+        path=f"/seller/orders/{o['id']}/settle"
+        with self.assertRaises(Problem):self.call('buyer','POST',path)
+        with self.assertRaises(Problem):self.call('seller','POST',path)
+        with self.connection.cursor() as db:
+            db.execute('SELECT * FROM mobile_platform_wallets ORDER BY beneficiary')
+            before={r['beneficiary']:int(r['available_minor']) for r in db.fetchall()}
+            db.execute("UPDATE seller_orders SET status='completed' WHERE id=%s",(o['id'],))
+        with self.assertRaises(Problem):self.call('seller','POST',path)
+        with self.connection.cursor() as db:
+            db.execute("UPDATE orders SET payment_status='paid' WHERE id=(SELECT order_id FROM seller_orders WHERE id=%s)",(o['id'],))
+            from wallet_service import release_sale
+            with self.assertRaises(Problem):release_sale(self.store,db,self.sid+1,o['id'])
+            db.execute('UPDATE seller_orders SET subtotal_minor=subtotal_minor+100 WHERE id=%s',(o['id'],))
+        with self.assertRaises(Problem):self.call('seller','POST',path)
+        self.assertEqual(self.call('seller','GET','/seller/workspace')['earnings']['wallet_available'],10000)
+        with self.connection.cursor() as db:
+            db.execute('UPDATE seller_orders SET subtotal_minor=subtotal_minor-100 WHERE id=%s',(o['id'],))
+        for _ in range(2):self.call('seller','POST',path)
+        earnings=self.call('seller','GET','/seller/workspace')['earnings']
+        self.assertEqual(earnings['wallet_available'],26011)
+        self.assertEqual(earnings['wallet_pending'],0)
+        with self.connection.cursor() as db:
+            db.execute('SELECT * FROM mobile_platform_wallets ORDER BY beneficiary')
+            after={r['beneficiary']:int(r['available_minor']) for r in db.fetchall()}
+            self.assertEqual(after['admin']-before['admin'],2001)
+            self.assertEqual(after['owner']-before['owner'],2002)
+            db.execute("SELECT COUNT(*) n FROM wallet_journals WHERE seller_order_id=%s AND entry_type='mobile_sale_released'",(o['id'],))
+            self.assertEqual(db.fetchone()['n'],1)
 
     def test_analytics_and_payout_use_shared_wallet_columns(self):
         from datetime import datetime,timedelta,timezone

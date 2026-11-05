@@ -11,6 +11,7 @@ import '../design/lumear_theme.dart';
 import 'seller_commerce.dart';
 import 'seller_income_panel.dart';
 import '../services/marketplace_policy.dart';
+import '../services/api_service.dart';
 import 'payout_request_dialog.dart';
 
 class SellerToolsScreen extends StatefulWidget {
@@ -80,6 +81,7 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
           if (widget.section == 'Products') ...products(),
           if (widget.section == 'Orders') ...orders(),
           if (widget.section == 'Earnings') ...[
+            walletSplit(),
             SellerIncomePanel(commerce: data, shopName: widget.shopName),
             ...(data.connected ? connectedEarnings() : earnings()),
           ],
@@ -797,6 +799,63 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
     );
   }
 
+  Widget walletSplit() => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeading('Seller e-wallet', kicker: 'PAYMENT BREAKDOWN'),
+          const Text('For every new product purchase:'),
+          const SizedBox(height: 12),
+          const Text(
+            '80% · Seller e-wallet',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const Text('10% · Admin'),
+          const Text('10% · App owner'),
+          const SizedBox(height: 12),
+          const Text(
+            'A ₱1,000.00 product sale credits ₱800.00 to the seller, ₱100.00 to admin and ₱100.00 to the app owner. Shipping is separate. COD earnings remain pending until delivery is completed and payment is confirmed.',
+          ),
+          if (!data.connected) ...[
+            const SizedBox(height: 12),
+            _amount('Available balance · sample', data.awaitingSettlement),
+            _amount(
+              'Pending balance · sample',
+              data.orders
+                  .where(
+                    (o) =>
+                        o.status != SellerOrderStatus.completed &&
+                        o.status != SellerOrderStatus.cancelled,
+                  )
+                  .fold<int>(
+                    0,
+                    (sum, o) =>
+                        sum + MarketplacePolicy.sellerShareFor(o.subtotal),
+                  ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  Future<void> releaseEarnings() async {
+    await perform(() async {
+      final orders = List<String>.from(
+        data.earnings['releasable_orders'] ?? [],
+      );
+      for (final id in orders) {
+        await ApiService.post(
+          '/seller/orders/${Uri.encodeComponent(id)}/settle',
+          body: {},
+        );
+      }
+      await data.load();
+    });
+  }
+
   List<Widget> connectedEarnings() {
     final e = data.earnings;
     final available = e['available_to_request'] as int?;
@@ -894,6 +953,15 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
     );
     return [
       const SectionHeading('Wallet & payouts'),
+      if ((e['releasable_orders'] as List? ?? []).isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: FilledButton.icon(
+            onPressed: working ? null : releaseEarnings,
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            label: const Text('Credit confirmed earnings to wallet'),
+          ),
+        ),
       LayoutBuilder(
         builder: (context, c) {
           final a = balance(

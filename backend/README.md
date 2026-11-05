@@ -62,7 +62,7 @@ confirmation. New users must submit full name, verified Google email, contact
 number, date of birth (18–120), password, and a default delivery address before
 receiving a session. Existing Google users missing birth date/contact/address
 must complete those details; their password and role are preserved. The server
-validates and saves all registration data in one transaction. New shops are **pending**, with 8% commission; they
+validates and saves all registration data in one transaction. New shops are **pending**, with 20% commission; they
 can edit shop details while waiting for approval. Listing/order actions require
 an approved shop. Google does not approve shops or grant admin access.
 Gmail/Google Workspace addresses can link by verified email; third-party email
@@ -72,8 +72,9 @@ providers need additional verification and are not automatically linked.
 
 - Workspaces, products/varieties, database categories, addresses, cart, saved
   products, COD checkout, order states and cancellation reasons use shared tables.
-- Shipping is PHP 50 per shop order. Checkout preserves the seller's configured
-  commission rate and uses inventory transactions and duplicate-request keys.
+- Shipping is PHP 50 per shop order. New mobile checkouts allocate merchandise
+  revenue 80% seller / 10% admin / 10% app owner, with integer centavo rounding,
+  inventory transactions and duplicate-request keys.
 - Seller fulfillment is pending â†’ accepted â†’ packed â†’ pickup requested with an
   approved courier. Pickup creates one unassigned shipment; courier handoff and
   delivery/settlement updates remain the logistics backend's responsibility.
@@ -129,3 +130,36 @@ The current local database already has it. `GET/PATCH /notification-preferences`
 saves optional in-app order, promotion, and general preferences per account.
 Filtering does not delete notifications; enabling a category restores visibility.
 Security notices remain visible. Phone push/email delivery is not implemented.
+
+## Seller e-wallet and 80/10/10 split
+
+Apply `migrations/20261105_wallet_split.sql` once using a database administrator
+(the app account intentionally lacks CREATE permission). It adds two tables and
+zero-balance platform wallet rows; existing orders and balances remain unchanged.
+`apply_wallet_migration.py` is a local-only alternative when the configured
+connection has CREATE permission. Restart the local API after migration.
+The November 5 local database has this migration applied (67 tables).
+
+New mobile checkouts record 80% merchandise revenue in the seller pending wallet.
+The remaining 20% is allocated to admin (10%) and app owner (10%). Shipping is
+excluded. Commission rounds half-up to centavos; admin rounds half-up and the
+owner receives the remaining commission centavo, so allocations always sum to
+subtotal. Unpaid cancellations reverse the pending seller credit in the same
+transaction as stock restoration.
+
+In Earnings, **Credit confirmed earnings to wallet** calls
+`POST /seller/orders/{seller_order_id}/settle`. Only the owning approved seller
+can request this. The server requires completed fulfillment, paid payment status,
+no return request and no competing wallet entries. It atomically releases the
+seller allocation and credits `mobile_platform_wallets` for `admin` and `owner`.
+Repeated release requests have no additional effect. Payment and fulfillment
+confirmation remain the logistics/payment backend's responsibility.
+
+Admin and owner totals are internal accounting balances, queryable by an
+administrator in `mobile_platform_wallets`; there is no new admin/owner login or
+external cash transfer API. Seller withdrawals use the existing reviewed payout
+request flow. Orders with returns or other ledger activity must use the original
+refund/reconciliation workflow. Do not run the legacy website wallet release on
+new mobile allocations: it uses a different shipping/settlement convention.
+Update that separate backend before combining its settlement writes with these
+orders. Historical orders retain their original commission and settlement flow.

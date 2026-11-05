@@ -23,7 +23,7 @@ class SharedStore(MySQLStore):
     def __init__(self, config=None):
         super().__init__(config)
         self.code_tag = hashlib.sha256(b''.join(Path(__file__).with_name(n).read_bytes()
-            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','server.py','run_api.py'))).hexdigest()[:12]
+            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','wallet_service.py','server.py','run_api.py'))).hexdigest()[:12]
         self.code_tag = hashlib.sha256((self.code_tag + (Path(__file__).parent.parent/'assets/data/lumear_help.json').read_text(encoding='utf-8')).encode()).hexdigest()[:12]
         from google_identity import GoogleVerifier
         self.google = GoogleVerifier(self.config.get('GOOGLE_CLIENT_ID',''))
@@ -125,7 +125,7 @@ class SharedStore(MySQLStore):
                     db.execute('INSERT INTO role_user(role_id,user_id) VALUES(%s,%s)',(role['id'],uid))
                     if role_name=='seller':
                         slug=(re.sub(r'[^a-z0-9]+','-',name.lower()).strip('-') or 'shop')+'-'+secrets.token_hex(8)
-                        db.execute("INSERT INTO sellers(user_id,name,slug,description,status,commission_bps,created_at,updated_at) VALUES(%s,%s,%s,'','pending',800,UTC_TIMESTAMP(),UTC_TIMESTAMP())",(uid,name+"'s shop",slug))
+                        db.execute("INSERT INTO sellers(user_id,name,slug,description,status,commission_bps,created_at,updated_at) VALUES(%s,%s,%s,'','pending',2000,UTC_TIMESTAMP(),UTC_TIMESTAMP())",(uid,name+"'s shop",slug))
                     user=self.one(db,'SELECT * FROM users WHERE id=%s',(uid,))
                 require(user and not user['is_suspended'],'This account is unavailable.',403)
                 self.save_profile(db,user,dict(body,age=age,display_name=name),onboarding=True)
@@ -241,14 +241,37 @@ class SharedStore(MySQLStore):
         refunds = sum(o['refund'] for o in completed)
         reserved = sum(int(p['amount_minor']) for p in payouts if p['paid_at'] is None and p['status'] not in ('rejected','cancelled','failed','paid'))
         available = int(wallet['available_minor']) if wallet else 0
+        allocations = self.rows(db, '''SELECT a.* FROM mobile_sale_allocations a
+            JOIN seller_orders so ON so.id=a.seller_order_id WHERE so.seller_id=%s''', (sid,))
         return dict(gross_sales=gross, fees=fees, net_sales=gross-fees-refunds,
+            revenue_split=dict(seller_percent=80,admin_percent=10,owner_percent=10),
+            releasable_orders=[str(a['seller_order_id']) for a in allocations if a['status']=='pending'
+                and any(o['id']==str(a['seller_order_id']) and o['raw_status']=='completed'
+                        and o['payment_status']=='paid' for o in orders)],
             pending_sales=sum(o['subtotal'] for o in orders if o['raw_status'] not in ('completed','cancelled')),
             wallet_available=available, available_to_request=max(0, available-reserved),
             wallet_pending=int(wallet['pending_minor']) if wallet else 0,
             paid_out=sum(int(p['amount_minor']) for p in payouts if p['paid_at']),
             payout_accounts=[dict(id=str(a['id']),type=a['type'],name=a['account_name'],default=bool(a['is_default'])) for a in accounts],
             payouts=[dict(id=str(p['id']),amount=int(p['amount_minor']),status=p['status'],date=timestamp(p['created_at'])) for p in payouts],
-            journals=[dict(id=str(j['id']),type=j['entry_type'],amount=int(j['available_delta']),reference=j['reference'] or '',date=timestamp(j['occurred_at'])) for j in journals])
+            journals=[dict(id=str(j['id']),type=j['entry_type'],available_delta=int(j['available_delta']),pending_delta=int(j['pending_delta']),reference=j['reference'] or '',date=timestamp(j['occurred_at'])) for j in journals])
+
+    def checkout(self, db, uid, body):
+        # The base checkout's request key returns its previous orders on replay.
+        # Only initialize ledger entries for a genuinely new request.
+        scope = 'mobile-checkout:' + uid
+        previous = self.one(db, 'SELECT order_id FROM idempotency_keys WHERE scope=%s AND `key`=%s',
+                            (scope, body.get('idempotency_key')))
+        result = super().checkout(db, uid, body)
+        if not previous:
+            from wallet_service import record_sale
+            for order in result['orders']:
+                record_sale(self, db, order['id'])
+        return result
+
+    def cancel_wallet_sale(self, db, order):
+        from wallet_service import cancel_sale
+        cancel_sale(self, db, order)
 
     def request_payout(self, db, uid, sid, body):
         # Preserve the base method's locking, ownership, duplicate protection and
@@ -375,6 +398,11 @@ class SharedStore(MySQLStore):
             return False,None
         require(seller,'Seller access required.',403)
         sid=seller['id']
+        match=re.fullmatch(r'/seller/orders/(\d+)/settle',path)
+        if match and method=='POST':
+            require(seller['status']=='approved','Seller approval is required.',403)
+            from wallet_service import release_sale
+            return True,release_sale(self,db,sid,match[1])
         if path=='/seller/workspace' and method=='GET':
             return False,None
         if path == '/seller/analytics' and method=='GET':

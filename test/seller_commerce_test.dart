@@ -8,13 +8,13 @@ void main() {
       final data = SellerCommerce();
       addTearDown(data.dispose);
       expect(data.grossSales, 125000);
-      expect(data.fees, 10000);
-      expect(data.netEarnings, 115000);
+      expect(data.fees, 25000);
+      expect(data.netEarnings, 100000);
       expect(data.awaitingSettlement + data.paidOut, data.netEarnings);
       expect(data.pendingSales, 170000);
       await data.accept(data.orders.first);
       await data.prepare(data.orders.first);
-      expect(data.netEarnings, 115000);
+      expect(data.netEarnings, 100000);
       expect(data.pendingSales, 170000);
     },
   );

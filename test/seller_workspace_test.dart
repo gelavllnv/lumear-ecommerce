@@ -94,10 +94,43 @@ void main() {
       await tester.tap(find.text('Earnings').last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('All Time'));
+      expect(find.text('Seller e-wallet'), findsOneWidget);
+      expect(find.text('80% · Seller e-wallet'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('All Time'),
+        150,
+        scrollable: find
+            .descendant(
+              of: find.byWidgetPredicate(
+                (w) => w is SellerToolsScreen && w.section == 'Earnings',
+              ),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.drag(
+        find.descendant(
+          of: find.byWidgetPredicate((w) => w is SellerToolsScreen && w.section == 'Earnings'),
+          matching: find.byType(Scrollable),
+        ).first,
+        const Offset(0, -220),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('All Time'));
       await tester.pumpAndSettle();
-      expect(find.text('₱1,150.00'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('₱1,000.00'),
+        150,
+        scrollable: find
+            .descendant(
+              of: find.byWidgetPredicate(
+                (w) => w is SellerToolsScreen && w.section == 'Earnings',
+              ),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('₱1,000.00'), findsOneWidget);
       final breakdown = find.text('Income Transaction History');
       await tester.scrollUntilVisible(
         breakdown,

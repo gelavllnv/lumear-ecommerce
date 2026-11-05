@@ -212,7 +212,7 @@ class _SellerIncomePanelState extends State<SellerIncomePanel> {
                   Text(
                     report.hasLegacyCommission
                         ? 'After recorded commission and refunds.'
-                        : 'After ${MarketplacePolicy.commissionPercent}% platform commission. Seller share: ${MarketplacePolicy.sellerSharePercent}% before refunds.',
+                        : 'Seller share: ${MarketplacePolicy.sellerSharePercent}% before refunds. Admin: ${MarketplacePolicy.adminSharePercent}%. App owner: ${MarketplacePolicy.ownerSharePercent}%.',
                   ),
                 ],
               ),
