@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Services\RiderTaskAssignmentService;
 use App\Support\LogisticsNotification;
+use App\Support\RiderJobType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +20,11 @@ class LogisticsRiderManagementApiController extends Controller
             ->where('status', 'approved')
             ->value('id');
 
-        abort_unless($id, 403, 'Approved logistics account required.');
+        abort_unless(
+            $id,
+            403,
+            'Approved logistics account required.'
+        );
 
         return (int) $id;
     }
@@ -43,22 +49,42 @@ class LogisticsRiderManagementApiController extends Controller
             ->where('logistics_provider_id', $providerId)
             ->orderByDesc('id')
             ->get()
-            ->map(fn ($a) => [
-                'id' => 'APP-' . str_pad($a->id, 3, '0', STR_PAD_LEFT),
-                'firstName' => explode(' ', trim($a->name), 2)[0],
-                'lastName' => explode(' ', trim($a->name), 2)[1] ?? '',
-                'email' => $a->email,
-                'phone' => '',
-                'birthday' => '',
-                'sex' => '',
-                'municipality' => $area,
-                'address' => $area,
-                'vehicle' => $a->vehicle_type ?? 'Motorcycle',
-                'plate' => $a->plate_no ?? '',
-                'license' => '',
-                'submitted' => substr($a->created_at, 0, 10),
-                'status' => ucfirst($a->status),
-                'remarks' => $a->remarks ?? '',
+            ->map(fn ($application) => [
+                'id' => 'APP-' . str_pad(
+                    (string) $application->id,
+                    3,
+                    '0',
+                    STR_PAD_LEFT
+                ),
+                'firstName' => explode(
+                    ' ',
+                    trim($application->name),
+                    2
+                )[0],
+                'lastName' => explode(
+                    ' ',
+                    trim($application->name),
+                    2
+                )[1] ?? '',
+                'email' => $application->email,
+                'phone' => $application->phone ?? '',
+                'birthday' => $application->date_of_birth ?? '',
+                'sex' => $application->sex ?? '',
+                'municipality' => $application->municipality ?? $area,
+                'address' => $this->address($application, $area),
+                'vehicle' => $application->vehicle_type ?? 'Motorcycle',
+                'jobType' => $application->job_type,
+                'plate' => $application->plate_no ?? '',
+                'license' => $application->license_number
+                    ?? $application->license_no
+                    ?? '',
+                'submitted' => substr(
+                    (string) $application->created_at,
+                    0,
+                    10
+                ),
+                'status' => ucfirst($application->status),
+                'remarks' => $application->remarks ?? '',
             ]);
     }
 
@@ -71,28 +97,55 @@ class LogisticsRiderManagementApiController extends Controller
             ->where('r.logistics_provider_id', $providerId)
             ->select(
                 'r.*',
-                'u.name',
-                'u.email',
-                'u.phone'
+                'u.name as account_name',
+                'u.email as account_email',
+                'u.phone as account_phone'
             )
             ->orderByDesc('r.id')
             ->get()
-            ->map(fn ($r) => [
-                'id' => 'RDR-' . str_pad($r->id, 3, '0', STR_PAD_LEFT),
+            ->map(fn ($rider) => [
+                'id' => 'RDR-' . str_pad(
+                    (string) $rider->id,
+                    3,
+                    '0',
+                    STR_PAD_LEFT
+                ),
                 'applicationId' => null,
-                'name' => $r->name,
-                'email' => $r->email,
-                'phone' => $r->phone ?? '',
-                'municipality' => $area,
-                'address' => $area,
-                'vehicle' => $r->vehicle_type ?? 'Motorcycle',
-                'plate' => $r->plate_no ?? '',
-                'license' => '',
-                'status' => $r->management_status === 'Suspended'
+                'name' => $rider->account_name,
+                'email' => $rider->account_email,
+                'phone' => $rider->account_phone ?? '',
+                'municipality' => $rider->municipality ?? $area,
+                'address' => $this->address($rider, $area),
+                'vehicle' => $rider->vehicle_type ?? 'Motorcycle',
+                'jobType' => $rider->job_type,
+                'plate' => $rider->plate_no ?? '',
+                'license' => $rider->license_no ?? '',
+                'status' => $rider->management_status === 'Suspended'
                     ? 'Suspended'
-                    : ($r->is_active ? 'Available' : 'Offline'),
-                'remarks' => $r->management_remarks ?? '',
+                    : (
+                        RiderJobType::isAvailable($rider)
+                            ? 'Available'
+                            : 'Offline'
+                    ),
+                'remarks' => $rider->management_remarks ?? '',
             ]);
+    }
+
+    private function address(object $record, string $fallback): string
+    {
+        $parts = array_filter([
+            $record->house_unit ?? '',
+            $record->street ?? '',
+            $record->barangay ?? '',
+            $record->municipality ?? '',
+            $record->province ?? '',
+            $record->region ?? '',
+            $record->postal_code ?? '',
+        ], fn ($value) => $value !== null && $value !== '');
+
+        return $parts
+            ? implode(', ', $parts)
+            : $fallback;
     }
 
     public function index()
@@ -114,8 +167,8 @@ class LogisticsRiderManagementApiController extends Controller
         ]);
 
         if (
-            $data['status'] === 'Rejected' &&
-            !filled($data['remarks'] ?? null)
+            $data['status'] === 'Rejected'
+            && !filled($data['remarks'] ?? null)
         ) {
             throw ValidationException::withMessages([
                 'remarks' => 'A rejection reason is required.',
@@ -131,7 +184,11 @@ class LogisticsRiderManagementApiController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            abort_unless($application, 404, 'Application not found.');
+            abort_unless(
+                $application,
+                404,
+                'Application not found.'
+            );
 
             abort_unless(
                 $application->status === 'pending',
@@ -140,8 +197,29 @@ class LogisticsRiderManagementApiController extends Controller
             );
 
             if ($data['status'] === 'Approved') {
-                $user = DB::table('users')
-                    ->where('email', $application->email)
+                // Preserve the job type chosen during rider registration.
+                // Logistics cannot choose or override this value.
+                $jobType = RiderJobType::validateSelected(
+                    $application->job_type
+                );
+
+                $userQuery = DB::table('users');
+
+                if (!empty($application->user_id)) {
+                    $userQuery->where(
+                        'id',
+                        $application->user_id
+                    );
+                } else {
+                    $userQuery->where(
+                        'email',
+                        $application->email
+                    );
+                }
+
+                // Serialize approvals belonging to the same user.
+                $user = $userQuery
+                    ->lockForUpdate()
                     ->first();
 
                 if (!$user) {
@@ -153,6 +231,7 @@ class LogisticsRiderManagementApiController extends Controller
 
                 $existing = DB::table('riders')
                     ->where('user_id', $user->id)
+                    ->lockForUpdate()
                     ->first();
 
                 if ($existing) {
@@ -166,11 +245,11 @@ class LogisticsRiderManagementApiController extends Controller
                     'user_id' => $user->id,
                     'logistics_provider_id' => $providerId,
                     'vehicle_type' => $application->vehicle_type,
+                    'job_type' => $jobType,
                     'plate_no' => $application->plate_no,
                     'is_active' => false,
                     'management_status' => 'Offline',
-                    'management_remarks' =>
-                        'Newly approved rider.',
+                    'management_remarks' => 'Newly approved rider.',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -178,13 +257,13 @@ class LogisticsRiderManagementApiController extends Controller
 
             DB::table('logistics_rider_applications')
                 ->where('id', $id)
+                ->where('logistics_provider_id', $providerId)
                 ->update([
                     'status' => strtolower($data['status']),
                     'remarks' => $data['remarks'] ?? '',
                     'updated_at' => now(),
                 ]);
 
-            // NEW: Notify Logistics about the decision.
             LogisticsNotification::create(
                 $providerId,
                 'rider_application',
@@ -194,7 +273,7 @@ class LogisticsRiderManagementApiController extends Controller
                     . ' was ' . strtolower($data['status']) . '.',
                 null
             );
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,
@@ -212,8 +291,8 @@ class LogisticsRiderManagementApiController extends Controller
         ]);
 
         if (
-            $data['status'] === 'Suspended' &&
-            !filled($data['remarks'] ?? null)
+            $data['status'] === 'Suspended'
+            && !filled($data['remarks'] ?? null)
         ) {
             throw ValidationException::withMessages([
                 'remarks' => 'A suspension reason is required.',
@@ -229,12 +308,15 @@ class LogisticsRiderManagementApiController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            abort_unless($rider, 404, 'Rider not found.');
+            abort_unless(
+                $rider,
+                404,
+                'Rider not found.'
+            );
 
             if ($data['status'] === 'Suspended') {
                 $activeDeliveries = DB::table('shipments')
                     ->where('rider_id', $id)
-                    ->where('logistics_provider_id', $providerId)
                     ->whereIn('status', [
                         'assigned',
                         'picked_up',
@@ -243,16 +325,30 @@ class LogisticsRiderManagementApiController extends Controller
                     ])
                     ->exists();
 
-                if ($activeDeliveries) {
+                $activeTasks = DB::table('rider_tasks')
+                    ->where('rider_id', $id)
+                    ->where(function ($query) {
+                        $query
+                            ->whereNotIn(
+                                'status',
+                                RiderTaskAssignmentService::TERMINAL_STATUSES
+                            )
+                            ->orWhereNull('status');
+                    })
+                    ->exists();
+
+                if ($activeDeliveries || $activeTasks) {
                     throw ValidationException::withMessages([
                         'status' =>
-                            'Reassign active deliveries before suspending this rider.',
+                            'Resolve active deliveries and rider tasks before suspending this rider.',
                     ]);
                 }
             }
 
+            // Availability changes do not change the registered job type.
             DB::table('riders')
                 ->where('id', $id)
+                ->where('logistics_provider_id', $providerId)
                 ->update([
                     'is_active' => $data['status'] === 'Available',
                     'management_status' => $data['status'],
@@ -260,7 +356,6 @@ class LogisticsRiderManagementApiController extends Controller
                     'updated_at' => now(),
                 ]);
 
-            // NEW: Notify Logistics about rider status.
             LogisticsNotification::create(
                 $providerId,
                 'rider_status',
@@ -269,7 +364,7 @@ class LogisticsRiderManagementApiController extends Controller
                     . ' status changed to ' . $data['status'] . '.',
                 null
             );
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,

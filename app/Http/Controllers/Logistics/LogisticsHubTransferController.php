@@ -1,0 +1,164 @@
+<?php
+
+namespace App\Http\Controllers\Logistics;
+
+use App\Http\Controllers\Controller;
+use App\Services\HubTransferService;
+use App\Support\RiderJobType;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+
+class LogisticsHubTransferController extends Controller
+{
+    private function providerId(): int
+    {
+        $id = DB::table('logistics_providers')
+            ->where('user_id', Auth::id())
+            ->where('status', 'approved')
+            ->value('id');
+
+        abort_unless(
+            $id,
+            403,
+            'Approved logistics account required.'
+        );
+
+        return (int) $id;
+    }
+
+    public function index()
+    {
+        $providerId = $this->providerId();
+
+        $pending = DB::table('rider_tasks as t')
+            ->join('shipments as s', 's.id', '=', 't.shipment_id')
+            ->join('riders as r', 'r.id', '=', 't.rider_id')
+            ->join('users as u', 'u.id', '=', 'r.user_id')
+            ->join(
+                'logistics_providers as d',
+                'd.id',
+                '=',
+                't.destination_provider_id'
+            )
+            ->where('t.logistics_provider_id', $providerId)
+            ->where('s.logistics_provider_id', $providerId)
+            ->where('t.job_type', RiderJobType::HUB_TRANSFER)
+            ->where('t.status', 'assigned')
+            ->whereNotExists(function ($query) {
+                $query
+                    ->selectRaw('1')
+                    ->from('logistics_hub_transfers as h')
+                    ->whereColumn('h.rider_task_id', 't.id');
+            })
+            ->select(
+                't.id',
+                's.tracking_code',
+                'u.name as driver',
+                'd.name as destination'
+            )
+            ->orderByDesc('t.id')
+            ->paginate(15, ['*'], 'pending_page')
+            ->withQueryString();
+
+        $transfers = DB::table('logistics_hub_transfers as h')
+            ->join('shipments as s', 's.id', '=', 'h.shipment_id')
+            ->join(
+                'logistics_providers as origin',
+                'origin.id',
+                '=',
+                'h.source_provider_id'
+            )
+            ->join(
+                'logistics_providers as destination',
+                'destination.id',
+                '=',
+                'h.destination_provider_id'
+            )
+            ->where(function ($query) use ($providerId) {
+                $query
+                    ->where('h.source_provider_id', $providerId)
+                    ->orWhere('h.destination_provider_id', $providerId);
+            })
+            ->select(
+                'h.*',
+                's.tracking_code',
+                'origin.name as source_name',
+                'destination.name as destination_name'
+            )
+            ->orderByDesc('h.id')
+            ->paginate(15, ['*'], 'transfers_page')
+            ->withQueryString();
+
+        return view(
+            'logistics.transfers.index',
+            compact(
+                'providerId',
+                'pending',
+                'transfers'
+            )
+        );
+    }
+
+    public function dispatch(
+        int $id,
+        HubTransferService $service
+    ) {
+        $created = $service->dispatch(
+            $id,
+            $this->providerId(),
+            (int) Auth::id()
+        );
+
+        return redirect()
+            ->route('logistics.transfers.index')
+            ->with(
+                'success',
+                $created
+                    ? 'Transfer dispatched. The destination hub can now confirm receipt.'
+                    : 'This task was already dispatched.'
+            );
+    }
+
+    public function receive(
+        Request $request,
+        int $id,
+        HubTransferService $service
+    ) {
+        $data = $request->validate([
+            'tracking_code' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'condition' => [
+                'nullable',
+                'string',
+                'max:120',
+            ],
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:500',
+            ],
+        ]);
+
+        $received = $service->receive(
+            $id,
+            $this->providerId(),
+            (int) Auth::id(),
+            $data['tracking_code'],
+            $data['condition'] ?? null,
+            $data['remarks'] ?? null
+        );
+
+        return redirect()
+            ->route('logistics.transfers.index')
+            ->with(
+                'success',
+                $received
+                    ? 'Parcel received and transfer completed. Verify its waybill and sort it at this hub.'
+                    : 'This transfer was already received.'
+            );
+    }
+}

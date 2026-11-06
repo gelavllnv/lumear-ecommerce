@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Http;
 
-// LOGISTICS CONTROLLERS
 use App\Http\Controllers\Logistics\LogisticsRegistrationController;
 use App\Http\Controllers\Logistics\LogisticsAuthController;
 use App\Http\Controllers\Logistics\LogisticsDashboardController;
@@ -13,6 +12,7 @@ use App\Http\Controllers\Logistics\LogisticsIncomingApiController;
 use App\Http\Controllers\Logistics\LogisticsSortingApiController;
 use App\Http\Controllers\Logistics\LogisticsDeliveryApiController;
 use App\Http\Controllers\Logistics\LogisticsRiderManagementApiController;
+use App\Http\Controllers\Logistics\LogisticsRiderTaskController;
 use App\Http\Controllers\Logistics\LogisticsMessagingApiController;
 use App\Http\Controllers\Logistics\LogisticsReportsApiController;
 use App\Http\Controllers\Logistics\LogisticsReportPdfController;
@@ -24,19 +24,16 @@ use App\Http\Controllers\Logistics\LogisticsWalletController;
 use App\Http\Controllers\Logistics\RiderPayrollController;
 use App\Http\Controllers\Logistics\RiderRemittanceController;
 
-// LOGISTICS HEAD ADMIN
 use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
 use App\Http\Controllers\Logistics\LogisticsHeadAdminDashboardController;
 use App\Http\Controllers\Logistics\LogisticsHeadAdminApplicationController;
 
-// MIDDLEWARE
 use App\Http\Middleware\EnsureApprovedLogistics;
 use App\Http\Middleware\EnsureLogisticsHeadAdmin;
 
-
 /*
 |--------------------------------------------------------------------------
-| BUYER AUTHENTICATION
+| Buyer authentication
 |--------------------------------------------------------------------------
 */
 
@@ -48,10 +45,9 @@ Route::get('/register', function () {
     return view('buyer.auth.register');
 })->name('register');
 
-
 /*
 |--------------------------------------------------------------------------
-| BUYER SHOP
+| Buyer shop
 |--------------------------------------------------------------------------
 */
 
@@ -103,44 +99,41 @@ Route::get('/saved', function () {
     return view('buyer.saved');
 })->name('buyer.saved');
 
-
 /*
 |--------------------------------------------------------------------------
-| LOGISTICS ROUTES
+| Logistics
 |--------------------------------------------------------------------------
 */
 
 Route::prefix('logistics')
     ->name('logistics.')
     ->group(function () {
-
         /*
         |--------------------------------------------------------------------------
-        | LOGISTICS AUTHENTICATION
+        | Authentication
         |--------------------------------------------------------------------------
         */
 
         Route::get('/login', [
             LogisticsAuthController::class,
-            'showLogin'
+            'showLogin',
         ])->name('login');
 
         Route::post('/login', [
             LogisticsAuthController::class,
-            'login'
+            'login',
         ])->name('login.submit');
 
         Route::post('/logout', [
             LogisticsAuthController::class,
-            'logout'
+            'logout',
         ])
             ->middleware('auth')
             ->name('logout');
 
-
         /*
         |--------------------------------------------------------------------------
-        | LOGISTICS REGISTRATION
+        | Registration
         |--------------------------------------------------------------------------
         */
 
@@ -154,33 +147,32 @@ Route::prefix('logistics')
 
         Route::post('/register/validate', [
             LogisticsRegistrationController::class,
-            'validateStep'
+            'validateStep',
         ])->name('register.validate');
 
         Route::post('/register/send-otp', [
             LogisticsRegistrationController::class,
-            'sendOtp'
+            'sendOtp',
         ])->name('register.send-otp');
 
         Route::post('/register/verify-otp', [
             LogisticsRegistrationController::class,
-            'verifyOtp'
+            'verifyOtp',
         ])->name('register.verify-otp');
 
         Route::post('/register/submit', [
             LogisticsRegistrationController::class,
-            'submit'
+            'submit',
         ])->name('register.submit');
 
         Route::get('/municipality-availability', [
             LogisticsRegistrationController::class,
-            'municipalityAvailability'
+            'municipalityAvailability',
         ])->name('municipality.availability');
-
 
         /*
         |--------------------------------------------------------------------------
-        | PHILIPPINE ADDRESS API
+        | Philippine address API
         |--------------------------------------------------------------------------
         */
 
@@ -198,7 +190,6 @@ Route::prefix('logistics')
                 }
 
                 return response()->json($response->json());
-
             } catch (\Exception $exception) {
                 return response()->json([
                     'success' => false,
@@ -206,7 +197,6 @@ Route::prefix('logistics')
                 ], 500);
             }
         })->name('address.provinces');
-
 
         Route::get(
             '/address/provinces/{province}/cities-municipalities',
@@ -228,7 +218,6 @@ Route::prefix('logistics')
                     }
 
                     return response()->json($response->json());
-
                 } catch (\Exception $exception) {
                     return response()->json([
                         'success' => false,
@@ -237,7 +226,6 @@ Route::prefix('logistics')
                 }
             }
         )->name('address.cities-municipalities');
-
 
         Route::get(
             '/address/cities-municipalities/{municipality}/barangays',
@@ -259,7 +247,6 @@ Route::prefix('logistics')
                     }
 
                     return response()->json($response->json());
-
                 } catch (\Exception $exception) {
                     return response()->json([
                         'success' => false,
@@ -269,52 +256,42 @@ Route::prefix('logistics')
             }
         )->name('address.barangays');
 
-
         /*
         |--------------------------------------------------------------------------
-        | PROTECTED LOGISTICS WORKSPACE
+        | Protected logistics workspace
         |--------------------------------------------------------------------------
         */
 
         Route::middleware([
             'auth',
-            EnsureApprovedLogistics::class
+            EnsureApprovedLogistics::class,
         ])->group(function () {
-
-            /*
-            |--------------------------------------------------------------------------
-            | DASHBOARD
-            |--------------------------------------------------------------------------
-            */
-
             Route::get('/dashboard', [
                 LogisticsDashboardController::class,
-                'index'
+                'index',
             ])->name('dashboard');
-
 
             /*
             |--------------------------------------------------------------------------
-            | PICKUP REQUESTS
+            | Pickup requests
             |--------------------------------------------------------------------------
             */
 
             Route::get('/pickup-requests', [
                 LogisticsPickupController::class,
-                'index'
+                'index',
             ])->name('pickup.index');
 
             Route::get('/pickup-requests/{id}', [
                 LogisticsPickupController::class,
-                'show'
+                'show',
             ])
                 ->whereNumber('id')
                 ->name('pickup.show');
 
-
             /*
             |--------------------------------------------------------------------------
-            | INCOMING PARCELS
+            | Incoming parcels
             |--------------------------------------------------------------------------
             */
 
@@ -324,35 +301,22 @@ Route::prefix('logistics')
 
             Route::post('/incoming-parcels/{id}/receive', [
                 LogisticsOperationsController::class,
-                'receive'
+                'receive',
             ])
                 ->whereNumber('id')
                 ->name('ops.receive');
 
-
             /*
             |--------------------------------------------------------------------------
-            | PARCEL SORTING
+            | Parcel sorting
             |--------------------------------------------------------------------------
-            |
-            | IMPORTANT:
-            | The legacy direct sorting endpoint is disabled.
-            |
-            | A parcel must:
-            | 1. Be received by Logistics.
-            | 2. Have its QR or written waybill verified.
-            | 3. Be assigned to a sorting batch.
-            | 4. Complete sorting through the verified API.
-            |
-            | This prevents the older controller from
-            | bypassing waybill verification.
-            |
             */
 
             Route::get('/parcel-sorting', function () {
                 return view('logistics.sorting.index');
             })->name('sorting.index');
 
+            // Keep direct sorting disabled so verification cannot be bypassed.
             Route::post('/parcel-sorting/{id}/sort', function (int $id) {
                 return response()->json([
                     'success' => false,
@@ -363,10 +327,9 @@ Route::prefix('logistics')
                 ->whereNumber('id')
                 ->name('ops.sort');
 
-
             /*
             |--------------------------------------------------------------------------
-            | DELIVERY ASSIGNMENT
+            | Delivery assignment
             |--------------------------------------------------------------------------
             */
 
@@ -376,15 +339,30 @@ Route::prefix('logistics')
 
             Route::post('/delivery-assignment/{id}/assign', [
                 LogisticsOperationsController::class,
-                'assign'
+                'assign',
             ])
                 ->whereNumber('id')
                 ->name('ops.assign');
 
+            /*
+            |--------------------------------------------------------------------------
+            | Rider tasks
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/rider-tasks', [
+                LogisticsRiderTaskController::class,
+                'index',
+            ])->name('tasks.index');
+
+            Route::post('/rider-tasks', [
+                LogisticsRiderTaskController::class,
+                'store',
+            ])->name('tasks.store');
 
             /*
             |--------------------------------------------------------------------------
-            | DELIVERY MONITORING
+            | Delivery monitoring
             |--------------------------------------------------------------------------
             */
 
@@ -392,10 +370,9 @@ Route::prefix('logistics')
                 return view('logistics.monitoring.index');
             })->name('monitoring.index');
 
-
             /*
             |--------------------------------------------------------------------------
-            | RIDER APPLICATIONS
+            | Rider applications
             |--------------------------------------------------------------------------
             */
 
@@ -405,20 +382,19 @@ Route::prefix('logistics')
 
             Route::post('/rider-applications', [
                 LogisticsOperationsController::class,
-                'apply'
+                'apply',
             ])->name('ops.apply');
 
             Route::post('/rider-applications/{id}/decide', [
                 LogisticsOperationsController::class,
-                'decide'
+                'decide',
             ])
                 ->whereNumber('id')
                 ->name('ops.decide');
 
-
             /*
             |--------------------------------------------------------------------------
-            | RIDER LIST
+            | Rider list and payroll
             |--------------------------------------------------------------------------
             */
 
@@ -428,32 +404,24 @@ Route::prefix('logistics')
 
             Route::post('/riders/{id}/status', [
                 LogisticsOperationsController::class,
-                'riderStatus'
+                'riderStatus',
             ])
                 ->whereNumber('id')
                 ->name('ops.rider-status');
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | RIDER PAYROLL
-            |--------------------------------------------------------------------------
-            */
-
             Route::get('/riders/payroll', [
                 RiderPayrollController::class,
-                'index'
+                'index',
             ])->name('riders.payroll.index');
 
             Route::post('/riders/payroll', [
                 RiderPayrollController::class,
-                'store'
+                'store',
             ])->name('riders.payroll.store');
-
 
             /*
             |--------------------------------------------------------------------------
-            | MESSAGES
+            | Messages
             |--------------------------------------------------------------------------
             */
 
@@ -463,13 +431,12 @@ Route::prefix('logistics')
 
             Route::post('/messages', [
                 LogisticsOperationsController::class,
-                'message'
+                'message',
             ])->name('ops.message');
-
 
             /*
             |--------------------------------------------------------------------------
-            | REPORTS
+            | Reports
             |--------------------------------------------------------------------------
             */
 
@@ -479,13 +446,12 @@ Route::prefix('logistics')
 
             Route::get('/reports/export', [
                 LogisticsOperationsController::class,
-                'report'
+                'report',
             ])->name('ops.report');
-
 
             /*
             |--------------------------------------------------------------------------
-            | MY ACCOUNT
+            | Account
             |--------------------------------------------------------------------------
             */
 
@@ -495,427 +461,341 @@ Route::prefix('logistics')
 
             Route::post('/account', [
                 LogisticsOperationsController::class,
-                'account'
+                'account',
             ])->name('ops.account');
 
             Route::post('/account/password', [
                 LogisticsOperationsController::class,
-                'password'
+                'password',
             ])->name('ops.password');
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | MY ACCOUNT API
-            |--------------------------------------------------------------------------
-            */
 
             Route::get('/api/account', [
                 LogisticsAccountController::class,
-                'show'
+                'show',
             ])->name('api.account.show');
 
             Route::put('/api/account/personal', [
                 LogisticsAccountController::class,
-                'updatePersonal'
+                'updatePersonal',
             ])->name('api.account.personal');
 
             Route::put('/api/account/business', [
                 LogisticsAccountController::class,
-                'updateBusiness'
+                'updateBusiness',
             ])->name('api.account.business');
 
             Route::put('/api/account/password', [
                 LogisticsAccountController::class,
-                'updatePassword'
+                'updatePassword',
             ])->name('api.account.password');
 
             Route::get('/api/account/activity', [
                 LogisticsAccountController::class,
-                'activity'
+                'activity',
             ])->name('api.account.activity');
 
             Route::get('/api/account/documents/{type}', [
                 LogisticsAccountController::class,
-                'document'
+                'document',
             ])
                 ->where('type', 'valid-id|business-permit')
                 ->name('account.document');
 
-
             /*
             |--------------------------------------------------------------------------
-            | QR WAYBILL SCANNER
+            | QR waybill scanner
             |--------------------------------------------------------------------------
-            |
-            | This endpoint now records verification through
-            | LogisticsWaybillScannerController::lookup().
-            |
-            | QR scans and manually entered tracking codes
-            | use the same verification endpoint.
-            |
             */
 
             Route::get('/scanner', [
                 LogisticsWaybillScannerController::class,
-                'index'
+                'index',
             ])->name('scanner.index');
 
             Route::post('/api/scanner/lookup', [
                 LogisticsWaybillScannerController::class,
-                'lookup'
+                'lookup',
             ])->name('api.scanner.lookup');
-
 
             /*
             |--------------------------------------------------------------------------
-            | INCOMING PARCELS API
+            | Incoming parcels API
             |--------------------------------------------------------------------------
             */
 
             Route::get('/api/incoming-parcels', [
                 LogisticsIncomingApiController::class,
-                'index'
+                'index',
             ])->name('api.incoming.index');
 
             Route::post('/api/incoming-parcels/{id}/receive', [
                 LogisticsIncomingApiController::class,
-                'receive'
+                'receive',
             ])
                 ->whereNumber('id')
                 ->name('api.incoming.receive');
 
-
             /*
             |--------------------------------------------------------------------------
-            | PARCEL SORTING API
+            | Parcel sorting API
             |--------------------------------------------------------------------------
-            |
-            | Verification is checked by the controller
-            | before batch assignment and completion.
-            |
             */
 
             Route::get('/api/sorting', [
                 LogisticsSortingApiController::class,
-                'index'
+                'index',
             ])->name('api.sorting.index');
 
             Route::post('/api/sorting/batches', [
                 LogisticsSortingApiController::class,
-                'createBatch'
+                'createBatch',
             ])->name('api.sorting.batches');
 
             Route::post('/api/sorting/assign', [
                 LogisticsSortingApiController::class,
-                'assign'
+                'assign',
             ])->name('api.sorting.assign');
 
             Route::post('/api/sorting/{id}/complete', [
                 LogisticsSortingApiController::class,
-                'complete'
+                'complete',
             ])
                 ->whereNumber('id')
                 ->name('api.sorting.complete');
 
-
             /*
             |--------------------------------------------------------------------------
-            | DELIVERY ASSIGNMENT API
+            | Delivery assignment and monitoring API
             |--------------------------------------------------------------------------
             */
 
             Route::get('/api/delivery/assignment', [
                 LogisticsDeliveryApiController::class,
-                'assignment'
+                'assignment',
             ])->name('api.delivery.assignment');
 
             Route::post('/api/delivery/assign', [
                 LogisticsDeliveryApiController::class,
-                'assign'
+                'assign',
             ])->name('api.delivery.assign');
 
             Route::post('/api/delivery/dispatch/{id}', [
                 LogisticsDeliveryApiController::class,
-                'dispatch'
+                'dispatch',
             ])
                 ->whereNumber('id')
                 ->name('api.delivery.dispatch');
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | DELIVERY MONITORING API
-            |--------------------------------------------------------------------------
-            */
-
             Route::get('/api/delivery/monitoring', [
                 LogisticsDeliveryApiController::class,
-                'monitoring'
+                'monitoring',
             ])->name('api.delivery.monitoring');
 
             Route::post('/api/delivery/monitoring/{id}/status', [
                 LogisticsDeliveryApiController::class,
-                'updateStatus'
+                'updateStatus',
             ])
                 ->whereNumber('id')
                 ->name('api.delivery.monitoring.status');
 
-
             /*
             |--------------------------------------------------------------------------
-            | RIDER MANAGEMENT API
+            | Rider management API
             |--------------------------------------------------------------------------
             */
 
             Route::get('/api/rider-management', [
                 LogisticsRiderManagementApiController::class,
-                'index'
+                'index',
             ])->name('api.riders.index');
 
             Route::post('/api/rider-management/applications/{id}/decide', [
                 LogisticsRiderManagementApiController::class,
-                'decide'
+                'decide',
             ])
                 ->whereNumber('id')
                 ->name('api.riders.decide');
 
             Route::post('/api/rider-management/riders/{id}/status', [
                 LogisticsRiderManagementApiController::class,
-                'updateStatus'
+                'updateStatus',
             ])
                 ->whereNumber('id')
                 ->name('api.riders.status');
 
-
             /*
             |--------------------------------------------------------------------------
-            | LOGISTICS MESSAGING API
+            | Messaging API
             |--------------------------------------------------------------------------
             */
 
             Route::get('/api/messages', [
                 LogisticsMessagingApiController::class,
-                'index'
+                'index',
             ])->name('api.messages.index');
 
             Route::get('/api/messages/{contactId}', [
                 LogisticsMessagingApiController::class,
-                'show'
+                'show',
             ])
                 ->whereNumber('contactId')
                 ->name('api.messages.show');
 
             Route::post('/api/messages', [
                 LogisticsMessagingApiController::class,
-                'send'
+                'send',
             ])->name('api.messages.send');
 
             Route::post('/api/messages/{contactId}/read', [
                 LogisticsMessagingApiController::class,
-                'markRead'
+                'markRead',
             ])
                 ->whereNumber('contactId')
                 ->name('api.messages.read');
 
-
             /*
             |--------------------------------------------------------------------------
-            | LOGISTICS REPORTS API
+            | Reports API
             |--------------------------------------------------------------------------
             */
 
             Route::get('/api/reports', [
                 LogisticsReportsApiController::class,
-                'index'
+                'index',
             ])->name('api.reports.index');
 
             Route::post('/api/reports/pdf', [
                 LogisticsReportPdfController::class,
-                'generate'
+                'generate',
             ])->name('api.reports.pdf');
 
             Route::get('/api/reports/history', [
                 LogisticsReportPdfController::class,
-                'history'
+                'history',
             ])->name('api.reports.history');
 
             Route::get('/api/reports/history/{id}/download', [
                 LogisticsReportPdfController::class,
-                'download'
+                'download',
             ])
                 ->whereNumber('id')
                 ->name('api.reports.download');
 
-
             /*
             |--------------------------------------------------------------------------
-            | LIVE LOGISTICS NOTIFICATIONS
+            | Notifications and search
             |--------------------------------------------------------------------------
             */
 
             Route::get('/api/notifications', [
                 LogisticsNotificationController::class,
-                'index'
+                'index',
             ])->name('api.notifications.index');
 
             Route::post('/api/notifications/read-all', [
                 LogisticsNotificationController::class,
-                'markAllRead'
+                'markAllRead',
             ])->name('api.notifications.read-all');
 
             Route::post('/api/notifications/{id}/read', [
                 LogisticsNotificationController::class,
-                'markRead'
+                'markRead',
             ])
                 ->whereNumber('id')
                 ->name('api.notifications.read');
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | LOGISTICS GLOBAL SEARCH API
-            |--------------------------------------------------------------------------
-            */
-
             Route::get('/api/search', [
                 LogisticsSearchController::class,
-                'index'
+                'index',
             ])->name('api.search');
-
 
             /*
             |--------------------------------------------------------------------------
-            | LOGISTICS E-WALLET
+            | E-wallet and COD remittance
             |--------------------------------------------------------------------------
             */
 
             Route::get('/wallet', [
                 LogisticsWalletController::class,
-                'index'
+                'index',
             ])->name('wallet.index');
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | COD REMITTANCE MANAGEMENT
-            |--------------------------------------------------------------------------
-            */
 
             Route::get('/remittance', [
                 RiderRemittanceController::class,
-                'index'
+                'index',
             ])->name('remittance.index');
 
             Route::post('/remittance/{id}/verify', [
                 RiderRemittanceController::class,
-                'verify'
+                'verify',
             ])
                 ->whereNumber('id')
                 ->name('remittance.verify');
 
             Route::post('/remittance/{id}/reject', [
                 RiderRemittanceController::class,
-                'reject'
+                'reject',
             ])
                 ->whereNumber('id')
                 ->name('remittance.reject');
 
             Route::get('/remittance/{id}/receipt', [
                 RiderRemittanceController::class,
-                'receipt'
+                'receipt',
             ])
                 ->whereNumber('id')
                 ->name('remittance.receipt');
-
         });
-
     });
-
 
 /*
 |--------------------------------------------------------------------------
-| LOGISTICS HEAD ADMIN
+| Logistics head admin
 |--------------------------------------------------------------------------
 */
 
 Route::prefix('logistics/head-admin')
     ->name('logistics.head-admin.')
     ->group(function () {
-
-        /*
-        |--------------------------------------------------------------------------
-        | HEAD ADMIN AUTHENTICATION
-        |--------------------------------------------------------------------------
-        */
-
         Route::get('/login', [
             LogisticsHeadAdminAuthController::class,
-            'showLogin'
+            'showLogin',
         ])->name('login');
 
         Route::post('/login', [
             LogisticsHeadAdminAuthController::class,
-            'login'
+            'login',
         ])->name('login.submit');
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | PROTECTED HEAD ADMIN ROUTES
-        |--------------------------------------------------------------------------
-        */
 
         Route::middleware([
             'auth',
-            EnsureLogisticsHeadAdmin::class
+            EnsureLogisticsHeadAdmin::class,
         ])->group(function () {
-
-            /*
-            |--------------------------------------------------------------------------
-            | HEAD ADMIN DASHBOARD
-            |--------------------------------------------------------------------------
-            */
-
             Route::get('/dashboard', [
                 LogisticsHeadAdminDashboardController::class,
-                'index'
+                'index',
             ])->name('dashboard');
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | HEAD ADMIN LOGOUT
-            |--------------------------------------------------------------------------
-            */
 
             Route::post('/logout', [
                 LogisticsHeadAdminAuthController::class,
-                'logout'
+                'logout',
             ])->name('logout');
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | APPLICATION MANAGEMENT
-            |--------------------------------------------------------------------------
-            */
 
             Route::get('/applications', [
                 LogisticsHeadAdminApplicationController::class,
-                'index'
+                'index',
             ])->name('applications.index');
 
             Route::get('/applications/{id}', [
                 LogisticsHeadAdminApplicationController::class,
-                'show'
+                'show',
             ])
                 ->whereNumber('id')
                 ->name('applications.show');
 
             Route::get('/applications/{id}/documents/{type}', [
                 LogisticsHeadAdminApplicationController::class,
-                'document'
+                'document',
             ])
                 ->whereNumber('id')
                 ->where('type', 'valid-id|business-permit')
@@ -923,18 +803,18 @@ Route::prefix('logistics/head-admin')
 
             Route::post('/applications/{id}/approve', [
                 LogisticsHeadAdminApplicationController::class,
-                'approve'
+                'approve',
             ])
                 ->whereNumber('id')
                 ->name('applications.approve');
 
             Route::post('/applications/{id}/reject', [
                 LogisticsHeadAdminApplicationController::class,
-                'reject'
+                'reject',
             ])
                 ->whereNumber('id')
                 ->name('applications.reject');
-
         });
-
     });
+
+require __DIR__ . '/logistics-hub-transfers.php';

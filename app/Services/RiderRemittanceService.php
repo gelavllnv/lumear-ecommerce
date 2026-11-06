@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\RiderJobType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -75,13 +76,11 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | CREATE COD OBLIGATION
+    | Create COD obligation
     |--------------------------------------------------------------------------
     |
-    | Creates one obligation for a delivered shipment
-    | whose COD collection has been confirmed.
-    |
-    | Does not create or credit any wallet money.
+    | Records money owed for confirmed COD collection.
+    | Does not create or credit wallet funds.
     |
     */
 
@@ -181,7 +180,7 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | RIDER COD BALANCE
+    | Rider COD balance
     |--------------------------------------------------------------------------
     */
 
@@ -209,12 +208,15 @@ class RiderRemittanceService
             $remaining = max(
                 0,
                 (int) $obligation->expected_amount_minor
-                - (int) $obligation->settled_amount_minor
+                    - (int) $obligation->settled_amount_minor
             );
 
             if (
                 $remaining > 0
-                && Carbon::parse($obligation->due_at, 'UTC')->lt($now)
+                && Carbon::parse(
+                    $obligation->due_at,
+                    'UTC'
+                )->lt($now)
             ) {
                 $overdue += $remaining;
             }
@@ -233,14 +235,11 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | SUBMIT REMITTANCE FOR VERIFICATION
+    | Submit remittance for verification
     |--------------------------------------------------------------------------
     |
-    | This is a pending payment claim, NOT a completed
-    | wallet-to-wallet transfer.
-    |
-    | Do not use this method to manufacture rider wallet
-    | balances or mark unreceived funds as settled.
+    | Submission is a pending payment claim.
+    | Actual receipt must be verified separately.
     |
     */
 
@@ -256,14 +255,13 @@ class RiderRemittanceService
     ): int {
         $this->verifyRider($riderId, $providerId);
 
-        // Existing database enum supports these values.
-        // A real internal wallet transfer will require
-        // a separate wallet ledger and migration.
-        if (!in_array(
-            $paymentMethod,
-            ['gcash', 'maya', 'bank_transfer', 'other'],
-            true
-        )) {
+        if (
+            !in_array(
+                $paymentMethod,
+                ['gcash', 'maya', 'bank_transfer', 'other'],
+                true
+            )
+        ) {
             $this->fail('Invalid payment method.');
         }
 
@@ -286,7 +284,9 @@ class RiderRemittanceService
             $paymentProvider !== null
             && mb_strlen($paymentProvider) > 100
         ) {
-            $this->fail('Payment provider name is too long.');
+            $this->fail(
+                'Payment provider name is too long.'
+            );
         }
 
         if (
@@ -309,8 +309,10 @@ class RiderRemittanceService
                     $transferredAt,
                     'Asia/Manila'
                 )->utc();
-            } catch (\Throwable $e) {
-                $this->fail('Invalid transfer date and time.');
+            } catch (\Throwable $exception) {
+                $this->fail(
+                    'Invalid transfer date and time.'
+                );
             }
 
             if (
@@ -359,8 +361,7 @@ class RiderRemittanceService
                         'REM-' . strtoupper((string) Str::ulid()),
                     'payment_method' => $paymentMethod,
                     'payment_provider' => $paymentProvider,
-                    'transaction_reference' =>
-                        $transactionReference,
+                    'transaction_reference' => $transactionReference,
                     'submitted_amount_minor' => $amountMinor,
                     'receipt_path' => $receiptPath,
                     'status' => 'pending_verification',
@@ -391,14 +392,8 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | VERIFY REMITTANCE AND RECORD COD HOLDING LEDGER
+    | Verify remittance and record COD holding ledger
     |--------------------------------------------------------------------------
-    |
-    | Logistics must independently verify actual receipt.
-    |
-    | Allocations and the COD ledger entry are written
-    | within the same database transaction.
-    |
     */
 
     public function verifyDigitalRemittance(
@@ -423,9 +418,7 @@ class RiderRemittanceService
                 $this->fail('Remittance not found.');
             }
 
-            if (
-                $remittance->status !== 'pending_verification'
-            ) {
+            if ($remittance->status !== 'pending_verification') {
                 $this->fail(
                     'Only pending remittances can be verified.'
                 );
@@ -461,7 +454,7 @@ class RiderRemittanceService
                 $outstanding = max(
                     0,
                     (int) $obligation->expected_amount_minor
-                    - (int) $obligation->settled_amount_minor
+                        - (int) $obligation->settled_amount_minor
                 );
 
                 if ($outstanding <= 0) {
@@ -470,22 +463,21 @@ class RiderRemittanceService
 
                 $amount = min($remaining, $outstanding);
 
-                DB::table(
-                    'rider_remittance_allocations'
-                )->insert([
-                    'rider_remittance_id' => $remittanceId,
-                    'rider_cod_obligation_id' => $obligation->id,
-                    'amount_minor' => $amount,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                DB::table('rider_remittance_allocations')
+                    ->insert([
+                        'rider_remittance_id' => $remittanceId,
+                        'rider_cod_obligation_id' => $obligation->id,
+                        'amount_minor' => $amount,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
 
                 $newSettled =
                     (int) $obligation->settled_amount_minor
                     + $amount;
 
-                $fullySettled = $newSettled >=
-                    (int) $obligation->expected_amount_minor;
+                $fullySettled = $newSettled
+                    >= (int) $obligation->expected_amount_minor;
 
                 DB::table('rider_cod_obligations')
                     ->where('id', $obligation->id)
@@ -531,41 +523,31 @@ class RiderRemittanceService
                     'updated_at' => $now,
                 ]);
 
-            /*
-            | Record verified funds separately from
-            | Logistics shipping commission earnings.
-            */
-
+            // Verified COD funds remain separate from commission earnings.
             app(LogisticsCodWalletService::class)
                 ->recordVerifiedRemittance(
                     $remittanceId,
                     $providerId
                 );
 
-            /*
-            | Verified overpayments require reconciliation.
-            | Do not credit them to commission earnings.
-            */
-
             if ($remaining > 0) {
-                DB::table(
-                    'rider_remittance_discrepancies'
-                )->insert([
-                    'rider_id' => $remittance->rider_id,
-                    'logistics_provider_id' => $providerId,
-                    'rider_remittance_id' => $remittanceId,
-                    'type' => 'overage',
-                    'expected_amount_minor' => $allocated,
-                    'actual_amount_minor' =>
-                        (int) $remittance->submitted_amount_minor,
-                    'difference_minor' => $remaining,
-                    'status' => 'open',
-                    'description' =>
-                        'Verified funds exceed eligible COD obligations. Reconciliation required.',
-                    'reported_by' => $verifiedBy,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                DB::table('rider_remittance_discrepancies')
+                    ->insert([
+                        'rider_id' => $remittance->rider_id,
+                        'logistics_provider_id' => $providerId,
+                        'rider_remittance_id' => $remittanceId,
+                        'type' => 'overage',
+                        'expected_amount_minor' => $allocated,
+                        'actual_amount_minor' =>
+                            (int) $remittance->submitted_amount_minor,
+                        'difference_minor' => $remaining,
+                        'status' => 'open',
+                        'description' =>
+                            'Verified funds exceed eligible COD obligations. Reconciliation required.',
+                        'reported_by' => $verifiedBy,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
             }
 
             $this->audit(
@@ -600,7 +582,7 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | REJECT REMITTANCE
+    | Reject remittance
     |--------------------------------------------------------------------------
     */
 
@@ -632,9 +614,7 @@ class RiderRemittanceService
                 $this->fail('Remittance not found.');
             }
 
-            if (
-                $remittance->status !== 'pending_verification'
-            ) {
+            if ($remittance->status !== 'pending_verification') {
                 $this->fail(
                     'Only pending remittances can be rejected.'
                 );
@@ -673,11 +653,10 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | SYNCHRONIZE OVERDUE RESTRICTIONS
+    | Synchronize overdue restrictions
     |--------------------------------------------------------------------------
     |
-    | Never modifies riders.is_active.
-    | Never deducts money from Rider Payroll.
+    | Does not change rider availability or deduct payroll funds.
     |
     */
 
@@ -725,21 +704,20 @@ class RiderRemittanceService
                 ->get();
 
             if ($overdue && $activeRestrictions->isEmpty()) {
-                $id = DB::table(
-                    'rider_remittance_restrictions'
-                )->insertGetId([
-                    'rider_id' => $riderId,
-                    'logistics_provider_id' => $providerId,
-                    'restriction_type' => 'overdue_remittance',
-                    'status' => 'active',
-                    'blocks_new_assignments' => true,
-                    'blocks_pickup_scanning' => true,
-                    'reason' =>
-                        'COD remittance deadline exceeded.',
-                    'restricted_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                $id = DB::table('rider_remittance_restrictions')
+                    ->insertGetId([
+                        'rider_id' => $riderId,
+                        'logistics_provider_id' => $providerId,
+                        'restriction_type' => 'overdue_remittance',
+                        'status' => 'active',
+                        'blocks_new_assignments' => true,
+                        'blocks_pickup_scanning' => true,
+                        'reason' =>
+                            'COD remittance deadline exceeded.',
+                        'restricted_at' => $now,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
 
                 $this->audit(
                     $riderId,
@@ -788,7 +766,7 @@ class RiderRemittanceService
 
     /*
     |--------------------------------------------------------------------------
-    | RIDER OPERATION PERMISSIONS
+    | Rider operation permissions
     |--------------------------------------------------------------------------
     */
 
@@ -801,10 +779,7 @@ class RiderRemittanceService
             $providerId
         );
 
-        if (
-            !(bool) $rider->is_active
-            || $rider->management_status !== 'approved'
-        ) {
+        if (!RiderJobType::isAvailable($rider)) {
             return false;
         }
 
@@ -830,10 +805,7 @@ class RiderRemittanceService
             $providerId
         );
 
-        if (
-            !(bool) $rider->is_active
-            || $rider->management_status !== 'approved'
-        ) {
+        if (!RiderJobType::isAvailable($rider)) {
             return false;
         }
 
