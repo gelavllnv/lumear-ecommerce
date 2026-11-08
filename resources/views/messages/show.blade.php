@@ -100,55 +100,48 @@
             </div>
         </section>
     @else
-        <div class="seller-page seller-message-thread">
-            <a class="seller-table-action" href="{{ route('seller.messages') }}">← All messages</a>
-            <div class="seller-surface mt-4 overflow-hidden">
-                <header class="seller-surface-header">
-                    <div>
-                        <p>Conversation</p>
-                        <h2>{{ $conversation->buyer->name }}</h2>
-                    </div>
-                    <span class="seller-table-status">Product questions</span>
-                </header>
-                <div class="space-y-4 p-5">
+        <div class="seller-page seller-message-thread seller-messages-page">
+            <a class="seller-thread-back" href="{{ route('seller.messages') }}">← All conversations</a>
+            <section class="seller-thread-workspace">
+                <header class="seller-thread-header"><div class="seller-thread-person"><span class="seller-conversation-avatar">{{ strtoupper(substr($conversation->buyer->name, 0, 1)) }}</span><div><p class="seller-page-eyebrow">Buyer conversation</p><h1>{{ $conversation->buyer->name }}</h1><span>Product questions and order communication</span></div></div><span class="seller-table-status">Active</span></header>
+                <div class="seller-thread-messages" aria-live="polite">
                     @forelse ($conversation->messages as $message)
-                        <div class="flex {{ $message->sender_id === auth()->id() ? 'justify-end' : 'justify-start' }}">
-                            <div class="max-w-[85%] rounded-2xl px-4 py-3 text-sm {{ $message->sender_id === auth()->id() ? 'bg-maroon-700 text-cream-50' : 'bg-cream-100 text-maroon-900' }}">
+                        <article class="seller-chat-row {{ $message->sender_id === auth()->id() ? 'is-own' : '' }}"><div class="seller-chat-group"><div class="seller-chat-bubble">
                                 @if ($message->product)
-                                    <div class="mb-3 flex items-center gap-2 rounded-lg border border-current/20 p-2">
-                                        <div class="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded bg-cream-50/10">
+                                    <div class="seller-chat-product">
+                                        <div>
                                             @if ($message->product->images->first())
-                                                <img class="h-full w-full object-cover" src="{{ route('media.show', ['path' => $message->product->images->first()->path]) }}" alt="{{ $message->product->name }}">
+                                                <img src="{{ route('media.show', ['path' => $message->product->images->first()->path]) }}" alt="{{ $message->product->name }}">
                                             @else
                                                 <span>✦</span>
                                             @endif
                                         </div>
-                                        <div><p class="text-[10px] font-bold uppercase tracking-wider opacity-65">Regarding product</p><p class="font-bold">{{ $message->product->name }}</p></div>
+                                        <div><small>Regarding product</small><strong>{{ $message->product->name }}</strong></div>
                                     </div>
                                 @endif
                                 @if ($message->body !== '')<p>{{ $message->body }}</p>@endif
                                 @if ($message->attachments->isNotEmpty())
-                                    <div class="mt-3 flex flex-wrap gap-2">
+                                    <div class="seller-chat-attachments">
                                         @foreach ($message->attachments as $attachment)
-                                            <a href="{{ route('media.show', ['path' => $attachment->path]) }}" target="_blank" rel="noopener"><img class="h-20 w-20 rounded-lg object-cover" src="{{ route('media.show', ['path' => $attachment->path]) }}" alt="Message attachment"></a>
+                                            <a href="{{ route('media.show', ['path' => $attachment->path]) }}" target="_blank" rel="noopener"><img src="{{ route('media.show', ['path' => $attachment->path]) }}" alt="Message attachment"></a>
                                         @endforeach
                                     </div>
                                 @endif
-                                <p class="mt-2 text-[10px] opacity-60">{{ $message->created_at->format('M j, g:i A') }}</p>
-                            </div>
-                        </div>
+                            </div><time>{{ $message->created_at->format('M j, g:i A') }}</time></div></article>
                     @empty
-                        <p class="py-8 text-center text-sm text-maroon-900/60">Start the conversation below.</p>
+                        <p class="seller-thread-empty">Start the conversation below.</p>
                     @endforelse
                 </div>
-                <form class="seller-operation-form flex flex-wrap gap-3 border-t border-sand-400/25 p-4" method="post" enctype="multipart/form-data" action="{{ route('messages.send', $conversation) }}">
+                <form class="seller-thread-composer" method="post" enctype="multipart/form-data" action="{{ route('messages.send', $conversation) }}">
                     @csrf
                     <label class="sr-only" for="seller-message-body">Message</label>
-                    <textarea id="seller-message-body" class="field min-h-11 flex-1" name="body" maxlength="1000" placeholder="Write a message..."></textarea>
-                    <label class="inline-flex cursor-pointer items-center rounded-xl border border-sand-400/45 px-3 text-xs font-bold">Image<input class="hidden" type="file" name="attachments[]" accept="image/jpeg,image/png" multiple></label>
-                    <button class="rounded-xl px-5 py-3 text-sm font-bold">Send</button>
+                    <textarea id="seller-message-body" name="body" maxlength="1000" placeholder="Type your message..."></textarea>
+                    <label class="seller-thread-attachment">Image<input class="hidden" type="file" name="attachments[]" accept="image/jpeg,image/png" multiple></label>
+                    <button type="submit" aria-label="Send message">➤</button>
                 </form>
-            </div>
+                @error('body')<p class="seller-composer-error">{{ $message }}</p>@enderror
+                @error('attachments')<p class="seller-composer-error">{{ $message }}</p>@enderror
+            </section>
         </div>
     @endif
 @endsection

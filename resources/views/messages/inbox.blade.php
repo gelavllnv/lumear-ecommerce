@@ -55,30 +55,32 @@
             </div>
         </section>
     @else
-        <div class="seller-page mx-auto max-w-4xl">
+        <div class="seller-page seller-messages-page">
             <header class="seller-page-header">
-                <div>
-                    <p class="seller-page-eyebrow">Direct messages</p>
-                    <h1>Messages</h1>
-                    <p>Keep buyer questions and order communication safely in Lumear.</p>
-                </div>
+                <div><p class="seller-page-eyebrow">Seller communication</p><h1>Messages</h1><p>Keep buyer questions and order communication safely in Lumear.</p></div>
+                <span class="seller-message-connection"><i></i> Buyer inbox</span>
             </header>
-            <div class="seller-surface seller-message-list">
-                @forelse ($conversations as $conversation)
-                    <a class="flex items-center justify-between gap-4 border-b border-sand-400/20 p-5 transition" href="{{ route('messages.show', $conversation) }}">
-                        <div>
-                            <strong>{{ $conversation->buyer->name }}</strong>
-                            <p class="mt-1 text-xs text-maroon-900/55">{{ $conversation->last_message_at?->diffForHumans() ?? 'New conversation' }}</p>
-                        </div>
-                        <span class="seller-table-action">Open →</span>
-                    </a>
-                @empty
-                    <div class="seller-empty-state">
-                        <b>No messages yet.</b>
-                        <p>Buyer questions and seller replies will appear here.</p>
+            <section class="seller-messages-workspace" aria-label="Seller messaging workspace">
+                <aside class="seller-conversation-panel">
+                    <div class="seller-conversation-panel-heading"><div><p class="seller-page-eyebrow">Inbox</p><h2>Conversations</h2></div><span>{{ $conversations->count() }}</span></div>
+                    <div class="seller-conversation-list">
+                        @forelse ($conversations as $conversation)
+                            @php
+                                $latestMessage = $conversation->messages->first();
+                                $unreadCount = $conversation->messages->filter(fn ($message) => $message->sender_id !== auth()->id() && is_null($message->read_at))->count();
+                            @endphp
+                            <a class="seller-conversation-row" href="{{ route('messages.show', $conversation) }}">
+                                <span class="seller-conversation-avatar">{{ strtoupper(substr($conversation->buyer->name, 0, 1)) }}</span>
+                                <span class="seller-conversation-copy"><span class="seller-conversation-top"><strong>{{ $conversation->buyer->name }}</strong><time>{{ $conversation->last_message_at?->diffForHumans() ?? 'New' }}</time></span><small>{{ $latestMessage?->body ?: ($latestMessage && $latestMessage->attachments->isNotEmpty() ? 'Sent an image' : 'Start a conversation') }}</small></span>
+                                @if($unreadCount > 0)<b class="seller-message-unread">{{ $unreadCount }}</b>@endif
+                            </a>
+                        @empty
+                            <div class="seller-conversation-empty">No conversations yet.</div>
+                        @endforelse
                     </div>
-                @endforelse
-            </div>
+                </aside>
+                <div class="seller-message-placeholder"><span>✉</span><strong>Select a conversation</strong><p>Choose a buyer from the inbox to view and reply to their messages.</p></div>
+            </section>
         </div>
     @endif
 @endsection
