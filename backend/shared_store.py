@@ -10,6 +10,7 @@ import json
 import mimetypes
 import re
 import secrets
+import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,11 +24,13 @@ class SharedStore(MySQLStore):
     def __init__(self, config=None):
         super().__init__(config)
         self.code_tag = hashlib.sha256(b''.join(Path(__file__).with_name(n).read_bytes()
-            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','wallet_service.py','server.py','run_api.py'))).hexdigest()[:12]
+            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','wallet_service.py','buyer_wallet.py','account_security.py','server.py','run_api.py'))).hexdigest()[:12]
         self.code_tag = hashlib.sha256((self.code_tag + (Path(__file__).parent.parent/'assets/data/lumear_help.json').read_text(encoding='utf-8')).encode()).hexdigest()[:12]
         from google_identity import GoogleVerifier
         self.google = GoogleVerifier(self.config.get('GOOGLE_CLIENT_ID',''))
         self.assistant_attempts = {}
+        from account_security import EmailChallenges
+        self.email_challenges = EmailChallenges(self.config, self.lock)
 
     def profile(self, db, user):
         row=self.one(db,'SELECT * FROM user_profiles WHERE user_id=%s',(user['id'],))
@@ -36,6 +39,9 @@ class SharedStore(MySQLStore):
         return dict(public,display_name=row['display_name'] if row else user['name'],
             username=row['username'] if row else '',age=row['age'] if row else None,
             photo=self.media_object(row['profile_image_path']) if row else None)
+
+    def check(self):
+        return dict(super().check(),buyer_refund_wallet=True,email_otp_enabled=self.email_challenges.enabled)
 
     def identity(self, db, token):
         user,seller=super().identity(db,token)
@@ -217,15 +223,28 @@ class SharedStore(MySQLStore):
                 LEFT JOIN logistics_providers lp ON lp.id=COALESCE(sh.logistics_provider_id,so.logistics_provider_id)
                 WHERE so.id=%s''', (o['id'],))
             o.update(payment_status=row['payment_status'], courier_name=row['courier_name'], tracking_number=row['tracking_code'])
+            returns=self.rows(db,'SELECT id,order_item_id,status FROM return_requests WHERE seller_order_id=%s ORDER BY id',(o['id'],))
+            active_return=any(r['status'] in ('requested','approved','in_dispute') for r in returns)
+            by_item={str(r['order_item_id']):r for r in returns}
+            for item in o['items']:
+                returned=by_item.get(item['id'])
+                item['return_status']=returned['status'] if returned else None
+            o.update(can_cancel=o['raw_status'] in ('pending','accepted') and row['payment_status']=='pending',
+                can_receive=o['raw_status']=='delivered' and row['payment_status']=='paid' and not active_return,
+                can_refund=o['raw_status'] in ('delivered','completed') and row['payment_status']=='paid'
+                    and any(not i['return_status'] for i in o['items']))
             completion = self.one(db, "SELECT created_at FROM order_timelines WHERE seller_order_id=%s AND status='completed' ORDER BY id DESC LIMIT 1", (o['id'],))
             o['completed_at'] = timestamp(completion['created_at']) if completion else None
             cancellation = self.one(db, "SELECT note FROM order_timelines WHERE seller_order_id=%s AND status='cancelled' ORDER BY id DESC LIMIT 1", (o['id'],))
             o['cancellation_reason'] = cancellation['note'] if cancellation else None
-            refund = self.one(db, '''SELECT COALESCE(SUM(oi.unit_price_minor*oi.quantity),0) amount
+            refund = self.one(db, '''SELECT COALESCE(SUM(oi.unit_price_minor*oi.quantity-oi.promotion_discount_minor),0) amount
                 FROM return_requests rr JOIN order_items oi ON oi.id=rr.order_item_id
                 WHERE rr.seller_order_id=%s AND rr.status='refunded' ''', (o['id'],))
             # Item-granular refunds are shown only where the shared ledger records them.
             o['refund'] = int(refund['amount'])
+            from buyer_wallet import refund_totals
+            credited=refund_totals(self,db,o['id'])
+            o['commission']-=credited['admin_minor']+credited['owner_minor']
         return result
 
     def earnings(self, db, sid):
@@ -291,7 +310,8 @@ class SharedStore(MySQLStore):
 
     def capabilities(self):
         return dict(super().capabilities(), chat=True, analytics_traffic=False,
-                    media=True, google_sign_in=bool(self.google.audience), email_verification=False)
+                    media=True, google_sign_in=bool(self.google.audience), email_verification=False,
+                    password_otp=self.email_challenges.enabled, google_otp=True, buyer_wallet=True, returns=True)
 
     def notifications(self, db, uid):
         from support_service import preferences, notification_category
@@ -370,6 +390,35 @@ class SharedStore(MySQLStore):
 
     def extra_route(self, db, method, path, url, body, token, user, seller):
         uid = user['id']
+        received=re.fullmatch(r'/orders/(\d+)/received',path)
+        if received:
+            require(method=='POST','Method not allowed.',405)
+            require(user['role']=='buyer','Buyer access required.',403)
+            self.one(db,'SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+            order=self.one(db,'''SELECT so.*,o.payment_status FROM seller_orders so
+                JOIN orders o ON o.id=so.order_id WHERE so.id=%s AND o.buyer_id=%s FOR UPDATE''',(received[1],uid))
+            require(order,'Order not found.',404)
+            if order['status']=='completed':
+                return True,dict(message='Order receipt already confirmed.')
+            require(order['status']=='delivered','Confirm receipt only after the courier has marked your order delivered.',409)
+            require(order['payment_status']=='paid','Payment must be confirmed before completing this order.',409)
+            require(not self.one(db,"SELECT id FROM return_requests WHERE seller_order_id=%s AND status IN ('requested','approved','in_dispute') LIMIT 1",(order['id'],)),
+                'Resolve the open return or refund request before confirming receipt.',409)
+            db.execute("UPDATE seller_orders SET status='completed',updated_at=UTC_TIMESTAMP() WHERE id=%s",(order['id'],))
+            self.timeline(db,order,uid,'completed','Order received','Buyer confirmed receipt of the order.')
+            return True,dict(message='Order received. Thank you for confirming.')
+        if path in ('/buyer/wallet','/buyer/returns'):
+            require(user['role']=='buyer','Buyer access required.',403)
+            tables=self.one(db,"""SELECT COUNT(*) AS count FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN
+                ('mobile_buyer_wallet_returns','mobile_buyer_wallet_credits')""")
+            require(tables['count']==2,'Buyer e-wallet setup is pending. Apply backend/migrations/20261107_buyer_wallet.sql with a database administrator.',503)
+            from buyer_wallet import wallet, request_return
+            if path=='/buyer/wallet':
+                require(method=='GET','Method not allowed.',405)
+                return True,wallet(self,db,uid)
+            require(method=='POST','Method not allowed.',405)
+            return True,request_return(self,db,uid,body)
         if path=='/me':
             require(method in ('GET','PATCH'),'Method not allowed.',405)
             return True,user if method=='GET' else {'profile':self.save_profile(db,user,body)}
@@ -398,6 +447,16 @@ class SharedStore(MySQLStore):
             return False,None
         require(seller,'Seller access required.',403)
         sid=seller['id']
+        if path=='/seller/returns':
+            require(method=='GET','Method not allowed.',405)
+            from buyer_wallet import seller_returns
+            return True,seller_returns(self,db,sid)
+        review=re.fullmatch(r'/seller/returns/(\d+)/(approve|reject|refund)',path)
+        if review:
+            require(method=='POST','Method not allowed.',405)
+            require(seller['status']=='approved','Seller approval is required.',403)
+            from buyer_wallet import review_return
+            return True,review_return(self,db,sid,uid,review[1],review[2],body)
         match=re.fullmatch(r'/seller/orders/(\d+)/settle',path)
         if match and method=='POST':
             require(seller['status']=='approved','Seller approval is required.',403)
@@ -472,11 +531,32 @@ class SharedStore(MySQLStore):
     def dispatch(self, method, url, body=None, token=''):
         path=urlparse(url).path.removeprefix('/api').rstrip('/')
         if path.startswith('/auth/password/'):
-            raise Problem('Password email verification needs SMTP configuration before it can be enabled.',503)
+            from account_security import password_route
+            require(isinstance(body,dict),'Send a password request.')
+            return password_route(self,method,path,body,token)
+        if path=='/auth/google/verify':
+            require(method=='POST' and isinstance(body,dict),'Send a verification request.',405)
+            with self.lock:
+                record=self.email_challenges.verify(body.get('challenge_id'),body.get('code'),'google')
+                proof=secrets.token_urlsafe(32)
+                self.email_challenges.proofs[proof]=dict(data=record['data'],expires=time.time()+600)
+                del self.email_challenges.records[body['challenge_id']]
+                return dict(verification_token=proof)
         if path=='/auth/google':
             require(method=='POST' and isinstance(body,dict),'Send a Google sign-in request.',405)
             claims=self.google.verify(body.get('id_token'))
-            return self.google_login(claims,body)
+            with self.lock:
+                proof=body.get('verification_token')
+                record=self.email_challenges.proofs.get(proof) if isinstance(proof,str) else None
+                if not proof:
+                    return self.email_challenges.request('google',claims['email'],dict(sub=claims['sub'],email=claims['email']))
+                require(record and record['expires']>time.time()
+                    and record['data']==dict(sub=claims['sub'],email=claims['email']),
+                    'Google verification expired. Start sign-in again.',401)
+                result=self.google_login(claims,body)
+                if result.get('token'):
+                    del self.email_challenges.proofs[proof]
+                return result
         if path in ('/auth/email/send','/auth/email/verify','/auth/register'):
             # Registration needs purpose-bound challenge storage and an actual
             # delivery service. Existing imported verified accounts can sign in.

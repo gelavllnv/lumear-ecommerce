@@ -79,16 +79,23 @@ def release_sale(store, db, sid, oid):
     require(allocation['seller_minor'] + allocation['admin_minor'] + allocation['owner_minor'] == order['subtotal_minor']
             and allocation['admin_minor'] + allocation['owner_minor'] == order['commission_minor'],
             'Order totals changed and require wallet reconciliation.', 409)
-    require(not store.one(db, 'SELECT id FROM return_requests WHERE seller_order_id=%s LIMIT 1', (oid,)),
-            'An order with a return requires the original refund workflow.', 409)
-    require(not store.one(db, "SELECT id FROM wallet_journals WHERE seller_order_id=%s AND entry_type<>'mobile_sale_pending' LIMIT 1", (oid,)),
+    require(not store.one(db, """SELECT rr.id FROM return_requests rr
+        LEFT JOIN mobile_buyer_wallet_credits c ON c.return_request_id=rr.id
+        WHERE rr.seller_order_id=%s AND (rr.status IN ('requested','approved','in_dispute')
+        OR rr.status='refunded' AND c.return_request_id IS NULL) LIMIT 1""", (oid,)),
+            'Resolve open returns and reconcile external refunds before releasing earnings.', 409)
+    require(not store.one(db, "SELECT id FROM wallet_journals WHERE seller_order_id=%s AND entry_type NOT IN ('mobile_sale_pending','mobile_refund') LIMIT 1", (oid,)),
             'This order has other wallet activity and requires reconciliation.', 409)
+    from buyer_wallet import refund_totals
+    refunded=refund_totals(store,db,oid)
+    net={k:int(allocation[k])-refunded[k] for k in ('seller_minor','admin_minor','owner_minor')}
+    require(all(v>=0 for v in net.values()),'Refund allocation needs reconciliation.',409)
     pending = store.one(db, '''SELECT COUNT(*) entries,COALESCE(SUM(pending_delta),0) amount
-        FROM wallet_journals WHERE seller_order_id=%s AND entry_type='mobile_sale_pending' ''', (oid,))
-    require(pending['entries'] == 1 and pending['amount'] == allocation['seller_minor'],
+        FROM wallet_journals WHERE seller_order_id=%s AND entry_type IN ('mobile_sale_pending','mobile_refund') ''', (oid,))
+    require(pending['entries'] >= 1 and pending['amount'] == net['seller_minor'],
             'Pending wallet history requires reconciliation.', 409)
     wallet = account(store, db, sid)
-    amount = allocation['seller_minor']
+    amount = net['seller_minor']
     require(wallet['pending_minor'] >= amount, 'Wallet history requires reconciliation.', 409)
     db.execute('''UPDATE wallet_accounts SET pending_minor=pending_minor-%s,
         available_minor=available_minor+%s,updated_at=UTC_TIMESTAMP() WHERE id=%s''', (amount, amount, wallet['id']))
@@ -96,8 +103,8 @@ def release_sale(store, db, sid, oid):
         require(store.one(db, 'SELECT beneficiary FROM mobile_platform_wallets WHERE beneficiary=%s FOR UPDATE', (beneficiary,)),
                 'Platform wallet is not configured.', 503)
         db.execute('''UPDATE mobile_platform_wallets SET available_minor=available_minor+%s,
-            updated_at=UTC_TIMESTAMP() WHERE beneficiary=%s''', (allocation[beneficiary+'_minor'], beneficiary))
+            updated_at=UTC_TIMESTAMP() WHERE beneficiary=%s''', (net[beneficiary+'_minor'], beneficiary))
     db.execute("UPDATE mobile_sale_allocations SET status='released',released_at=UTC_TIMESTAMP() WHERE seller_order_id=%s", (oid,))
     journal(db, wallet, oid, 'mobile_sale_released', amount, -amount,
-            {k: int(allocation[k]) for k in ('seller_minor','admin_minor','owner_minor')})
-    return dict(message='80% seller earnings credited to your e-wallet.')
+            net)
+    return dict(message='Confirmed seller earnings, after refunds, credited to your e-wallet.')

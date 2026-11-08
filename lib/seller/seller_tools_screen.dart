@@ -13,6 +13,7 @@ import 'seller_income_panel.dart';
 import '../services/marketplace_policy.dart';
 import '../services/api_service.dart';
 import 'payout_request_dialog.dart';
+import 'seller_returns_screen.dart';
 
 class SellerToolsScreen extends StatefulWidget {
   const SellerToolsScreen({
@@ -79,7 +80,27 @@ class _SellerToolsScreenState extends State<SellerToolsScreen> {
           if (working) const LinearProgressIndicator(),
           const SizedBox(height: 16),
           if (widget.section == 'Products') ...products(),
-          if (widget.section == 'Orders') ...orders(),
+          if (widget.section == 'Orders') ...[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.assignment_return_outlined),
+              label: const Text('Returns and refunds'),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SellerReturnsScreen(connected: data.connected),
+                  ),
+                );
+                if (mounted && data.connected) {
+                  await perform(() async {
+                    await data.load();
+                  });
+                }
+              },
+            ),
+            ...orders(),
+          ],
           if (widget.section == 'Earnings') ...[
             walletSplit(),
             SellerIncomePanel(commerce: data, shopName: widget.shopName),

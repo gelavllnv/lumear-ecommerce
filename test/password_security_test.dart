@@ -50,13 +50,13 @@ void main() {
             await tester.tap(find.text('Confirm password'));
             await tester.pumpAndSettle();
             expect(find.text('Invalid or expired code.'), findsOneWidget);
-            expect(find.text('Done'), findsNothing);
+            expect(find.text('Sign in'), findsNothing);
             await tester.enterText(fields.at(0), '654321');
             await tester.ensureVisible(find.text('Confirm password'));
             await tester.tap(find.text('Confirm password'));
             await tester.pumpAndSettle();
             expect(requests, 3);
-            expect(find.text('Done'), findsOneWidget);
+            expect(find.text('Sign in'), findsOneWidget);
             expect(tester.takeException(), isNull);
           },
           () => MockClient((request) async {

@@ -3,6 +3,7 @@ import 'notification_settings_screen.dart';
 import 'account_profile_screen.dart';
 import '../widgets/account_picture.dart';
 import 'password_security_screen.dart';
+import 'buyer_wallet_screen.dart';
 import '../design/lumear_theme.dart';
 
 import 'package:flutter/material.dart';
@@ -180,12 +181,14 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 7),
-                          Text(
-                            BuyerData.instance.profile.isNotEmpty
-                                ? BuyerData.instance.profile['name'] ?? ''
-                                : 'Lumear Buyer',
-                            style: TextStyle(color: cream, fontSize: 12),
-                          ),
+                          if (BuyerData.instance.profile['display_name'] !=
+                                  null &&
+                              BuyerData.instance.profile['display_name'] !=
+                                  BuyerData.instance.profile['name'])
+                            Text(
+                              BuyerData.instance.profile['name'] ?? '',
+                              style: TextStyle(color: cream, fontSize: 12),
+                            ),
                           SizedBox(height: 5),
                           Text(
                             BuyerData.instance.profile.isNotEmpty
@@ -245,6 +248,16 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 25),
               _sectionTitle('Account'),
               const SizedBox(height: 12),
+              _option(
+                context,
+                Icons.account_balance_wallet_outlined,
+                'My e-wallet',
+                'Refund balance, returns and transaction history',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BuyerWalletScreen()),
+                ),
+              ),
               _option(
                 context,
                 Icons.person_outline_rounded,

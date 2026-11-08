@@ -6,20 +6,25 @@
 verification library and the Web client ID below. Identities are linked in the
 shared `auth_identities` table. Existing accounts keep their role; new accounts
 choose Buyer or Seller. New seller shops remain pending approval. See
-[local setup](backend/README.md). Google registration does not require SMTP.
+[local setup](backend/README.md). Google sign-in now requires email OTP delivery
+through the configured Lumear SMTP sender before onboarding or session issuance.
+Use `scripts/configure-email.ps1` to configure a Gmail sender locally.
 
 ## Required registration details
 
 The app shows a Lumear Continue/Cancel confirmation before opening the native
 Google picker. Google controls its own account and consent screens.
-`/auth/google` returns `requires_account_type: true` with `is_new_account`,
+`/auth/google` first returns `requires_otp: true` and a challenge ID. The app
+collects the email code and calls `/auth/google/verify` for a short-lived
+`verification_token`, then repeats the Google exchange with that proof.
+After OTP, `/auth/google` returns `requires_account_type: true` with `is_new_account`,
 `name`, `email`, and `existing_role` when registration is incomplete.
 The app opens the full registration form instead of a workspace. The form stays
 open while the server saves the account and only closes after a valid Lumear
 session is returned. Save errors remain on the form with all entered details
 preserved for retry; successful completion opens the server-assigned workspace.
 
-The completion request repeats the Google ID token and sends `account_type`,
+The completion request repeats the Google ID token and OTP proof and sends `account_type`,
 `name`, `phone`, `date_of_birth` (`YYYY-MM-DD`), and `address` with recipient
 `name`, `phone`, `street`, `barangay`, `city`, `province`, and `postal_code`.
 New accounts also supply a password (8 characters minimum, 72 bytes maximum).
@@ -56,7 +61,8 @@ The Android OAuth client and shared backend setup below are still required.
    ID is passed as `GOOGLE_SERVER_CLIENT_ID`; do not pass the Android client ID
    for this value. This implementation supplies it directly to the plugin,
    so Firebase and `google-services.json` are not required for this approach.
-4. Have the teammate implement the shared backend contract below.
+4. Run the local adapter with the same Web client ID and configured SMTP sender,
+   or deploy it with HTTPS and the shared MySQL database for hosted use.
 5. Build/run with all three defines, replacing the placeholders:
 
 ```powershell
@@ -68,7 +74,7 @@ with Google Play services. Google configuration changes require rebuilding;
 hot reload does not change Dart environment defines. No client secret belongs
 in this app. Web/iOS Google sign-in setup is outside the current Android project.
 
-## Proposed shared backend contract
+## Shared backend contract
 
 `POST /api/auth/google`, JSON body:
 
@@ -78,7 +84,10 @@ in this app. Web/iOS Google sign-in setup is outside the current Android project
 
 The backend must verify Google's token signature, issuer, expiry, and audience
 against the Web OAuth client ID, and identify the account by Google's `sub`.
-Return a Lumear session token and the account's server assigned role:
+The initial response contains `requires_otp` and `challenge_id`. Submit the code
+to `POST /api/auth/google/verify`, then repeat the Google exchange with the
+returned `verification_token`. After OTP and any required onboarding, the backend
+returns a Lumear session token and the account's server assigned role:
 
 ```json
 {"token": "LUMEAR_SESSION_TOKEN", "role": "buyer"}

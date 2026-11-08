@@ -1,4 +1,5 @@
 import 'screen/google_onboarding_screen.dart';
+import 'screen/google_otp_screen.dart';
 import 'screen/password_security_screen.dart';
 import 'product_categories.dart';
 
@@ -227,6 +228,24 @@ class _LoginPageState extends State<LoginPage> {
         body: {'id_token': token},
       );
       if (!mounted) return;
+      String? verificationToken;
+      if (result is Map && result['requires_otp'] == true) {
+        verificationToken = await Navigator.push<String>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GoogleOtpScreen(
+              challengeId: result['challenge_id'] as String,
+              idToken: token,
+            ),
+          ),
+        );
+        if (!mounted || verificationToken == null) return;
+        result = await ApiService.post(
+          '/auth/google',
+          body: {'id_token': token, 'verification_token': verificationToken},
+        );
+        if (!mounted) return;
+      }
       if (result is Map && result['requires_account_type'] == true) {
         setState(() => isLoading = false);
         final session = await Navigator.push<Map<String, dynamic>>(
@@ -240,7 +259,11 @@ class _LoginPageState extends State<LoginPage> {
               onComplete: (details) async {
                 final response = await ApiService.post(
                   '/auth/google',
-                  body: {'id_token': token, ...details},
+                  body: {
+                    'id_token': token,
+                    'verification_token': verificationToken,
+                    ...details,
+                  },
                 );
                 return googleSession(response);
               },

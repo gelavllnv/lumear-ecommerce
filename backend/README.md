@@ -89,10 +89,9 @@ providers need additional verification and are not automatically linked.
 - Product/shop uploads go to ignored local media storage, with paths in existing
   tables. The SQL ZIP did not include the website's original image files.
 
-Password email recovery/change and email/password registration are not enabled
-until transactional email and purpose-bound challenge handling are configured.
-Google registration works without SMTP. AI replies, voucher checkout, return
-approval, two-factor sign-in and rider delivery updates are not implemented by
+Password email recovery/change and Google sign-in require transactional email
+configuration as described below. Email/password registration remains unavailable.
+Voucher checkout, two-factor sign-in and rider delivery updates are not implemented by
 this local adapter; unavailable writes return explicit errors, not fake success.
 
 ## Verify
@@ -163,3 +162,98 @@ refund/reconciliation workflow. Do not run the legacy website wallet release on
 new mobile allocations: it uses a different shipping/settlement convention.
 Update that separate backend before combining its settlement writes with these
 orders. Historical orders retain their original commission and settlement flow.
+
+## Buyer refund wallet and account OTP (November 7)
+
+My Orders includes **Cancel order**, **Return / Refund** and **Order received**.
+Cancellation requires a reason and is available for unpaid pending/accepted
+orders before packing; the existing transaction restores inventory and reverses
+pending seller credits exactly once. Paid or packed orders cannot use immediate
+cancellation. Return/refund opens the same wallet-destination request form for
+an eligible order item; existing request statuses appear on the order card.
+
+`POST /orders/{seller_order_id}/received` confirms receipt only for the owning
+buyer after delivery and confirmed payment. Open requested/approved/disputed
+returns block confirmation. The endpoint marks the seller order completed and
+records a timeline event; retries do not add another event. It does not change
+payment status or release wallet earnings. Buyers see a confirmation dialog
+advising them to check all items and request a return first if there is an issue.
+The local preview updates only orders created in that running preview session.
+
+Profile > **My e-wallet** shows the credited PHP balance, refund history and
+return statuses and seller return instructions. Buyers can request a return for all units of one item from a
+delivered/completed, paid order. The server checks ownership and rejects duplicate
+requests. Merchandise discounts are deducted; shipping is excluded. Local preview
+shows an empty wallet and cannot submit requests or hold real money. Wallet
+checkout payments and withdrawals are outside this refund-balance feature.
+
+Apply `migrations/20261107_buyer_wallet.sql` as a database administrator, or run
+`backend/.venv/Scripts/python.exe backend/apply_buyer_wallet_migration.py` with a
+local connection that has CREATE permission. The configured app account lacks
+CREATE permission; the migration was applied through the saved local administrator
+Workbench connection on November 7 (69 tables). Existing orders,
+seller balances and historical refunds are not backfilled.
+
+Seller > Orders > **Returns and refunds** reads `GET /seller/returns`. Only
+the owning approved seller can call `POST /seller/returns/{id}/approve`, `/reject`
+or `/refund`. Review needs a response with return instructions or a rejection
+reason. The buyer sees that response in My e-wallet. A refund requires an approved
+request and explicit seller confirmation that returned items were received.
+
+`buyer_wallet.review_return` is the refund processor for mobile orders. It
+atomically reverses the appropriate seller/platform allocation, records the
+refund, and credits the buyer wallet. Pending seller funds are reduced before
+release; already released earnings and platform balances are debited together.
+Open payout reservations cannot be spent by refunds. Insufficient funds return
+an error without partial writes. Integer-centavo allocation uses remaining
+shares so sequential partial refunds conserve all money, including rounding.
+Duplicate refund retries return the prior result without another debit/credit.
+Earnings release after a refund credits only the remaining allocations. Full
+refunds leave merchandise earnings at zero; shipping remains excluded.
+
+Requests record **Lumear e-wallet** as their destination in
+`mobile_buyer_wallet_returns`; credits and reversed shares are recorded in
+`mobile_buyer_wallet_credits`. Do not also issue an external refund for these
+requests. Historical orders without `mobile_sale_allocations` still require the
+original settlement administrator; the app cannot reconstruct their accounting.
+Buyers have no endpoint to approve or credit refunds. Physical return shipping
+is arranged using the seller's instructions; it is not an automated courier label.
+
+Configure `SMTP_HOST`, `SMTP_PORT` (STARTTLS, default 587), `SMTP_USERNAME`,
+`SMTP_PASSWORD` and `SMTP_FROM` in ignored `backend/.env.mysql`, then restart
+the API. `scripts/configure-email.ps1` securely prompts for a Gmail sender address
+and App Password and writes only the ignored local configuration. It verifies
+SMTP login without printing credentials. A Gmail App Password requires Google
+2-Step Verification: https://support.google.com/accounts/answer/185833.
+Only one sender is configured; recipients use their own registered emails.
+`backend/check_email.py --send-to YOUR_EMAIL` explicitly sends one delivery test.
+The local Gmail sender was configured and SMTP-authenticated on November 7;
+the running API reports `email_otp_enabled: true`. Do not put credentials in Flutter or Git.
+Missing email configuration blocks the OTP flows explicitly.
+
+Every Google sign-in requires a six-digit email OTP before account creation,
+onboarding or session issuance. `/auth/google/verify` exchanges the code for a
+short-lived proof bound to the verified Google subject/email. The proof survives
+onboarding validation retries and is consumed when the session is issued.
+Forgot password uses `/auth/password/reset/request` and `/confirm`; change
+password uses `/auth/password/change/request` and `/confirm`, requires an active
+session and checks the current password before sending email. Unknown/ineligible
+recovery emails receive the same request response without an email being sent.
+Password updates invalidate prior sessions through the stored password version.
+
+Codes expire after ten minutes, allow five verification attempts and have a
+60-second per-email resend limit across purposes. Resending invalidates the
+previous code for that purpose. Codes are stored only as keyed digests, never
+returned or logged. Challenges/proofs, like sessions, are process-local and
+clear on restart; run a single API process until shared challenge/session storage
+is implemented. Automated checks mock SMTP delivery. On November 7 the configured
+SMTP server also authenticated successfully and accepted one user-authorized test
+email to the sender account; inbox/spam arrival must be confirmed by the recipient.
+
+The connected Android debug APK is at `build/app/outputs/flutter-apk/app-debug.apk`.
+It uses `config/local-api.json` and requires USB API forwarding to this PC:
+connect the Android device with USB debugging, then run
+`scripts/start-local-api.ps1 -Device DEVICE_ID`. Keep MySQL and the API running.
+Use `scripts/run-connected.ps1 -Device DEVICE_ID` to build/install/run from source.
+No Android device was attached during the build. Native Google account selection
+and actual inbox receipt remain device/manual verification steps.

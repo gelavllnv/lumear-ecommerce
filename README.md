@@ -59,6 +59,13 @@ is prepared for the shared backend; it requires Google OAuth configuration and
 the backend token exchange before real accounts can sign in. Follow
 [Google sign-in setup](GOOGLE_SIGN_IN.md).
 
+Buyer Profile now includes **My e-wallet** for refund balance, transaction
+history and return requests. Google sign-in, forgot password and change password
+use email OTP verification. The buyer wallet migration is applied locally and
+Seller > Orders > Returns and refunds processes mobile refunds atomically.
+Live OTP requires the sender setup in `scripts/configure-email.ps1`; see
+[setup and current dependencies](backend/README.md#buyer-refund-wallet-and-account-otp-november-7).
+
 Chat is available from the floating **Chat** button at the bottom-right, above
 the buyer or seller navigation. On a product, tap **Chat with seller** to start a
 conversation. Buyer notifications open from the bell in the Home header. To try both sides,

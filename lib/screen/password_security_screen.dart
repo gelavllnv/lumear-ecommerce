@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../login_page.dart';
+import '../services/buyer_data.dart';
 
 /// Both roles use the same server-verified email challenge flow.
 class PasswordSecurityScreen extends StatefulWidget {
@@ -112,11 +114,24 @@ class _PasswordSecurityScreenState extends State<PasswordSecurityScreen> {
                   ] else if (complete) ...[
                     const Icon(Icons.check_circle_outline, size: 48),
                     const Text(
-                      'Password updated. A security notification will be sent to your registered email.',
+                      'Password updated. Sign in again with your new password.',
                     ),
                     FilledButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Done'),
+                      onPressed: () {
+                        if (widget.changePassword) {
+                          ApiService.setToken(null);
+                          BuyerData.instance.reset();
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (_) => const LoginPage(useBackend: true),
+                            ),
+                            (route) => false,
+                          );
+                        } else {
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: const Text('Sign in'),
                     ),
                   ] else ...[
                     Text(

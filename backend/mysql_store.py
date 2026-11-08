@@ -100,7 +100,8 @@ class MySQLStore:
                     'roles', 'role_user', 'categories', 'order_timelines',
                     'inventory_movements', 'idempotency_keys', 'two_factor_credentials',
                     'saved_products', 'notifications', 'user_profiles', 'auth_identities', 'mobile_notification_preferences',
-                    'mobile_sale_allocations', 'mobile_platform_wallets'}
+                    'mobile_sale_allocations', 'mobile_platform_wallets',
+                    'mobile_buyer_wallet_returns','mobile_buyer_wallet_credits'}
         if self.config.get('PRIVATE_UPLOAD_STORAGE') == 'mysql':
             required.add('mobile_private_documents')
         with self.transaction() as db:
