@@ -314,6 +314,11 @@
                     'icon' => 'sorting',
                 ],
                 [
+                    'label' => 'Returns',
+                    'route' => 'logistics.returns.index',
+                    'icon' => 'package',
+                ],
+                [
                     'label' => 'Delivery Monitoring',
                     'route' => 'logistics.monitoring.index',
                     'icon' => 'clock',

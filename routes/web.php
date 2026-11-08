@@ -822,6 +822,30 @@ Route::prefix('logistics')
                 ->whereNumber('taskId')
                 ->name('tasks.update');
 
+            /* Return parcels use their own guarded workflow: buyer pickup,
+             * hub receipt, then delivery or hub transfer back to the seller. */
+            Route::get('/returns', [
+                LogisticsRiderTaskController::class,
+                'returns'
+            ])->name('returns.index');
+
+            Route::post('/returns/pickups', [
+                LogisticsRiderTaskController::class,
+                'storeReturnPickup'
+            ])->name('returns.pickups.store');
+
+            Route::post('/returns/pickups/{taskId}/receive', [
+                LogisticsRiderTaskController::class,
+                'receiveReturnPickup'
+            ])
+                ->whereNumber('taskId')
+                ->name('returns.pickups.receive');
+
+            Route::post('/returns/deliveries', [
+                LogisticsRiderTaskController::class,
+                'storeReturnDelivery'
+            ])->name('returns.deliveries.store');
+
             Route::get('/rider-payroll', [
                 RiderPayrollController::class,
                 'index'
