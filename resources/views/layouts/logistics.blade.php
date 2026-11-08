@@ -309,6 +309,11 @@
                     'icon' => 'truck',
                 ],
                 [
+                    'label' => 'Hub Transfers',
+                    'route' => 'logistics.transfers.index',
+                    'icon' => 'sorting',
+                ],
+                [
                     'label' => 'Delivery Monitoring',
                     'route' => 'logistics.monitoring.index',
                     'icon' => 'clock',

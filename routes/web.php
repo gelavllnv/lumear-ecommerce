@@ -862,6 +862,8 @@ Route::prefix('logistics')
 
     });
 
+require __DIR__.'/logistics-hub-transfers.php';
+
 
 /*
 |--------------------------------------------------------------------------
