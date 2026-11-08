@@ -30,29 +30,17 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   List<ChatThread> threads = [];
   bool loading = true;
   String? error;
-  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     refresh();
-    if (widget.connected) {
-      _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-        if (mounted && widget.active && !loading) refresh();
-      });
-    }
   }
 
   @override
   void didUpdateWidget(covariant ChatInboxScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.active && !oldWidget.active) refresh();
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
   }
 
   Future<void> refresh() async {
@@ -80,134 +68,77 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     if (mounted) refresh();
   }
 
-  Widget _threadTile(ChatThread thread) {
-    final isRiderChat = thread.type == 'rider';
-    final parcelContext = thread.trackingCode.isEmpty
-        ? ''
-        : 'Parcel ${thread.trackingCode}${thread.status.isEmpty ? '' : ' · ${thread.status.replaceAll('_', ' ')}'}';
-
-    return Card(
-      child: ListTile(
-        leading: Icon(
-          isRiderChat
-              ? Icons.local_shipping_outlined
-              : Icons.storefront_outlined,
-        ),
-        title: Text(thread.name),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (parcelContext.isNotEmpty) Text(parcelContext),
-            if (thread.lastMessage.isNotEmpty)
-              Text(
-                thread.lastMessage,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
-        ),
-        trailing: thread.unreadCount > 0
-            ? CircleAvatar(
-                radius: 12,
-                backgroundColor: LumearColors.action,
-                child: Text(
-                  thread.unreadCount > 99 ? '99+' : '${thread.unreadCount}',
-                  style: TextStyle(
-                    color: LumearColors.onAction,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              )
-            : const Icon(Icons.chevron_right),
-        onTap: () => open(thread),
-      ),
-    );
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final riderThreads = widget.seller
-        ? <ChatThread>[]
-        : threads.where((thread) => thread.type == 'rider').toList();
-    final otherThreads = widget.seller
-        ? threads
-        : threads.where((thread) => thread.type != 'rider').toList();
-
-    return LumearAppearance.build(
-      context,
-      () => Scaffold(
-        appBar: AppBar(
-          title: const Text('Messages'),
-          actions: [
-            IconButton(
-              tooltip: 'Refresh messages',
-              onPressed: loading ? null : refresh,
-              icon: const Icon(Icons.refresh),
+  Widget build(BuildContext context) => LumearAppearance.build(
+    context,
+    () => Scaffold(
+      appBar: AppBar(
+        title: const Text('Messages'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh messages',
+            onPressed: loading ? null : refresh,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.auto_awesome),
+              title: const Text('Lumear AI assistant'),
+              subtitle: Text(
+                widget.connected
+                    ? 'Shopping questions and app help'
+                    : 'Preview · sample replies',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => open(),
             ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            widget.seller ? 'Buyer conversations' : 'Seller conversations',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (!widget.connected)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Demo messages stay on this device until restart. Sample shop conversations can be answered from the built-in seller demo account.',
+              ),
+            ),
+          if (loading) const LinearProgressIndicator(),
+          if (error != null) ...[
+            Text(error!),
+            TextButton(onPressed: refresh, child: const Text('Retry')),
           ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(18),
-          children: [
+          if (!loading && error == null && threads.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Text(
+                widget.seller ? 'Buyer messages will appear here.' : 'No conversations yet. Open a product and tap Chat with seller.',
+              ),
+            ),
+          for (final thread in threads)
             Card(
               child: ListTile(
-                leading: const Icon(Icons.auto_awesome),
-                title: const Text('Lumear AI assistant'),
-                subtitle: Text(
-                  widget.connected
-                      ? 'Shopping questions and app help'
-                      : 'Preview · sample replies',
+                leading: Icon(
+                  widget.seller
+                      ? Icons.person_outline
+                      : Icons.storefront_outlined,
                 ),
+                title: Text(thread.name),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => open(),
+                onTap: () => open(thread),
               ),
             ),
-            const SizedBox(height: 20),
-            if (!widget.connected)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  'Demo messages stay on this device until restart. Sample shop conversations can be answered from the built-in seller demo account.',
-                ),
-              ),
-            if (loading) const LinearProgressIndicator(),
-            if (error != null) ...[
-              Text(error!),
-              TextButton(onPressed: refresh, child: const Text('Retry')),
-            ],
-            if (!widget.seller) ...[
-              Text(
-                'Rider Chats',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (!loading && error == null && riderThreads.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Your delivery rider chat appears here after Logistics assigns a rider.',
-                  ),
-                ),
-              for (final thread in riderThreads) _threadTile(thread),
-              const SizedBox(height: 12),
-            ],
-            Text(
-              widget.seller ? 'Buyer conversations' : 'Seller conversations',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            if (!loading && error == null && otherThreads.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  widget.seller ? 'Buyer messages will appear here.' : 'No seller conversations yet. Open a product and tap Chat with seller.',
-                ),
-              ),
-            for (final thread in otherThreads) _threadTile(thread),
-          ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 class ChatScreen extends StatefulWidget {
@@ -370,9 +301,11 @@ class _ChatScreenState extends State<ChatScreen> {
                           ? 'Preview assistant · sample replies, not live AI.'
                           : 'Demo conversation · messages are local to this device.')
                     : (ai
-                          ? 'AI answers can be mistaken. Confirm order and shop details with your seller.'
-                          : thread?.type == 'rider'
-                          ? 'Chat directly with your assigned delivery rider. Messages sync with the Rider app.'
+                          ? (widget.service.assistantMode == 'guide'
+                                ? 'Built-in help guide · answers from Lumear Help Center, not live AI.'
+                                : widget.service.assistantMode == 'ai'
+                                ? 'AI answers can be mistaken. Confirm order and shop details with your seller.'
+                                : 'Ask about shopping and using Lumear. The assistant cannot change orders or approve refunds.')
                           : 'Chat directly with the seller or buyer. Pull in new replies with Refresh.'),
                 style: TextStyle(color: LumearColors.ink, fontSize: 12),
               ),

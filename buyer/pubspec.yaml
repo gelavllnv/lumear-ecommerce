@@ -66,6 +66,7 @@ flutter:
   assets:
     - assets/fonts/
     - assets/data/ph_postal_codes.json
+    - assets/data/lumear_help.json
     - assets/images/products/
     - assets/images/image_login1.jpg
     - assets/images/google.png

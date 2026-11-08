@@ -1,3 +1,4 @@
+import 'password_security_screen.dart';
 import '../services/top_notification.dart';
 import '../services/marketplace_policy.dart';
 import '../design/lumear_theme.dart';
@@ -970,7 +971,8 @@ class _BuyerWorkspaceState extends State<BuyerWorkspace> {
                   title: Text(event['title']),
                   subtitle: Text(date(event['date'])),
                 ),
-              if (['pending', 'accepted'].contains(o['raw_status']))
+              if (['To Pay', 'To Ship'].contains(o['status']) &&
+                  o['ready_for_pickup'] != true)
                 OutlinedButton(
                   onPressed: () {
                     Navigator.pop(sheet);
@@ -1076,7 +1078,7 @@ class _BuyerWorkspaceState extends State<BuyerWorkspace> {
     'Cancel order',
     {'reason': 'Reason (10–300 characters)'},
     (values, photos) =>
-        ApiService.post('/buyer/orders/${o['id']}/cancel', body: values),
+        ApiService.post('/orders/${o['id']}/cancel', body: values),
     limits: {'reason': 300},
   );
 
@@ -1181,11 +1183,15 @@ class _BuyerWorkspaceState extends State<BuyerWorkspace> {
       label: const Text('Edit profile'),
     ),
     OutlinedButton.icon(
-      onPressed: () => form('Change password', {
-        'current_password': 'Current password',
-        'new_password': 'New password',
-        'confirm_password': 'Confirm new password',
-      }, (v, p) => ApiService.post('/auth/password', body: v)),
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PasswordSecurityScreen(
+            connected: true,
+            changePassword: true,
+          ),
+        ),
+      ),
       icon: const Icon(Icons.lock_outline),
       label: const Text('Change password'),
     ),

@@ -1,3 +1,6 @@
+import '../screen/password_security_screen.dart';
+import '../screen/account_profile_screen.dart';
+import '../widgets/account_picture.dart';
 import '../services/top_notification.dart';
 
 import 'package:flutter/material.dart';
@@ -44,6 +47,47 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
           shop.connected
               ? 'Shop profile saved.'
               : 'Shop profile saved for this session.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> editAccount() async {
+    var profile = shop.accountProfile;
+    if (shop.connected) {
+      try {
+        profile = Map<String, dynamic>.from(await ApiService.get('/me'));
+      } catch (e) {
+        if (mounted) {
+          showTopNotification(context, SnackBar(content: Text(e.toString())));
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountProfileScreen(
+          connected: shop.connected,
+          initialProfile: profile.isNotEmpty
+              ? profile
+              : {
+                  'name': shop.owner,
+                  'display_name': shop.owner,
+                  'email': shop.email,
+                  'phone': shop.phone,
+                },
+          onSaved: (saved) async {
+            shop.accountProfile = saved;
+            shop.update(
+              owner: saved['name'] as String? ?? shop.owner,
+              name: shop.name,
+              description: shop.description,
+              email: saved['email'] as String? ?? shop.email,
+              phone: saved['phone'] as String? ?? shop.phone,
+            );
+          },
         ),
       ),
     );
@@ -120,29 +164,13 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
                       children: [
                         Row(
                           children: [
-                            CircleAvatar(
+                            AccountAvatar(
+                              photo: accountPhoto(shop.accountProfile['photo']),
+                              name:
+                                  shop.accountProfile['display_name']
+                                      as String? ??
+                                  shop.owner,
                               radius: 26,
-                              backgroundColor: LumearColors.action,
-                              child: shop.profileImage != null
-                                  ? ClipOval(
-                                      child: SizedBox(
-                                        width: 52,
-                                        height: 52,
-                                        child: ShopPhoto(
-                                          photo: shop.profileImage,
-                                          profile: true,
-                                        ),
-                                      ),
-                                    )
-                                  : Text(
-                                      shop.owner.isEmpty ? 'L' : shop.owner[0],
-                                      style: const TextStyle(
-                                        color: LumearColors.ivory,
-                                        fontFamily: 'serif',
-                                        fontFamilyFallback: ['Roboto'],
-                                        fontSize: 26,
-                                      ),
-                                    ),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -150,9 +178,11 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    shop.owner.isEmpty
-                                        ? 'Your seller name'
-                                        : shop.owner,
+                                    shop.accountProfile['display_name']
+                                            as String? ??
+                                        (shop.owner.isEmpty
+                                            ? 'Your seller name'
+                                            : shop.owner),
                                     style: TextStyle(
                                       fontSize: 23,
                                       fontFamily: 'serif',
@@ -298,6 +328,24 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
                             const SizedBox(height: 16),
                             const Text(
                               'Use your email and password to access your seller account. Keep your password private.',
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: editAccount,
+                              icon: const Icon(Icons.person_outline),
+                              label: const Text('My Account'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PasswordSecurityScreen(
+                                    connected: shop.connected,
+                                    changePassword: true,
+                                  ),
+                                ),
+                              ),
+                              icon: const Icon(Icons.lock_outline),
+                              label: const Text('Change password'),
                             ),
                             const SizedBox(height: 18),
                             Row(

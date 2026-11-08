@@ -26,6 +26,10 @@ class PlacedOrder {
   String status;
   final String storeName;
   final List<Map<String, dynamic>> timeline;
+  final String rawStatus;
+  final bool paid, canCancel, canReceive, canRefund;
+  final List<Map<String, dynamic>> refundItems;
+  final String reference;
 
   PlacedOrder({
     required this.orderId,
@@ -41,6 +45,13 @@ class PlacedOrder {
     this.status = 'To Ship',
     this.storeName = '',
     this.timeline = const [],
+    this.rawStatus = '',
+    this.paid = false,
+    this.canCancel = false,
+    this.canReceive = false,
+    this.canRefund = false,
+    this.refundItems = const [],
+    this.reference = '',
   });
 
   int get itemCount {
@@ -127,6 +138,15 @@ class OrderManager extends ChangeNotifier {
           total: (o['total'] as num) / 100,
           status: o['raw_status'] == 'delivered' ? 'Delivered' : o['status'],
           storeName: o['store'],
+          rawStatus: o['raw_status'] ?? '',
+          paid: o['paid'] == true,
+          canCancel: o['can_cancel'] == true,
+          canReceive: o['can_receive'] == true,
+          canRefund: o['can_refund'] == true,
+          refundItems: [
+            for (final i in o['items']) Map<String, dynamic>.from(i),
+          ],
+          reference: o['reference'] ?? o['id'].toString(),
           timeline: [
             for (final e in o['timeline']) Map<String, dynamic>.from(e),
           ],

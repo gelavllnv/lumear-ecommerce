@@ -67,18 +67,36 @@ abstract final class ProductCategories {
     ],
   };
 
-  static List<String> get names => hierarchy.keys.toList();
+  static Map<String, List<String>>? _shared;
+  static bool get usesShared => _shared != null;
+  static void reset() => _shared = null;
+  static void useShared(dynamic rows) {
+    if (rows is! List || rows.isEmpty) return;
+    final roots = rows.where((r) => r['parent_id'] == null).toList();
+    _shared = {
+      for (final root in roots)
+        root['name'] as String: [
+          for (final child in rows)
+            if (child['parent_id']?.toString() == root['id'].toString())
+              child['name'] as String,
+        ],
+    };
+  }
+
+  static List<String> get names => (_shared ?? hierarchy).keys.toList();
   static List<String> children(String? category) =>
-      hierarchy[category] ?? const [];
+      (_shared ?? hierarchy)[category] ?? const [];
 
   // Allows older backend records to remain visible under the new main categories.
-  static String canonical(String category) => switch (category) {
-    'Fashion' || 'Jewelry' || 'Bags' => "Women's Apparel",
-    'Electronics' || 'Gaming' => 'Electronics and Gadgets',
-    'Baby' || 'Baby & Kids' => 'Kids and Baby',
-    'Home' || 'Home & Living' => 'Home and Garden',
-    'Beauty' || 'Beauty & Personal Care' => 'Health and Beauty',
-    'Sports & Outdoors' => 'Sports and Outdoors',
-    _ => category,
-  };
+  static String canonical(String category) => usesShared
+      ? category
+      : switch (category) {
+          'Fashion' || 'Jewelry' || 'Bags' => "Women's Apparel",
+          'Electronics' || 'Gaming' => 'Electronics and Gadgets',
+          'Baby' || 'Baby & Kids' => 'Kids and Baby',
+          'Home' || 'Home & Living' => 'Home and Garden',
+          'Beauty' || 'Beauty & Personal Care' => 'Health and Beauty',
+          'Sports & Outdoors' => 'Sports and Outdoors',
+          _ => category,
+        };
 }

@@ -98,10 +98,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: LumearDock(
           selectedIndex: selectedIndex,
-          onSelected: (i) {
-            setState(() => selectedIndex = i);
-            if (widget.connected) refreshData();
-          },
+          onSelected: (i) => setState(() {
+            selectedIndex = i;
+          }),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),

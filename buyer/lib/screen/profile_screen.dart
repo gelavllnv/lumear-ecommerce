@@ -1,3 +1,9 @@
+import 'help_center_screen.dart';
+import 'notification_settings_screen.dart';
+import 'account_profile_screen.dart';
+import '../widgets/account_picture.dart';
+import 'password_security_screen.dart';
+import 'buyer_wallet_screen.dart';
 import '../design/lumear_theme.dart';
 
 import 'package:flutter/material.dart';
@@ -102,10 +108,22 @@ class ProfileScreen extends StatelessWidget {
   );
 
   Future<void> _editAccount(BuildContext context) async {
-    if (!BuyerData.instance.connected) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => const _AccountEditor(),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountProfileScreen(
+          connected: BuyerData.instance.connected,
+          initialProfile: BuyerData.instance.profile,
+          onSaved: (profile) async {
+            BuyerData.instance.profile = profile;
+            if (BuyerData.instance.connected) {
+              await BuyerData.instance.refresh();
+            } else {
+              BuyerData.instance.notifyProfileChanged();
+            }
+          },
+        ),
+      ),
     );
   }
 
@@ -136,14 +154,14 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    AccountAvatar(
+                      photo: accountPhoto(BuyerData.instance.profile['photo']),
+                      name:
+                          BuyerData.instance.profile['display_name']
+                              as String? ??
+                          BuyerData.instance.profile['name'] as String? ??
+                          '',
                       radius: 30,
-                      backgroundColor: fieldColor,
-                      child: Icon(
-                        Icons.person_outline,
-                        color: maroon,
-                        size: 32,
-                      ),
                     ),
                     SizedBox(width: 17),
                     Expanded(
@@ -151,7 +169,10 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'YOUR LUMEAR.',
+                            BuyerData.instance.profile['display_name']
+                                    as String? ??
+                                BuyerData.instance.profile['name'] as String? ??
+                                'Your account',
                             style: TextStyle(
                               color: cream,
                               fontSize: 22,
@@ -160,12 +181,14 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 7),
-                          Text(
-                            BuyerData.instance.profile.isNotEmpty
-                                ? BuyerData.instance.profile['name'] ?? ''
-                                : 'Lumear Buyer',
-                            style: TextStyle(color: cream, fontSize: 12),
-                          ),
+                          if (BuyerData.instance.profile['display_name'] !=
+                                  null &&
+                              BuyerData.instance.profile['display_name'] !=
+                                  BuyerData.instance.profile['name'])
+                            Text(
+                              BuyerData.instance.profile['name'] ?? '',
+                              style: TextStyle(color: cream, fontSize: 12),
+                            ),
                           SizedBox(height: 5),
                           Text(
                             BuyerData.instance.profile.isNotEmpty
@@ -227,10 +250,35 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _option(
                 context,
+                Icons.account_balance_wallet_outlined,
+                'My e-wallet',
+                'Refund balance, returns and transaction history',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BuyerWalletScreen()),
+                ),
+              ),
+              _option(
+                context,
                 Icons.person_outline_rounded,
                 'My Account',
                 'Manage your personal information',
                 () => _editAccount(context),
+              ),
+              _option(
+                context,
+                Icons.lock_outline,
+                'Change password',
+                'Confirm through your registered email',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PasswordSecurityScreen(
+                      connected: BuyerData.instance.connected,
+                      changePassword: true,
+                    ),
+                  ),
+                ),
               ),
               _option(
                 context,
@@ -267,10 +315,13 @@ class ProfileScreen extends StatelessWidget {
                 Icons.notifications_none_rounded,
                 'Notification Settings',
                 'Manage your notification preferences',
-                () => _showInfoDialog(
+                () => Navigator.push(
                   context,
-                  'Notification Settings',
-                  'Notification preferences are a placeholder for now.',
+                  MaterialPageRoute(
+                    builder: (_) => NotificationSettingsScreen(
+                      connected: BuyerData.instance.connected,
+                    ),
+                  ),
                 ),
               ),
               _option(
@@ -292,10 +343,13 @@ class ProfileScreen extends StatelessWidget {
                 Icons.help_outline_rounded,
                 'Help Center',
                 'Get help and support',
-                () => _showInfoDialog(
+                () => Navigator.push(
                   context,
-                  'Help Center',
-                  'Help and support content has not been configured yet.',
+                  MaterialPageRoute(
+                    builder: (_) => HelpCenterScreen(
+                      connected: BuyerData.instance.connected,
+                    ),
+                  ),
                 ),
               ),
               _option(
@@ -434,71 +488,6 @@ class ProfileScreen extends StatelessWidget {
         trailing: Icon(Icons.arrow_forward, color: maroon, size: 17),
         onTap: onTap,
       ),
-    ),
-  );
-}
-
-class _AccountEditor extends StatefulWidget {
-  const _AccountEditor();
-  @override
-  State<_AccountEditor> createState() => _AccountEditorState();
-}
-
-class _AccountEditorState extends State<_AccountEditor> {
-  late final name = TextEditingController(
-    text: BuyerData.instance.profile['name'],
-  );
-  bool saving = false;
-  String? error;
-  @override
-  void dispose() {
-    name.dispose();
-    super.dispose();
-  }
-
-  Future<void> save() async {
-    setState(() {
-      saving = true;
-      error = null;
-    });
-    try {
-      await BuyerData.instance.saveProfile(name.text.trim());
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
-    } finally {
-      if (mounted) setState(() => saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => LumearAppearance.build(
-    context,
-    () => AlertDialog(
-      title: const Text('My Account'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(BuyerData.instance.profile['email'] ?? ''),
-          const SizedBox(height: 16),
-          TextField(
-            controller: name,
-            decoration: const InputDecoration(labelText: 'Full name'),
-          ),
-          if (error != null) Text(error!),
-          if (saving) const LinearProgressIndicator(),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: saving ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: saving ? null : save,
-          child: const Text('Save'),
-        ),
-      ],
     ),
   );
 }

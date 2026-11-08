@@ -36,7 +36,9 @@ class SellerAnalyticsRange {
 
 class SellerAnalyticsSnapshot {
   SellerAnalyticsSnapshot(Map<String, dynamic> json)
-    : current = Map<String, num>.from(json['current']),
+    : trafficAvailable = json['traffic_available'] != false,
+      notice = json['notice'] as String?,
+      current = Map<String, num>.from(json['current']),
       previous = Map<String, num>.from(json['previous']),
       daily = _rows(json['daily']),
       products = _rows(json['products']),
@@ -46,6 +48,8 @@ class SellerAnalyticsSnapshot {
       returns = _rows(json['returns'] ?? []),
       notifications = _rows(json['notifications']);
   final Map<String, num> current, previous, operations;
+  final bool trafficAvailable;
+  final String? notice;
   final Map<String, dynamic> customers;
   final List<Map<String, dynamic>> daily,
       products,
@@ -309,6 +313,7 @@ String analyticsValue(String key, num n) =>
     ? '${n.toStringAsFixed(2)}%'
     : '$n';
 String analyticsChange(String key, SellerAnalyticsSnapshot snapshot) {
+  if (key == 'conversion' && !snapshot.trafficAvailable) return 'Unavailable';
   final a = snapshot.current[key] ?? 0, b = snapshot.previous[key] ?? 0;
   if (key == 'conversion') {
     return '${(a - b).toStringAsFixed(2)} pp vs previous';

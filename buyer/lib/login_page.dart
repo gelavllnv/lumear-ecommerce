@@ -1,3 +1,8 @@
+import 'screen/google_onboarding_screen.dart';
+import 'screen/google_otp_screen.dart';
+import 'screen/password_security_screen.dart';
+import 'product_categories.dart';
+
 import 'package:flutter/material.dart';
 
 import 'register_page.dart';
@@ -42,6 +47,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    ProductCategories.reset();
     DemoAccounts.signOut();
   }
 
@@ -163,6 +169,18 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Map<String, dynamic> googleSession(dynamic result) {
+    if (result is! Map ||
+        result['token'] is! String ||
+        (result['token'] as String).isEmpty ||
+        !['buyer', 'seller'].contains(result['role'])) {
+      throw const ApiException(
+        'Google sign-in could not create a Lumear session. Please try again.',
+      );
+    }
+    return Map<String, dynamic>.from(result);
+  }
+
   Future<void> loginWithGoogle() async {
     if (isLoading) return;
     final apiUrl = Uri.tryParse(ApiService.baseUrl);
@@ -175,6 +193,27 @@ class _LoginPageState extends State<LoginPage> {
       );
       return;
     }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Continue with Google?'),
+        content: const Text(
+          'Lumear will use your Google name and verified email to sign you in. '
+          'If you are new, you must complete your account details and delivery address before entering the app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
     setState(() {
       isLoading = true;
       loginError = null;
@@ -184,21 +223,59 @@ class _LoginPageState extends State<LoginPage> {
       final token =
           await (widget.googleIdTokenProvider ?? GoogleLogin.idToken)();
       if (!mounted || token == null) return;
-      final result = await ApiService.post(
+      var result = await ApiService.post(
         '/auth/google',
         body: {'id_token': token},
       );
       if (!mounted) return;
-      if (result is! Map ||
-          result['token'] is! String ||
-          (result['token'] as String).isEmpty ||
-          !['buyer', 'seller'].contains(result['role'])) {
-        throw const ApiException(
-          'Google sign-in could not create a Lumear session. Please try again.',
+      String? verificationToken;
+      if (result is Map && result['requires_otp'] == true) {
+        verificationToken = await Navigator.push<String>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GoogleOtpScreen(
+              challengeId: result['challenge_id'] as String,
+              idToken: token,
+            ),
+          ),
         );
+        if (!mounted || verificationToken == null) return;
+        result = await ApiService.post(
+          '/auth/google',
+          body: {'id_token': token, 'verification_token': verificationToken},
+        );
+        if (!mounted) return;
       }
-      ApiService.setToken(result['token'] as String);
-      openWorkspace(result['role'] == 'seller');
+      if (result is Map && result['requires_account_type'] == true) {
+        setState(() => isLoading = false);
+        final session = await Navigator.push<Map<String, dynamic>>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GoogleOnboardingScreen(
+              initialName: result['name'] as String? ?? '',
+              email: result['email'] as String? ?? '',
+              isNewAccount: result['is_new_account'] == true,
+              existingRole: result['existing_role'] as String?,
+              onComplete: (details) async {
+                final response = await ApiService.post(
+                  '/auth/google',
+                  body: {
+                    'id_token': token,
+                    'verification_token': verificationToken,
+                    ...details,
+                  },
+                );
+                return googleSession(response);
+              },
+            ),
+          ),
+        );
+        if (!mounted || session == null) return;
+        result = session;
+      }
+      final session = googleSession(result);
+      ApiService.setToken(session['token'] as String);
+      openWorkspace(session['role'] == 'seller');
     } catch (error) {
       if (mounted) {
         setState(
@@ -425,19 +502,13 @@ class _LoginPageState extends State<LoginPage> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: () => showDialog<void>(
-                                    context: context,
-                                    builder: (c) => AlertDialog(
-                                      title: const Text('Password assistance'),
-                                      content: const Text(
-                                        'Password recovery is not configured yet. Contact your administrator for account recovery.',
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PasswordSecurityScreen(
+                                        connected: backendEnabled,
+                                        initialEmail: emailController.text,
                                       ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(c),
-                                          child: const Text('Got it'),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                   child: const Text(

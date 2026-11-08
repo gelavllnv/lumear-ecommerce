@@ -12,17 +12,34 @@ Future<Uint8List> buildSellerAnalyticsPdf({
   final font = pw.Font.ttf(
     await rootBundle.load('assets/fonts/roboto-regular.ttf'),
   );
+  final logoData = await rootBundle.load('assets/images/logo.png');
+  final logo = pw.MemoryImage(
+    logoData.buffer.asUint8List(logoData.offsetInBytes, logoData.lengthInBytes),
+  );
   final doc = pw.Document(theme: pw.ThemeData.withFont(base: font));
   pw.Widget table(List<String> headers, List<List<String>> rows) =>
       pw.TableHelper.fromTextArray(headers: headers, data: rows);
   doc.addPage(
     pw.MultiPage(
       maxPages: 1000,
-      build: (_) => [
-        pw.Text(
-          '$shopName — Seller report',
-          style: const pw.TextStyle(fontSize: 22),
+      header: (_) => pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 12),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Image(logo, width: 48, height: 48, fit: pw.BoxFit.contain),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: pw.Text(
+                '$shopName — Seller report',
+                style: const pw.TextStyle(fontSize: 22),
+              ),
+            ),
+          ],
         ),
+      ),
+      build: (_) => [
+        if (snapshot.notice != null) pw.Text(snapshot.notice!),
         pw.Text('${selectedRange.label} · Philippine time'),
         pw.Text('Previous: ${selectedRange.previous.label}'),
         if (demo) pw.Text('DEMO / SAMPLE DATA'),
@@ -35,7 +52,9 @@ Future<Uint8List> buildSellerAnalyticsPdf({
             for (final e in snapshot.current.entries)
               [
                 e.key,
-                analyticsValue(e.key, e.value),
+                e.key == 'conversion' && !snapshot.trafficAvailable
+                    ? 'Unavailable'
+                    : analyticsValue(e.key, e.value),
                 analyticsChange(e.key, snapshot),
               ],
           ],
@@ -71,7 +90,12 @@ Future<Uint8List> buildSellerAnalyticsPdf({
                   'revenue',
                   'stock',
                 ])
-                  k == 'revenue' ? analyticsValue(k, r[k] as num) : '${r[k]}',
+                  !snapshot.trafficAvailable &&
+                          ['views', 'cart_rate'].contains(k)
+                      ? 'Unavailable'
+                      : k == 'revenue'
+                      ? analyticsValue(k, r[k] as num)
+                      : '${r[k]}',
               ],
           ],
         ),
@@ -94,11 +118,15 @@ Future<Uint8List> buildSellerAnalyticsPdf({
             for (final r in snapshot.promotions)
               [
                 '${r['name']}',
-                '${r['views']}',
-                '${r['claims']}',
+                snapshot.trafficAvailable ? '${r['views']}' : 'Unavailable',
+                snapshot.trafficAvailable ? '${r['claims']}' : 'Unavailable',
                 '${r['redemptions']}',
-                analyticsValue('revenue', r['revenue'] as num),
-                analyticsValue('conversion', r['conversion'] as num),
+                snapshot.trafficAvailable
+                    ? analyticsValue('revenue', r['revenue'] as num)
+                    : 'Unavailable',
+                snapshot.trafficAvailable
+                    ? analyticsValue('conversion', r['conversion'] as num)
+                    : 'Unavailable',
               ],
           ],
         ),

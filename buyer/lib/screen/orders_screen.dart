@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../order_manager.dart';
 import '../services/api_service.dart';
 import '../services/buyer_data.dart';
+import 'buyer_wallet_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -24,6 +25,116 @@ class _OrdersScreenState extends State<OrdersScreen> {
   int selectedTab = 0;
   bool isSearching = false;
   final TextEditingController searchController = TextEditingController();
+  final Set<String> workingOrders = {};
+  String? actionError;
+
+  Future<void> actOnOrder(PlacedOrder order, {required bool receive}) async {
+    if (workingOrders.contains(order.orderId)) return;
+    final reason = receive
+        ? null
+        : await showDialog<String>(
+            context: context,
+            builder: (_) => const _CancellationDialog(),
+          );
+    if (!mounted || (!receive && reason == null)) return;
+    if (receive) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Confirm order received?'),
+          content: const Text(
+            'Confirm only after you have received and checked all items. If something is missing or damaged, request a return / refund first.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Not yet'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Confirm received'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+    }
+    setState(() {
+      workingOrders.add(order.orderId);
+      actionError = null;
+    });
+    try {
+      if (OrderManager.instance.connected) {
+        final result = await ApiService.post(
+          '/orders/${order.orderId}/${receive ? 'received' : 'cancel'}',
+          body: receive ? {} : {'reason': reason!},
+        );
+        if (!mounted) return;
+        // The mutation is confirmed before refreshing the rest of the workspace.
+        OrderManager.instance.updateOrderStatus(
+          orderId: order.orderId,
+          status: receive ? 'Completed' : 'Cancelled',
+        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(result['message'] as String)));
+        await BuyerData.instance.refresh();
+      } else {
+        OrderManager.instance.updateOrderStatus(
+          orderId: order.orderId,
+          status: receive ? 'Completed' : 'Cancelled',
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Updated in local preview only.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) setState(() => actionError = e.toString());
+    } finally {
+      if (mounted) setState(() => workingOrders.remove(order.orderId));
+    }
+  }
+
+  Future<void> requestRefund(PlacedOrder order) async {
+    final item = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Choose an item to return / refund')),
+            for (final item in order.refundItems.where(
+              (item) => item['return_status'] == null,
+            ))
+              ListTile(
+                title: Text(item['name'] as String),
+                subtitle: Text('${item['quantity']} item(s)'),
+                onTap: () => Navigator.pop(sheet, item),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || item == null) return;
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ReturnRequestScreen(item: item)),
+    );
+    if (!mounted || saved != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Return / refund requested. Track its status in My e-wallet.',
+        ),
+      ),
+    );
+    try {
+      await BuyerData.instance.refresh();
+    } catch (e) {
+      if (mounted) setState(() => actionError = e.toString());
+    }
+  }
 
   final List<String> tabs = const [
     'All',
@@ -255,7 +366,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final placed = OrderManager.instance.orders.map(
       (order) => DemoOrder(
         id: order.orderId,
-        storeName: order.storeName.isEmpty ? 'Lumear' : order.storeName,
+        source: order,
+        storeName: order.storeName.isEmpty
+            ? 'Lumear · This session'
+            : order.storeName,
         productName: order.items
             .map((item) => '${item.name} × ${item.quantity}')
             .join(' · '),
@@ -263,7 +377,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         quantity: 1,
         icon: Icons.shopping_bag_outlined,
         status: order.status == 'To Receive' ? 'In Transit' : order.status,
-        statusText: '${order.status} · Cash on delivery',
+        statusText: '${order.status} · ${order.paymentMethod}',
         statusIcon: Icons.inventory_2_outlined,
         statusColor: maroon,
         tracking: OrderManager.instance.connected
@@ -488,6 +602,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Widget _buildOrderCard(DemoOrder order) {
     final total = order.price * order.quantity;
+    final source = order.source;
+    final busy = workingOrders.contains(order.id);
+    final active = !['Completed', 'Cancelled'].contains(order.status);
+    final canCancel =
+        source != null &&
+        active &&
+        (OrderManager.instance.connected
+            ? source.canCancel
+            : ['To Pay', 'To Ship'].contains(source.status));
+    final canReceive =
+        source != null &&
+        active &&
+        (OrderManager.instance.connected
+            ? source.canReceive
+            : source.status == 'Delivered');
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -571,6 +700,49 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ],
           ),
           const SizedBox(height: 14),
+          if (source != null) ...[
+            for (final item in source.refundItems.where(
+              (item) => item['return_status'] != null,
+            ))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Return / refund · ${item['name']}: ${item['return_status']}',
+                ),
+              ),
+            if (actionError != null)
+              Text(
+                actionError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            if (busy) const LinearProgressIndicator(),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (canCancel)
+                  OutlinedButton(
+                    onPressed: busy
+                        ? null
+                        : () => actOnOrder(source, receive: false),
+                    child: const Text('Cancel order'),
+                  ),
+                if (OrderManager.instance.connected && source.canRefund)
+                  OutlinedButton(
+                    onPressed: busy ? null : () => requestRefund(source),
+                    child: const Text('Return / Refund'),
+                  ),
+                if (canReceive)
+                  FilledButton(
+                    onPressed: busy
+                        ? null
+                        : () => actOnOrder(source, receive: true),
+                    child: const Text('Order received'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           Row(
             children: [
               Icon(order.statusIcon, size: 16, color: maroon),
@@ -586,15 +758,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 onPressed: () => _showTrackingBottomSheet(order),
                 icon: const Icon(Icons.arrow_forward, size: 20),
               ),
-              if (OrderManager.instance.connected && order.status == 'Delivered')
-                TextButton(onPressed: () async {
-                  try {
-                    await ApiService.post('/orders/${order.id}/receive', body: {});
-                    await BuyerData.instance.refresh();
-                  } catch (error) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-                  }
-                }, child: const Text('Confirm receipt')),
             ],
           ),
         ],
@@ -727,6 +890,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 }
 
 class DemoOrder {
+  final PlacedOrder? source;
   final String id;
   final String storeName;
   final String productName;
@@ -740,6 +904,7 @@ class DemoOrder {
   final List<TrackingStep> tracking;
 
   const DemoOrder({
+    this.source,
     required this.id,
     required this.storeName,
     required this.productName,
@@ -752,6 +917,60 @@ class DemoOrder {
     required this.statusColor,
     required this.tracking,
   });
+}
+
+class _CancellationDialog extends StatefulWidget {
+  const _CancellationDialog();
+  @override
+  State<_CancellationDialog> createState() => _CancellationDialogState();
+}
+
+class _CancellationDialogState extends State<_CancellationDialog> {
+  final reason = TextEditingController();
+  final form = GlobalKey<FormState>();
+  @override
+  void dispose() {
+    reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Cancel this order?'),
+    content: Form(
+      key: form,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Cancellation is available before packing for unpaid orders. Please tell us why you are cancelling.',
+          ),
+          TextFormField(
+            controller: reason,
+            maxLength: 300,
+            decoration: const InputDecoration(labelText: 'Cancellation reason'),
+            validator: (v) => (v?.trim().length ?? 0) < 3
+                ? 'Enter at least 3 characters.'
+                : null,
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Keep order'),
+      ),
+      FilledButton(
+        onPressed: () {
+          if (form.currentState!.validate()) {
+            Navigator.pop(context, reason.text.trim());
+          }
+        },
+        child: const Text('Confirm cancellation'),
+      ),
+    ],
+  );
 }
 
 class TrackingStep {

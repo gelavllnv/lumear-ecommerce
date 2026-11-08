@@ -1,0 +1,140 @@
+[
+  {
+    "id": "orders",
+    "category": "Orders",
+    "question": "Where can I track my order?",
+    "answer": "Open Orders and select your purchase to view its recorded status. Contact the seller through Messages for dispatch details. Delivery dates depend on the seller and courier.",
+    "keywords": [
+      "track",
+      "tracking",
+      "order",
+      "delivery",
+      "deliver",
+      "nasaan",
+      "saan",
+      "dumating"
+    ]
+  },
+  {
+    "id": "checkout",
+    "category": "Checkout",
+    "question": "How do I place an order?",
+    "answer": "Open a product, choose its variety and quantity, then add it to your cart. Select your items, choose a saved delivery address, review the totals, and confirm checkout. Cash on Delivery is supported.",
+    "keywords": [
+      "buy",
+      "checkout",
+      "purchase",
+      "bili",
+      "cart",
+      "payment",
+      "cod",
+      "bayad"
+    ]
+  },
+  {
+    "id": "shipping",
+    "category": "Shipping",
+    "question": "How much is shipping?",
+    "answer": "Shipping is PHP 50 per shop order. Review the shipping amount and total shown at checkout before confirming.",
+    "keywords": [
+      "shipping",
+      "fee",
+      "charge",
+      "singil"
+    ]
+  },
+  {
+    "id": "cancellation",
+    "category": "Cancellation",
+    "question": "Can I cancel an order?",
+    "answer": "Open Orders, select the order, and use Cancel if that action is available. Enter your reason. If cancellation is unavailable, message the seller; the assistant cannot cancel orders.",
+    "keywords": [
+      "cancel",
+      "cancellation",
+      "kansela"
+    ]
+  },
+  {
+    "id": "returns",
+    "category": "Returns",
+    "question": "How do I report a damaged or incorrect item?",
+    "answer": "Open the order details and contact the seller with the order reference and clear photos. Keep the item and packaging. Return or refund approval is subject to review; the assistant cannot approve a refund or promise a deadline.",
+    "keywords": [
+      "refund",
+      "return",
+      "damaged",
+      "wrong",
+      "sira",
+      "mali",
+      "balik"
+    ]
+  },
+  {
+    "id": "messaging",
+    "category": "Messaging",
+    "question": "How do I contact a seller?",
+    "answer": "Open a product and tap Chat with seller. Existing conversations are under Messages. While a conversation is open, new replies are checked every 5 seconds.",
+    "keywords": [
+      "chat",
+      "message",
+      "seller",
+      "contact",
+      "usap",
+      "kausap"
+    ]
+  },
+  {
+    "id": "address",
+    "category": "Address",
+    "question": "How do I update my delivery address?",
+    "answer": "Open Profile > Addresses to add or edit an address and choose a default. Province, city, and barangay identify your location. Postal codes fill automatically when a unique match is available; check the code before saving. Editing an address does not change orders already placed.",
+    "keywords": [
+      "address",
+      "postal",
+      "zip",
+      "barangay",
+      "province",
+      "tirahan"
+    ]
+  },
+  {
+    "id": "account",
+    "category": "Account",
+    "question": "How do I use Google registration?",
+    "answer": "Choose Continue with Google, confirm, and select your Google account. New users complete their contact details, date of birth, password, and delivery address. Registration requires age 18 or older. A successful Buyer registration opens the buyer home.",
+    "keywords": [
+      "google",
+      "register",
+      "signup",
+      "account",
+      "password",
+      "login",
+      "sign in"
+    ]
+  },
+  {
+    "id": "notifications",
+    "category": "Notifications",
+    "question": "How do I choose my notifications?",
+    "answer": "Open Profile > Notification Settings to choose the in-app order, promotion, and general updates you want to see. Security notices remain visible. These preferences do not enable phone push notifications.",
+    "keywords": [
+      "notification",
+      "alert",
+      "settings",
+      "abiso"
+    ]
+  },
+  {
+    "id": "selling",
+    "category": "Selling",
+    "question": "How do I start selling?",
+    "answer": "Choose Seller when creating an account, complete your shop details, and wait for approval. New shops are pending and cannot list or fulfill orders until approved. The configured commission for a new shop is 8%; recorded orders retain their own commission.",
+    "keywords": [
+      "sell",
+      "shop",
+      "approval",
+      "commission",
+      "tinda"
+    ]
+  }
+]

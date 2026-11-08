@@ -3,6 +3,7 @@ import 'product_media.dart';
 import 'package:flutter/foundation.dart';
 
 import '../services/api_service.dart';
+import '../product_categories.dart';
 import '../services/marketplace_policy.dart';
 
 String sellerMoney(int cents) => '₱${(cents / 100).toStringAsFixed(2)}';
@@ -38,6 +39,7 @@ class SellerProduct {
     this.variety = 'Default',
     this.description = '',
     this.active = true,
+    this.archived = false,
     this.editable = true,
     this.media = const [],
   });
@@ -47,6 +49,7 @@ class SellerProduct {
   final String variety;
   final int price, stock;
   final bool active;
+  final bool archived;
   final bool editable;
   final List<ProductMedia> media;
 }
@@ -71,6 +74,10 @@ class SellerOrder {
     this.cancellable = true,
     this.completedAt,
     this.rawStatus,
+    this.paymentStatus = 'Pending',
+    this.courierName,
+    this.trackingNumber,
+    this.cancellationReason,
   }) : _recordedFee = fee;
   final String id, buyer, productId, productName, address;
   final int quantity, unitPrice, refund, shipping;
@@ -84,6 +91,34 @@ class SellerOrder {
   SellerOrderStatus status;
   String? rawStatus;
   String? cancellationReason;
+  final String paymentStatus;
+  String? courierName, trackingNumber;
+  String get fulfillmentStatus =>
+      rawStatus ??
+      switch (status) {
+        SellerOrderStatus.toPack => 'pending',
+        SellerOrderStatus.ready => 'ready_to_ship',
+        SellerOrderStatus.inTransit => 'shipped',
+        SellerOrderStatus.delivered => 'delivered',
+        SellerOrderStatus.completed => 'completed',
+        SellerOrderStatus.cancelled => 'cancelled',
+      };
+  String get fulfillmentLabel => switch (fulfillmentStatus) {
+    'pending' => 'Pending',
+    'accepted' => 'Accepted',
+    'packed' => 'Packed',
+    'ready_to_ship' => 'Pickup requested',
+    'shipped' || 'in_transit' => 'Shipped',
+    'delivered' => 'Delivered',
+    'completed' => 'Completed',
+    'cancelled' => 'Cancelled',
+    _ => fulfillmentStatus,
+  };
+  bool get canAccept => fulfillmentStatus == 'pending';
+  bool get canCancel =>
+      ['pending', 'accepted'].contains(fulfillmentStatus) && cancellable;
+  bool get canPack => fulfillmentStatus == 'accepted';
+  bool get canRequestPickup => fulfillmentStatus == 'packed';
   int get subtotal => itemsSubtotal ?? unitPrice * quantity;
   int get fee => _recordedFee ?? MarketplacePolicy.commissionFor(subtotal);
   int get net => subtotal - fee - refund;
@@ -93,7 +128,10 @@ class SellerOrder {
 /// Seller state backed by the API when connected; sample records otherwise.
 class SellerCommerce extends ChangeNotifier {
   SellerCommerce({this.connected = false}) {
-    if (connected) return;
+    if (connected) {
+      couriers = [];
+      return;
+    }
     final now = DateTime.now();
     _products.addAll([
       SellerProduct(
@@ -165,7 +203,7 @@ class SellerCommerce extends ChangeNotifier {
         2,
         45000,
         SellerOrderStatus.completed,
-        9000,
+        18000,
         false,
       ),
       (
@@ -176,7 +214,7 @@ class SellerCommerce extends ChangeNotifier {
         1,
         35000,
         SellerOrderStatus.completed,
-        3500,
+        7000,
         true,
       ),
     ].indexed) {
@@ -204,6 +242,9 @@ class SellerCommerce extends ChangeNotifier {
   }
 
   final List<SellerProduct> _products = [];
+  List<CourierPartner> couriers = [
+    const CourierPartner(id: 'demo', name: 'Lumear Demo Logistics'),
+  ];
   final bool connected;
   bool _disposed = false;
 
@@ -222,6 +263,7 @@ class SellerCommerce extends ChangeNotifier {
       await ApiService.get('/seller/workspace'),
     );
     if (_disposed) return {};
+    ProductCategories.useShared(result['categories']);
     _products.clear();
     for (final p in result['products']) {
       final variants = p['variants'] as List? ?? [];
@@ -234,7 +276,8 @@ class SellerCommerce extends ChangeNotifier {
           category: p['category'],
           subcategory: p['subcategory'] as String? ?? '',
           description: p['description'],
-          active: p['active'],
+          active: p['active'] == true && p['archived'] != true,
+          archived: p['archived'] == true,
           variety:
               (p['variant_label'] as String?) ??
               (variants.length == 1
@@ -280,9 +323,18 @@ class SellerCommerce extends ChangeNotifier {
             _ => SellerOrderStatus.inTransit,
           },
           rawStatus: o['raw_status'] as String?,
+          paymentStatus: o['payment_status'] as String? ?? 'Unknown',
+          courierName: o['courier_name'] as String?,
+          trackingNumber: o['tracking_number'] as String?,
+          cancellationReason: o['cancellation_reason'] as String?,
         ),
       );
     }
+    couriers = [
+      for (final c in result['couriers'] as List? ?? [])
+        if (c['approved'] == true)
+          CourierPartner(id: c['id'].toString(), name: c['name'] as String),
+    ];
     earnings = Map<String, dynamic>.from(result['earnings']);
     notifyListeners();
     return Map<String, dynamic>.from(result['shop']);
@@ -315,13 +367,18 @@ class SellerCommerce extends ChangeNotifier {
       )
       .fold(0, (sum, o) => sum + o.subtotal);
   List<SellerProduct> get lowStockProducts => _products
-      .where((p) => p.stock <= MarketplacePolicy.lowStockThreshold)
+      .where(
+        (p) => !p.archived && p.stock <= MarketplacePolicy.lowStockThreshold,
+      )
       .toList(growable: false);
   int get lowStock => lowStockProducts.length;
   int get toPack =>
       _orders.where((o) => o.status == SellerOrderStatus.toPack).length;
 
   Future<void> saveProduct(SellerProduct product) async {
+    if (product.archived && product.active) {
+      throw ArgumentError('Restore the archived product before activating it.');
+    }
     final existing = _products.where((p) => p.id == product.id).firstOrNull;
     if (!product.editable || existing?.editable == false) {
       throw StateError(
@@ -347,7 +404,8 @@ class SellerCommerce extends ChangeNotifier {
         'subcategory': product.subcategory,
         'variant_label': product.variety.trim(),
         'description': product.description,
-        'active': product.active,
+        'active': product.active && !product.archived,
+        'archived': product.archived,
         'media': product.media.map((m) => m.toJson()).toList(),
       };
       if (_products.any((p) => p.id == product.id)) {
@@ -367,26 +425,56 @@ class SellerCommerce extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> prepare(SellerOrder order) async {
+  Future<void> prepare(SellerOrder order) => markPacked(order);
+
+  Future<void> accept(SellerOrder order) async {
+    if (!_orders.contains(order) || !order.canAccept) {
+      throw StateError('Only pending orders can be accepted.');
+    }
     if (connected) {
-      await ApiService.post('/seller/orders/${order.id}/prepare', body: {});
+      await ApiService.post(
+        '/seller/orders/${Uri.encodeComponent(order.id)}/accept',
+        body: {},
+      );
       await load();
-      return;
+    } else {
+      order.rawStatus = 'accepted';
+      notifyListeners();
     }
-    if (!_orders.contains(order) || order.status != SellerOrderStatus.toPack) {
-      throw StateError('Only orders waiting to be packed can be prepared.');
+  }
+
+  Future<void> setArchived(SellerProduct product, bool archived) async {
+    if (!_products.contains(product)) {
+      throw StateError('Refresh the product list.');
     }
-    order.status = SellerOrderStatus.ready;
-    order.rawStatus = 'ready_to_ship';
-    order.cancellable = false;
-    notifyListeners();
+    if (connected) {
+      await ApiService.patch(
+        '/seller/products/${Uri.encodeComponent(product.id)}/archive',
+        body: {'archived': archived},
+      );
+      await load();
+    } else {
+      _products[_products.indexOf(product)] = SellerProduct(
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        stock: product.stock,
+        category: product.category,
+        subcategory: product.subcategory,
+        variety: product.variety,
+        description: product.description,
+        media: product.media,
+        editable: product.editable,
+        active: false,
+        archived: archived,
+      );
+      notifyListeners();
+    }
   }
 
   Future<void> markPacked(SellerOrder order) async {
-    if (!_orders.contains(order) ||
-        order.status != SellerOrderStatus.toPack ||
-        order.rawStatus == 'packed') {
-      throw StateError('Only new orders can be marked packed.');
+    if (!_orders.contains(order) || !order.canPack) {
+      throw StateError('Accept the order before marking it packed.');
     }
     if (connected) {
       await ApiService.post(
@@ -401,39 +489,40 @@ class SellerCommerce extends ChangeNotifier {
     }
   }
 
-  Future<void> markShipped(SellerOrder order) async {
-    if (!_orders.contains(order) ||
-        (order.status != SellerOrderStatus.ready &&
-            order.rawStatus != 'packed')) {
-      throw StateError('Pack the order before marking it shipped.');
+  Future<void> requestPickup(SellerOrder order, String courierId) async {
+    if (!_orders.contains(order) || !order.canRequestPickup) {
+      throw StateError('Pack the order before requesting courier pickup.');
+    }
+    final courier = couriers.where((c) => c.id == courierId).firstOrNull;
+    if (courier == null) {
+      throw StateError('Choose an approved logistics partner.');
     }
     if (connected) {
       await ApiService.post(
-        '/seller/orders/${Uri.encodeComponent(order.id)}/ship',
-        body: {},
+        '/seller/orders/${Uri.encodeComponent(order.id)}/pickup',
+        body: {'courier_id': courier.id},
       );
       await load();
     } else {
-      order.rawStatus = 'in_transit';
-      order.status = SellerOrderStatus.inTransit;
+      order.rawStatus = 'ready_to_ship';
+      order.status = SellerOrderStatus.ready;
+      order.courierName = courier.name;
+      order.cancellable = false;
       notifyListeners();
     }
   }
 
   Future<void> cancel(SellerOrder order, String reason) async {
+    if (!_orders.contains(order) || !order.canCancel || reason.trim().isEmpty) {
+      throw StateError('Only unpacked orders can be cancelled, with a reason.');
+    }
     if (connected) {
       await ApiService.post(
-        '/seller/orders/${order.id}/cancel',
-        body: {'reason': reason},
+        '/seller/orders/${Uri.encodeComponent(order.id)}/cancel',
+        body: {'reason': reason.trim()},
       );
       await load();
       return;
-    }
-    if (!_orders.contains(order) ||
-        order.status != SellerOrderStatus.toPack ||
-        !order.cancellable ||
-        reason.trim().isEmpty) {
-      throw StateError('Only unpacked orders can be cancelled, with a reason.');
     }
     order.status = SellerOrderStatus.cancelled;
     order.rawStatus = 'cancelled';
@@ -452,11 +541,17 @@ class SellerCommerce extends ChangeNotifier {
         editable: p.editable,
         description: p.description,
         active: p.active,
+        archived: p.archived,
         media: p.media,
       );
     }
     notifyListeners();
   }
+}
+
+class CourierPartner {
+  const CourierPartner({required this.id, required this.name});
+  final String id, name;
 }
 
 DateTime? _optionalDate(dynamic value) {

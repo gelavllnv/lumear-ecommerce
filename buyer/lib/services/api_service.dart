@@ -15,7 +15,7 @@ class ApiException implements Exception {
 
 class ApiService {
   ApiService._();
-  // The shared integration backend supplies this URL; no server is bundled.
+  // Local/hosted API URL comes from the build config; DB credentials stay server-side.
   static String baseUrl = const String.fromEnvironment('API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 20);
   // Memory only: no unencrypted token persistence. Demo login never issues a token.

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../product_model.dart';
+import '../product_categories.dart';
 import '../cart_manager.dart';
 import '../address_manager.dart';
 import '../order_manager.dart';
@@ -46,6 +47,7 @@ class BuyerData extends ChangeNotifier {
       if (!connected || generation != _generation) return;
       profile = Map<String, dynamic>.from(result['profile']);
       capabilities = Map<String, dynamic>.from(result['capabilities']);
+      ProductCategories.useShared(result['categories']);
       ProductCatalog.instance.replace(result['products']);
       CartManager.instance.replace(result['cart']);
       AddressManager.instance.replace(result['addresses']);
@@ -64,6 +66,8 @@ class BuyerData extends ChangeNotifier {
     }
   }
 
+  void notifyProfileChanged() => notifyListeners();
+
   Future<void> saveProfile(String name) async {
     await ApiService.patch('/me', body: {'name': name});
     await refresh();
@@ -78,6 +82,7 @@ class BuyerData extends ChangeNotifier {
   }
 
   void reset() {
+    ProductCategories.reset();
     _generation++;
     _refreshing = null;
     loading = false;

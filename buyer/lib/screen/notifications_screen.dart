@@ -1,3 +1,5 @@
+import 'notification_settings_screen.dart';
+
 import 'package:flutter/material.dart';
 
 import '../services/buyer_data.dart';
@@ -44,7 +46,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               'unread': n['read'] != true,
             },
         ]
-      : sampleNotifications;
+      : sampleNotifications
+            .where(
+              (n) => NotificationSettingsScreen.previewAllows(
+                n['title'] as String,
+              ),
+            )
+            .toList();
   final sampleNotifications = [
     {
       'title': 'Your order is almost here!',

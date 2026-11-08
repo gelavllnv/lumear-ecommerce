@@ -13,6 +13,7 @@ SellerOrder order(
   DateTime date, {
   SellerOrderStatus status = SellerOrderStatus.completed,
   int refund = 0,
+  int? fee,
 }) => SellerOrder(
   id: id,
   buyer: 'Buyer',
@@ -25,6 +26,7 @@ SellerOrder order(
   completedAt: status == SellerOrderStatus.completed ? date : null,
   status: status,
   refund: refund,
+  fee: fee,
 );
 
 void main() {
@@ -45,7 +47,7 @@ void main() {
     demo: true,
   );
 
-  test('10% commission leaves 90%, excludes shipping and unfinished sales', () {
+  test('20% commission leaves 80%, excludes shipping and unfinished sales', () {
     final result = report([
       ...samples,
       order('pending', 999000, now, status: SellerOrderStatus.toPack),
@@ -53,11 +55,11 @@ void main() {
       order('cancelled', 999000, now, status: SellerOrderStatus.cancelled),
     ], EarningsPeriod.month);
     expect(result.gross, 350000);
-    expect(result.commission, 35000);
-    expect(result.net, 315000);
-    expect(incomeMoney(result.net), '₱3,150.00');
+    expect(result.commission, 70000);
+    expect(result.net, 280000);
+    expect(incomeMoney(result.net), '₱2,800.00');
     expect(result.rows.length, 3);
-    expect(result.rows.map((r) => r.net), [45000, 180000, 90000]);
+    expect(result.rows.map((r) => r.net), [40000, 160000, 80000]);
     expect(samples.every((o) => o.shipping == 5000), isTrue);
     expect(result.hasLegacyCommission, isFalse);
   });
@@ -66,13 +68,45 @@ void main() {
     'commission rounds half up per order; refunds are deducted separately',
     () {
       final result = report([
-        order('a', 10004, now, refund: 500),
-        order('b', 10005, now),
+        order('a', 10006, now, refund: 500),
+        order('b', 10007, now),
       ], EarningsPeriod.allTime);
-      expect(result.commission, 2001);
+      expect(result.commission, 4002);
       expect(result.refunds, 500);
-      expect(result.net, 17508);
+      expect(result.net, 15511);
       expect(MarketplacePolicy.commissionFor(0), 0);
+      expect(MarketplacePolicy.commissionFor(2), 0);
+      expect(MarketplacePolicy.commissionFor(3), 1);
+      expect(MarketplacePolicy.commissionFor(100), 20);
+    },
+  );
+
+  test(
+    '80/10/10 split conserves every centavo, including rounding remainders',
+    () {
+      expect(MarketplacePolicy.sellerShareFor(100000), 80000);
+      expect(MarketplacePolicy.adminShareFor(100000), 10000);
+      expect(MarketplacePolicy.ownerShareFor(100000), 10000);
+      for (var cents = 0; cents <= 10000; cents++) {
+        expect(
+          MarketplacePolicy.sellerShareFor(cents) +
+              MarketplacePolicy.adminShareFor(cents) +
+              MarketplacePolicy.ownerShareFor(cents),
+          cents,
+        );
+      }
+    },
+  );
+
+  test(
+    'Historical server commission remains recorded when it differs from 20%',
+    () {
+      final result = report([
+        order('historical', 10000, now, fee: 1000),
+      ], EarningsPeriod.allTime);
+      expect(result.commission, 1000);
+      expect(result.net, 9000);
+      expect(result.hasLegacyCommission, isTrue);
     },
   );
 
@@ -105,7 +139,7 @@ void main() {
       ], EarningsPeriod.yearToDate);
       expect(result.rows.length, 4);
       expect(result.gross, 360000);
-      expect(result.net, 324000);
+      expect(result.net, 288000);
       expect(result.rangeLabel, 'Jan 1, 2026 – Oct 27, 2026');
     },
   );
@@ -127,7 +161,7 @@ void main() {
         demo: false,
       );
       expect(result.rows.map((r) => r.id), ['end', 'start']);
-      expect(result.net, 18000);
+      expect(result.net, 16000);
       expect(result.rangeLabel, 'Jan 1, 2025 – May 31, 2025');
       expect(
         result.filename,
@@ -181,7 +215,7 @@ void main() {
     final mutable = order('a', 10000, now);
     final result = report([mutable], EarningsPeriod.month);
     mutable.status = SellerOrderStatus.cancelled;
-    expect(result.net, 9000);
+    expect(result.net, 8000);
     expect(result.rows.length, 1);
     expect(report([mutable], EarningsPeriod.month).net, 0);
   });

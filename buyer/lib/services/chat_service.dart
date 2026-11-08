@@ -20,22 +20,9 @@ class ChatMessage {
 }
 
 class ChatThread {
-  const ChatThread({
-    required this.id,
-    required this.name,
-    this.type = 'seller',
-    this.trackingCode = '',
-    this.status = '',
-    this.lastMessage = '',
-    this.unreadCount = 0,
-  });
+  const ChatThread({required this.id, required this.name});
   final String id;
   final String name;
-  final String type;
-  final String trackingCode;
-  final String status;
-  final String lastMessage;
-  final int unreadCount;
 }
 
 /// Demo conversations are scoped to local preview accounts.
@@ -50,6 +37,7 @@ class ChatService {
   final bool seller;
   final String _demoUser, _demoName;
   final List<ChatMessage> assistantHistory = [];
+  String? assistantMode;
   static final Map<
     String,
     ({String shop, String buyer, String buyerName, String seller})
@@ -70,22 +58,13 @@ class ChatService {
               name: seller
                   ? '${entry.value.buyerName} · ${entry.value.shop}'
                   : entry.value.shop,
-              type: seller ? 'buyer' : 'seller',
             ),
       ];
     }
     final data = await ApiService.get('/chat/threads');
     return [
       for (final row in data['threads'] as List)
-        ChatThread(
-          id: row['id'].toString(),
-          name: row['name'] as String,
-          type: row['type']?.toString() ?? 'seller',
-          trackingCode: row['tracking_code']?.toString() ?? '',
-          status: row['status']?.toString() ?? '',
-          lastMessage: row['last_message']?.toString() ?? '',
-          unreadCount: int.tryParse(row['unread_count']?.toString() ?? '') ?? 0,
-        ),
+        ChatThread(id: row['id'].toString(), name: row['name'] as String),
     ];
   }
 
@@ -173,6 +152,7 @@ class ChatService {
         },
       );
       final reply = data['reply'];
+      assistantMode = data['mode'] == 'guide' ? 'guide' : 'ai';
       if (reply is! String || reply.trim().isEmpty) {
         throw const ApiException(
           'The assistant did not return a reply. Please try again.',
