@@ -21,6 +21,15 @@ return new class extends Migration
             });
         }
 
+        // The existing rider records are seeded from their application. Older
+        // installations did not yet have this application column, so create it
+        // before reading it during the backfill below.
+        if (! Schema::hasColumn('logistics_rider_applications', 'postal_code')) {
+            Schema::table('logistics_rider_applications', function (Blueprint $table): void {
+                $table->string('postal_code', 10)->nullable();
+            });
+        }
+
         DB::table('riders')->orderBy('id')->chunkById(100, function ($riders): void {
             foreach ($riders as $rider) {
                 $name = DB::table('users')->where('id', $rider->user_id)->value('name');
