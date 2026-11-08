@@ -83,6 +83,7 @@ Route::middleware(['auth', 'verified', 'buyer'])->group(function () {
     Route::post('/vouchers/{voucher}/claim', [BuyerVoucherController::class, 'claim'])->name('buyer.vouchers.claim');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout');
     Route::get('/orders', [CheckoutController::class, 'orders'])->name('orders');
+    Route::post('/seller-orders/{sellerOrder}/cancel', [BuyerOrderController::class, 'cancel'])->name('buyer.orders.cancel');
     Route::post('/seller-orders/{sellerOrder}/confirm-receipt', [BuyerOrderController::class, 'confirmReceipt'])->name('buyer.orders.confirm-receipt');
     Route::post('/order-items/{orderItem}/review', [BuyerOrderController::class, 'storeReview'])->name('buyer.reviews.store');
     Route::post('/sellers/{seller}/messages', [MessageController::class, 'start'])->name('buyer.messages.start');

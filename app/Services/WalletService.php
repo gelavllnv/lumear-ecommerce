@@ -39,6 +39,56 @@ class WalletService
         ]);
     }
 
+    /**
+     * Remove an order's unreleased COD earnings when it is cancelled before fulfilment.
+     *
+     * The matching journal entry makes this idempotent and keeps a complete financial
+     * trail instead of simply editing the wallet balance.
+     */
+    public function reversePendingSaleForCancellation(SellerOrder $sellerOrder, int $actorId): void
+    {
+        DB::transaction(function () use ($sellerOrder, $actorId): void {
+            $sellerOrder = SellerOrder::lockForUpdate()->findOrFail($sellerOrder->id);
+
+            if (WalletJournal::where('seller_order_id', $sellerOrder->id)
+                ->where('entry_type', 'order_cancelled_reversal')
+                ->exists()) {
+                return;
+            }
+
+            $pendingJournal = WalletJournal::where('seller_order_id', $sellerOrder->id)
+                ->where('entry_type', 'cod_sale_pending')
+                ->exists();
+
+            if (! $pendingJournal) {
+                return;
+            }
+
+            $wallet = WalletAccount::where('seller_id', $sellerOrder->seller_id)
+                ->lockForUpdate()
+                ->firstOrCreate(['seller_id' => $sellerOrder->seller_id]);
+            $netMinor = $sellerOrder->subtotal_minor + $sellerOrder->shipping_fee_minor - $sellerOrder->commission_minor;
+
+            if ($wallet->pending_minor < $netMinor) {
+                throw ValidationException::withMessages([
+                    'seller_order' => 'The pending wallet balance does not match this order.',
+                ]);
+            }
+
+            $wallet->decrement('pending_minor', $netMinor);
+            WalletJournal::create([
+                'transaction_uuid' => (string) Str::uuid(),
+                'wallet_account_id' => $wallet->id,
+                'seller_order_id' => $sellerOrder->id,
+                'entry_type' => 'order_cancelled_reversal',
+                'pending_delta' => -$netMinor,
+                'reference' => 'CANCEL-'.$sellerOrder->order_id,
+                'metadata' => ['cancelled_by' => $actorId],
+                'occurred_at' => now(),
+            ]);
+        });
+    }
+
     public function requestPayout(Seller $seller, SellerPayoutAccount $payoutAccount, int $amountMinor): SellerPayoutRequest
     {
         return DB::transaction(function () use ($seller, $payoutAccount, $amountMinor): SellerPayoutRequest {

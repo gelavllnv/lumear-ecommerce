@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\MobileCommerceController;
+use App\Http\Controllers\BuyerOrderController;
 use App\Http\Controllers\MobileLogisticsController;
 use App\Http\Controllers\RiderAdminApiController;
 use App\Http\Controllers\RiderChatApiController;
@@ -44,6 +45,7 @@ Route::prefix('buyer')->middleware('mobile.api:buyer')->group(function (): void 
     Route::post('/addresses', [MobileCommerceController::class, 'saveAddress']);
     Route::patch('/addresses/{id}', [MobileCommerceController::class, 'saveAddress'])
         ->whereNumber('id');
+    Route::post('/orders/{sellerOrder}/cancel', [BuyerOrderController::class, 'cancel']);
 });
 
 Route::prefix('logistics')->middleware('mobile.api:logistics')->group(function (): void {

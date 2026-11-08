@@ -45,6 +45,16 @@
                             @elseif ($sellerOrder->status === 'completed')
                                 <p class="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">✓ Receipt confirmed — you can rate your purchased products below.</p>
                             @endif
+                            @if (in_array($sellerOrder->status, ['pending', 'accepted'], true))
+                                <form class="mb-4 rounded-xl border border-maroon-700/20 bg-cream-100/70 p-4" method="post" action="{{ route('buyer.orders.cancel', $sellerOrder) }}">
+                                    @csrf
+                                    <p class="font-bold text-maroon-900">Need to cancel this order?</p>
+                                    <p class="mt-1 text-sm text-maroon-900/70">You can cancel only before the seller packs it. Once packed, please use the return process after delivery.</p>
+                                    <label class="sr-only" for="cancel-reason-{{ $sellerOrder->id }}">Cancellation reason</label>
+                                    <textarea class="mt-3 w-full rounded-lg border border-sand-400/60 bg-cream-50 p-3 text-sm" id="cancel-reason-{{ $sellerOrder->id }}" name="reason" rows="2" minlength="10" maxlength="300" required placeholder="Tell the seller why you need to cancel (10–300 characters)"></textarea>
+                                    <button class="mt-3 rounded-xl border border-maroon-700 px-4 py-2 text-sm font-bold text-maroon-700 transition hover:bg-maroon-700 hover:text-cream-50">Cancel order</button>
+                                </form>
+                            @endif
                             <div class="space-y-3">
                                 @foreach ($sellerOrder->items as $item)
                                     <div class="rounded-xl bg-cream-100/65 p-3">

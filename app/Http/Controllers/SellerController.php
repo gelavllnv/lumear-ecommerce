@@ -16,6 +16,7 @@ use App\Models\SellerOrder;
 use App\Models\OrderTimeline;
 use App\Services\AuditService;
 use App\Services\FulfillmentService;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,7 +24,11 @@ use Illuminate\Validation\Rule;
 
 class SellerController extends Controller
 {
-    public function __construct(private readonly AuditService $audit, private readonly FulfillmentService $fulfillment) {}
+    public function __construct(
+        private readonly AuditService $audit,
+        private readonly FulfillmentService $fulfillment,
+        private readonly WalletService $wallets,
+    ) {}
 
     private function seller(Request $request): Seller
     {
@@ -277,6 +282,7 @@ class SellerController extends Controller
                     $variant->refresh();
                     InventoryMovement::create(['product_variant_id' => $variant->id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $request->user()->id, 'type' => 'order_cancelled_return', 'quantity_delta' => $item->quantity, 'stock_after' => $variant->stock, 'reference' => $sellerOrder->order->reference]);
                 }
+                $this->wallets->reversePendingSaleForCancellation($sellerOrder, $request->user()->id);
             }
 
         });

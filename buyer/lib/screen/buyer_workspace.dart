@@ -970,8 +970,7 @@ class _BuyerWorkspaceState extends State<BuyerWorkspace> {
                   title: Text(event['title']),
                   subtitle: Text(date(event['date'])),
                 ),
-              if (['To Pay', 'To Ship'].contains(o['status']) &&
-                  o['ready_for_pickup'] != true)
+              if (['pending', 'accepted'].contains(o['raw_status']))
                 OutlinedButton(
                   onPressed: () {
                     Navigator.pop(sheet);
@@ -1077,7 +1076,7 @@ class _BuyerWorkspaceState extends State<BuyerWorkspace> {
     'Cancel order',
     {'reason': 'Reason (10–300 characters)'},
     (values, photos) =>
-        ApiService.post('/orders/${o['id']}/cancel', body: values),
+        ApiService.post('/buyer/orders/${o['id']}/cancel', body: values),
     limits: {'reason': 300},
   );
 

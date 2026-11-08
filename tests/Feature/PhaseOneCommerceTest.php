@@ -187,6 +187,69 @@ class PhaseOneCommerceTest extends TestCase
         $this->assertDatabaseHas('product_reviews', ['buyer_id' => $buyer->id, 'order_item_id' => $item->id, 'product_id' => $variant->product_id, 'rating' => 5]);
     }
 
+    public function test_buyer_can_cancel_only_before_packing_and_stock_and_pending_earnings_are_reversed(): void
+    {
+        [$buyer, $seller, $variant] = $this->marketplaceFixture();
+        $cart = Cart::create(['user_id' => $buyer->id]);
+        CartItem::create(['cart_id' => $cart->id, 'product_variant_id' => $variant->id, 'quantity' => 2]);
+        $this->actingAs($buyer)->post(route('checkout'), ['payment_method' => 'cod'])
+            ->assertRedirect(route('orders'));
+
+        $sellerOrder = SellerOrder::firstOrFail();
+        $this->actingAs($buyer)->post(route('buyer.orders.cancel', $sellerOrder), [
+            'reason' => 'I selected the wrong product variant by mistake.',
+        ])->assertRedirect(route('orders'));
+
+        $this->assertDatabaseHas('seller_orders', ['id' => $sellerOrder->id, 'status' => 'cancelled']);
+        $this->assertSame(5, $variant->fresh()->stock);
+        $this->assertDatabaseHas('inventory_movements', [
+            'seller_order_id' => $sellerOrder->id,
+            'type' => 'buyer_order_cancelled_return',
+            'quantity_delta' => 2,
+            'stock_after' => 5,
+        ]);
+        $this->assertDatabaseHas('wallet_accounts', ['seller_id' => $seller->id, 'pending_minor' => 0]);
+        $this->assertDatabaseHas('wallet_journals', [
+            'seller_order_id' => $sellerOrder->id,
+            'entry_type' => 'order_cancelled_reversal',
+        ]);
+    }
+
+    public function test_buyer_cannot_cancel_an_order_after_the_seller_packs_it(): void
+    {
+        [$buyer, $seller, $variant] = $this->marketplaceFixture();
+        $order = \App\Models\Order::create([
+            'buyer_id' => $buyer->id,
+            'reference' => 'LM-PACKED-001',
+            'total_minor' => 25000,
+            'payment_method' => 'cod',
+            'payment_status' => 'pending',
+            'shipping_address' => $buyer->addresses()->first()->only(['label', 'recipient', 'phone', 'line1', 'barangay', 'city', 'province', 'postal_code']),
+        ]);
+        $sellerOrder = SellerOrder::create([
+            'order_id' => $order->id,
+            'seller_id' => $seller->id,
+            'subtotal_minor' => 25000,
+            'commission_minor' => 2000,
+            'status' => 'packed',
+        ]);
+        $sellerOrder->items()->create([
+            'product_id' => $variant->product_id,
+            'product_variant_id' => $variant->id,
+            'product_name' => 'Test Product',
+            'variant_name' => 'Standard',
+            'unit_price_minor' => 25000,
+            'quantity' => 1,
+        ]);
+
+        $this->actingAs($buyer)->from(route('orders'))->post(route('buyer.orders.cancel', $sellerOrder), [
+            'reason' => 'I no longer need this item for my order.',
+        ])->assertRedirect(route('orders'))->assertSessionHasErrors('cancel');
+
+        $this->assertDatabaseHas('seller_orders', ['id' => $sellerOrder->id, 'status' => 'packed']);
+        $this->assertSame(5, $variant->fresh()->stock);
+    }
+
     public function test_buyer_cannot_rate_a_product_until_the_cod_parcel_is_received(): void
     {
         [$buyer, $seller, $variant] = $this->marketplaceFixture();
