@@ -4,6 +4,7 @@ import '../services/mobile_number.dart';
 import '../services/api_service.dart';
 import '../widgets/registration_address_fields.dart';
 import '../widgets/account_picture.dart';
+import '../widgets/seller_registration_fields.dart';
 import '../seller/product_media.dart';
 
 class GoogleOnboardingScreen extends StatefulWidget {
@@ -37,6 +38,11 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
   final city = TextEditingController();
   final barangay = TextEditingController();
   final postal = TextEditingController();
+  final shopName = TextEditingController();
+  final shopDescription = TextEditingController();
+  final taxNumber = TextEditingController();
+  Map<String, Map<String, String>> sellerDocuments = {};
+  bool pickingDocuments = false;
   late String role = widget.existingRole ?? 'buyer';
   DateTime? birthDate;
   ProductMedia? photo;
@@ -60,6 +66,9 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
       city,
       barangay,
       postal,
+      shopName,
+      shopDescription,
+      taxNumber,
     ]) {
       c.dispose();
     }
@@ -132,7 +141,12 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
   }
 
   Future<void> submit() async {
-    if (saving || !form.currentState!.validate()) return;
+    if (saving ||
+        picking ||
+        pickingDocuments ||
+        !form.currentState!.validate()) {
+      return;
+    }
     final details = <String, dynamic>{
       'account_type': role,
       'name': name.text.trim(),
@@ -152,6 +166,12 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
         'default': true,
       },
       if (photo != null) 'photo': photo!.toJson(),
+      if (widget.isNewAccount && role == 'seller') ...{
+        'shop_name': shopName.text.trim(),
+        'shop_description': shopDescription.text.trim(),
+        'tax_number': taxNumber.text.trim(),
+        'documents': sellerDocuments,
+      },
     };
     setState(() {
       saving = true;
@@ -204,7 +224,10 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
                         ButtonSegment(value: 'seller', label: Text('Seller')),
                       ],
                       selected: {role},
-                      onSelectionChanged: widget.existingRole != null
+                      onSelectionChanged:
+                          widget.existingRole != null ||
+                              pickingDocuments ||
+                              saving
                           ? null
                           : (v) => setState(() => role = v.single),
                     ),
@@ -317,6 +340,23 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
                       barangay: barangay,
                       postal: postal,
                     ),
+                    if (widget.isNewAccount && role == 'seller') ...[
+                      const Divider(),
+                      const Text('Shop details'),
+                      const SizedBox(height: 16),
+                      field('Shop name', shopName),
+                      field(
+                        'Shop description',
+                        shopDescription,
+                        maxLength: 2000,
+                      ),
+                      field('TIN number', taxNumber, maxLength: 255),
+                      SellerRegistrationFields(
+                        onChanged: (value) => sellerDocuments = value,
+                        onBusyChanged: (value) =>
+                            setState(() => pickingDocuments = value),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     if (saveError != null) ...[
                       Text(
@@ -329,7 +369,9 @@ class _GoogleOnboardingScreenState extends State<GoogleOnboardingScreen> {
                       const SizedBox(height: 12),
                     ],
                     FilledButton(
-                      onPressed: picking || saving ? null : submit,
+                      onPressed: picking || pickingDocuments || saving
+                          ? null
+                          : submit,
                       child: Text(
                         saving
                             ? 'Creating your account…'

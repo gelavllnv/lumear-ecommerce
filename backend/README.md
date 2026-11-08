@@ -68,6 +68,18 @@ an approved shop. Google does not approve shops or grant admin access.
 Gmail/Google Workspace addresses can link by verified email; third-party email
 providers need additional verification and are not automatically linked.
 
+New Google sellers must also provide their shop name and description, a
+government-issued ID and TIN number. The ID upload accepts JPG, PNG, or PDF up
+to 5 MB. Selfies and business registration documents are not required. The
+server validates the ID and requires a TIN before creating the account; this
+does not verify the TIN against an external registry. It records a pending submission
+in `seller_kyc_submissions`. Files are stored under `PRIVATE_UPLOAD_ROOT`
+(default: project `private_uploads/`), outside public media, using random names.
+Failed registrations remove their newly written files. Existing sellers retain
+their approval status and do not re-upload documents during Google sign-in.
+Administrator review uses the existing KYC records and private storage; these
+files have no public download endpoint. No new schema migration is required.
+
 ## Data and limits
 
 - Workspaces, products/varieties, database categories, addresses, cart, saved

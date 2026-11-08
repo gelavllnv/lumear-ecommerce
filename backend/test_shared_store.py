@@ -8,6 +8,9 @@ import json
 import os
 import secrets
 import threading
+import tempfile
+import base64
+from pathlib import Path
 import unittest
 from unittest.mock import patch, Mock
 from http.server import ThreadingHTTPServer
@@ -48,6 +51,9 @@ class SharedIntegrationTests(unittest.TestCase):
         self.addCleanup(self.connection.close)
         self.addCleanup(self.connection.rollback)
         self.store=TransactionStore(self.config);self.store.connection=self.connection
+        uploads = tempfile.TemporaryDirectory(dir=Path(__file__).parent.parent / 'tmp')
+        self.addCleanup(uploads.cleanup)
+        self.store.config['PRIVATE_UPLOAD_ROOT'] = uploads.name
         tag=secrets.token_hex(8)
         self.password='IntegrationPass123'
         hashed=bcrypt.hashpw(self.password.encode(),bcrypt.gensalt(rounds=4)).decode()
@@ -399,16 +405,39 @@ class SharedIntegrationTests(unittest.TestCase):
             self.assertEqual(self.store.login(db,dict(email=self.emails['seller'],password=self.password))['role'],'seller')
         for role in ('buyer','seller'):
             claims=dict(sub='fixture-new-'+role,email='fixture-new-'+secrets.token_hex(8)+'@example.invalid',name='New Google user')
+            details = self.registration_details('New Google user')
+            if role == 'seller':
+                with self.assertRaises(Problem):
+                    self.store.google_login(claims,dict(details,account_type=role))
+                with self.connection.cursor() as db:
+                    db.execute('SELECT id FROM users WHERE email=%s',(claims['email'],))
+                    self.assertIsNone(db.fetchone())
+                details.update(shop_name='Google test shop',shop_description='Test seller shop',tax_number='123-456-789',
+                    documents={key:dict(name='test.pdf',data=base64.b64encode(b'%PDF-1.4 test').decode())
+                               for key in ('id',)})
+                for missing in ('tax_number', 'documents'):
+                    incomplete = {key:value for key,value in details.items() if key != missing}
+                    with self.assertRaises(Problem):
+                        self.store.google_login(claims,dict(incomplete,account_type=role))
             with patch.object(self.store.google,'verify',return_value=claims):
                 result=self.google_request(dict(id_token='fixture-token'))
                 self.assertTrue(result['requires_account_type'])
                 result=self.google_request(dict(id_token='fixture-token',account_type=role,
-                    **self.registration_details('New Google user')))
+                    **details))
                 again=self.google_request(dict(id_token='fixture-token',account_type='seller' if role=='buyer' else 'buyer'))
             self.assertEqual(result['role'],role);self.assertEqual(again['role'],role)
             if role=='seller':
                 snapshot=self.store.dispatch('GET','/api/seller/workspace',token=result['token'])
                 self.assertEqual(snapshot['shop']['status'],'pending')
+                self.assertEqual(snapshot['shop']['name'],'Google test shop')
+                with self.connection.cursor() as db:
+                    db.execute('SELECT * FROM seller_kyc_submissions WHERE seller_id=(SELECT id FROM sellers WHERE user_id=%s)',(int(result['id']),))
+                    kyc = db.fetchone()
+                    self.assertEqual(kyc['status'],'pending')
+                    self.assertTrue(kyc['government_id_path'].startswith('seller-verification/'))
+                    self.assertEqual(kyc['tax_number'],'123-456-789')
+                    self.assertIsNone(kyc['selfie_path'])
+                    self.assertIsNone(kyc['business_registration_path'])
                 with self.assertRaises(Problem):self.store.dispatch('POST','/api/seller/products',dict(),result['token'])
 
 

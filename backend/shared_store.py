@@ -24,7 +24,7 @@ class SharedStore(MySQLStore):
     def __init__(self, config=None):
         super().__init__(config)
         self.code_tag = hashlib.sha256(b''.join(Path(__file__).with_name(n).read_bytes()
-            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','wallet_service.py','buyer_wallet.py','account_security.py','server.py','run_api.py'))).hexdigest()[:12]
+            for n in ('mysql_store.py','shared_store.py','shared_support.py','google_identity.py','support_service.py','wallet_service.py','buyer_wallet.py','account_security.py','seller_registration.py','server.py','run_api.py'))).hexdigest()[:12]
         self.code_tag = hashlib.sha256((self.code_tag + (Path(__file__).parent.parent/'assets/data/lumear_help.json').read_text(encoding='utf-8')).encode()).hexdigest()[:12]
         from google_identity import GoogleVerifier
         self.google = GoogleVerifier(self.config.get('GOOGLE_CLIENT_ID',''))
@@ -81,7 +81,8 @@ class SharedStore(MySQLStore):
         return self.profile(db,dict(user,name=name,phone=phone))
 
     def google_login(self, claims, body):
-        with self.transaction() as db:
+        from seller_registration import private_documents, validate_documents
+        with private_documents(self.config) as save_documents, self.transaction() as db:
             # Stable Google subject is authoritative; email is only used for
             # linking a Google-hosted, verified address to an existing account.
             db.execute("SELECT GET_LOCK(%s,5) acquired",('lumear-google:'+hashlib.sha256((self.config['MYSQL_DATABASE']+'|'+claims['email']).encode()).hexdigest()[:40],))
@@ -119,6 +120,11 @@ class SharedStore(MySQLStore):
                 require(isinstance(body['address'],dict),'Enter your default delivery address.')
                 require(re.fullmatch(r'\d{4}',str(body['address'].get('postal_code',''))),'Enter a 4-digit postal code.')
                 if is_new:
+                    if role_name == 'seller':
+                        shop_name = text(body.get('shop_name'), 'Shop name', 1, 150)
+                        shop_description = text(body.get('shop_description'), 'Shop description', 1, 2000)
+                        tax_number = text(body.get('tax_number'), 'TIN number', 1, 255)
+                        documents = validate_documents(body.get('documents'))
                     password=body.get('password')
                     require(isinstance(password,str) and 8<=len(password) and len(password.encode())<=72,
                         'Use a password of at least 8 characters and at most 72 bytes.')
@@ -131,7 +137,13 @@ class SharedStore(MySQLStore):
                     db.execute('INSERT INTO role_user(role_id,user_id) VALUES(%s,%s)',(role['id'],uid))
                     if role_name=='seller':
                         slug=(re.sub(r'[^a-z0-9]+','-',name.lower()).strip('-') or 'shop')+'-'+secrets.token_hex(8)
-                        db.execute("INSERT INTO sellers(user_id,name,slug,description,status,commission_bps,created_at,updated_at) VALUES(%s,%s,%s,'','pending',2000,UTC_TIMESTAMP(),UTC_TIMESTAMP())",(uid,name+"'s shop",slug))
+                        db.execute("INSERT INTO sellers(user_id,name,slug,description,status,commission_bps,created_at,updated_at) VALUES(%s,%s,%s,%s,'pending',2000,UTC_TIMESTAMP(),UTC_TIMESTAMP())",(uid,shop_name,slug,shop_description))
+                        sid = db.lastrowid
+                        paths = save_documents(documents, sid)
+                        db.execute("""INSERT INTO seller_kyc_submissions(seller_id,government_id_path,
+                            tax_number,status,submitted_at,created_at,updated_at)
+                            VALUES(%s,%s,%s,'pending',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())""",
+                            (sid,paths['id'],tax_number))
                     user=self.one(db,'SELECT * FROM users WHERE id=%s',(uid,))
                 require(user and not user['is_suspended'],'This account is unavailable.',403)
                 self.save_profile(db,user,dict(body,age=age,display_name=name),onboarding=True)
