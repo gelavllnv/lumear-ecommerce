@@ -102,6 +102,13 @@ document.addEventListener("DOMContentLoaded", () => {
             .join("");
     }
 
+    function normalizeDeliveryArea(value) {
+        return String(value ?? "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .toLowerCase();
+    }
+
     function workload(id) {
         return parcels.filter(p =>
             String(p.riderId) === String(id) &&
@@ -467,7 +474,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const destinations = [...new Set(targets.map(p => p.destination))];
+        const destinations = [...new Map(
+            targets.map(parcel => [
+                normalizeDeliveryArea(parcel.destination),
+                parcel.destination
+            ])
+        ).values()];
 
         if (destinations.length !== 1) {
             toast("Select parcels from the same destination.", true);
@@ -493,7 +505,9 @@ document.addEventListener("DOMContentLoaded", () => {
         select.appendChild(placeholder);
 
         riders.filter(r =>
-            r.area === destinations[0] && r.available
+            normalizeDeliveryArea(r.area) ===
+                normalizeDeliveryArea(destinations[0]) &&
+            r.available
         ).forEach(r => {
             const option = el("option", "", `${r.name} — ${r.id}`);
             option.value = r.id;
@@ -543,7 +557,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!rider || !targets.length || !rider.available ||
             targets.some(p =>
                 !p ||
-                p.destination !== rider.area ||
+                normalizeDeliveryArea(p.destination) !==
+                    normalizeDeliveryArea(rider.area) ||
                 !["Awaiting Assignment", "Assigned"].includes(p.status)
             )) {
             toast("Invalid rider or parcel selection.", true);

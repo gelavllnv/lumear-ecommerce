@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Logistics;
 use App\Http\Controllers\Controller;
 use App\Services\RiderTaskAssignmentService;
 use App\Support\LogisticsNotification;
+use App\Support\RegisteredRiderArea;
 use App\Support\RiderJobType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -50,7 +51,7 @@ class LogisticsRiderManagementApiController extends Controller
             ->orderByDesc('id')
             ->get()
             ->map(fn ($application) => [
-                'id' => 'APP-' . str_pad(
+                'id' => 'APP-'.str_pad(
                     (string) $application->id,
                     3,
                     '0',
@@ -70,7 +71,7 @@ class LogisticsRiderManagementApiController extends Controller
                 'phone' => $application->phone ?? '',
                 'birthday' => $application->date_of_birth ?? '',
                 'sex' => $application->sex ?? '',
-                'municipality' => $application->municipality ?? $area,
+                'municipality' => RegisteredRiderArea::label($application),
                 'address' => $this->address($application, $area),
                 'vehicle' => $application->vehicle_type ?? 'Motorcycle',
                 'jobType' => $application->job_type,
@@ -104,7 +105,7 @@ class LogisticsRiderManagementApiController extends Controller
             ->orderByDesc('r.id')
             ->get()
             ->map(fn ($rider) => [
-                'id' => 'RDR-' . str_pad(
+                'id' => 'RDR-'.str_pad(
                     (string) $rider->id,
                     3,
                     '0',
@@ -114,10 +115,12 @@ class LogisticsRiderManagementApiController extends Controller
                 'name' => $rider->account_name,
                 'email' => $rider->account_email,
                 'phone' => $rider->account_phone ?? '',
-                'municipality' => $rider->municipality ?? $area,
+                'municipality' => RegisteredRiderArea::label($rider),
                 'address' => $this->address($rider, $area),
                 'vehicle' => $rider->vehicle_type ?? 'Motorcycle',
                 'jobType' => $rider->job_type,
+                'shiftStartTime' => $rider->shift_start_time,
+                'shiftEndTime' => $rider->shift_end_time,
                 'plate' => $rider->plate_no ?? '',
                 'license' => $rider->license_no ?? '',
                 'status' => $rider->management_status === 'Suspended'
@@ -168,7 +171,7 @@ class LogisticsRiderManagementApiController extends Controller
 
         if (
             $data['status'] === 'Rejected'
-            && !filled($data['remarks'] ?? null)
+            && ! filled($data['remarks'] ?? null)
         ) {
             throw ValidationException::withMessages([
                 'remarks' => 'A rejection reason is required.',
@@ -205,7 +208,7 @@ class LogisticsRiderManagementApiController extends Controller
 
                 $userQuery = DB::table('users');
 
-                if (!empty($application->user_id)) {
+                if (! empty($application->user_id)) {
                     $userQuery->where(
                         'id',
                         $application->user_id
@@ -222,10 +225,9 @@ class LogisticsRiderManagementApiController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (!$user) {
+                if (! $user) {
                     throw ValidationException::withMessages([
-                        'status' =>
-                            'Applicant must register a user account before approval.',
+                        'status' => 'Applicant must register a user account before approval.',
                     ]);
                 }
 
@@ -236,8 +238,7 @@ class LogisticsRiderManagementApiController extends Controller
 
                 if ($existing) {
                     throw ValidationException::withMessages([
-                        'status' =>
-                            'This user already has a rider account.',
+                        'status' => 'This user already has a rider account.',
                     ]);
                 }
 
@@ -246,7 +247,19 @@ class LogisticsRiderManagementApiController extends Controller
                     'logistics_provider_id' => $providerId,
                     'vehicle_type' => $application->vehicle_type,
                     'job_type' => $jobType,
+                    'shift_start_time' => $jobType === RiderJobType::HUB_TRANSFER
+                        ? '20:00:00'
+                        : '07:00:00',
+                    'shift_end_time' => $jobType === RiderJobType::HUB_TRANSFER
+                        ? '05:00:00'
+                        : '17:00:00',
                     'plate_no' => $application->plate_no,
+
+                    'province' => $application->province,
+                    'municipality' => $application->municipality,
+                    'barangay' => $application->barangay,
+                    'municipality_psgc_code' => $application->municipality_psgc_code,
+
                     'is_active' => false,
                     'management_status' => 'Offline',
                     'management_remarks' => 'Newly approved rider.',
@@ -267,10 +280,10 @@ class LogisticsRiderManagementApiController extends Controller
             LogisticsNotification::create(
                 $providerId,
                 'rider_application',
-                'Rider Application ' . $data['status'],
-                'Application #' . $application->id
-                    . ' for ' . $application->name
-                    . ' was ' . strtolower($data['status']) . '.',
+                'Rider Application '.$data['status'],
+                'Application #'.$application->id
+                    .' for '.$application->name
+                    .' was '.strtolower($data['status']).'.',
                 null
             );
         }, 3);
@@ -292,7 +305,7 @@ class LogisticsRiderManagementApiController extends Controller
 
         if (
             $data['status'] === 'Suspended'
-            && !filled($data['remarks'] ?? null)
+            && ! filled($data['remarks'] ?? null)
         ) {
             throw ValidationException::withMessages([
                 'remarks' => 'A suspension reason is required.',
@@ -339,8 +352,7 @@ class LogisticsRiderManagementApiController extends Controller
 
                 if ($activeDeliveries || $activeTasks) {
                     throw ValidationException::withMessages([
-                        'status' =>
-                            'Resolve active deliveries and rider tasks before suspending this rider.',
+                        'status' => 'Resolve active deliveries and rider tasks before suspending this rider.',
                     ]);
                 }
             }
@@ -360,8 +372,8 @@ class LogisticsRiderManagementApiController extends Controller
                 $providerId,
                 'rider_status',
                 'Rider Status Updated',
-                'Rider #' . $rider->id
-                    . ' status changed to ' . $data['status'] . '.',
+                'Rider #'.$rider->id
+                    .' status changed to '.$data['status'].'.',
                 null
             );
         }, 3);

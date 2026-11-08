@@ -3,7 +3,10 @@
 @section('title', 'Rider Payroll | LUMEAR Logistics')
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/logistics/payroll.css') }}">
+<link
+    rel="stylesheet"
+    href="{{ asset('css/logistics/payroll.css') }}"
+>
 @endpush
 
 @section('content')
@@ -12,18 +15,35 @@
 @endphp
 
 <div class="rp-page">
-
     <div class="rp-header">
         <div>
-            <span class="rp-eyebrow">RIDER MANAGEMENT / FINANCE</span>
+            <span class="rp-eyebrow">
+                RIDER MANAGEMENT / FINANCE
+            </span>
+
             <h1>Rider Payroll</h1>
-            <p>Manage rider salaries, delivery commissions, and payroll records.</p>
+
+            <p>
+                Manage role-based rider salaries,
+                delivery commissions, and payroll records.
+            </p>
         </div>
 
         <div class="rp-rate-label">
-            <span>Daily Base Salary</span>
-            <strong>{{ $peso($dailyRate) }}</strong>
-            <small>+ {{ $peso($deliveryRate) }} per delivery</small>
+            <span>Seller Pickup / Delivery</span>
+            <strong>{{ $peso($dailyRate) }} daily</strong>
+            <small>
+                Delivery riders also earn
+                {{ $peso($deliveryRate) }} per completed delivery
+            </small>
+
+            <br>
+
+            <span>Hub-to-Hub Driver</span>
+            <strong>{{ $peso($hubMonthlyRate) }} monthly</strong>
+            <small>
+                Prorated using verified paid workdays
+            </small>
         </div>
     </div>
 
@@ -49,19 +69,25 @@
         <div class="rp-stat">
             <span>Base Salary</span>
             <strong>{{ $peso($totalBase) }}</strong>
-            <small>Verified eligible paid days</small>
+            <small>Verified paid workdays</small>
         </div>
 
         <div class="rp-stat">
             <span>Delivery Commissions</span>
             <strong>{{ $peso($totalCommission) }}</strong>
-            <small>₱5 per successful delivery</small>
+            <small>Delivery riders only</small>
         </div>
 
         <div class="rp-stat rp-stat-featured">
             <span>Estimated Gross Payroll</span>
             <strong>{{ $peso($totalGross) }}</strong>
             <small>Before adjustments or deductions</small>
+        </div>
+
+        <div class="rp-stat rp-stat-featured">
+            <span>Hub Rider Payroll Fund</span>
+            <strong>{{ $peso($hubPayrollFundMinor) }}</strong>
+            <small>Head Admin allocation available to pay riders and drivers</small>
         </div>
     </div>
 
@@ -80,6 +106,7 @@
         >
             <div class="rp-field">
                 <label for="rpFrom">From</label>
+
                 <input
                     type="date"
                     id="rpFrom"
@@ -91,6 +118,7 @@
 
             <div class="rp-field">
                 <label for="rpTo">To</label>
+
                 <input
                     type="date"
                     id="rpTo"
@@ -100,7 +128,10 @@
                 >
             </div>
 
-            <button type="submit" class="rp-button rp-primary">
+            <button
+                type="submit"
+                class="rp-button rp-primary"
+            >
                 Apply Period
             </button>
         </form>
@@ -110,6 +141,7 @@
         <div class="rp-panel-heading">
             <div>
                 <h2>Rider Salary Overview</h2>
+
                 <p>
                     Salary calculations for
                     {{ \Carbon\Carbon::parse($from)->format('M d, Y') }}
@@ -124,8 +156,10 @@
                 <thead>
                     <tr>
                         <th>Rider</th>
+                        <th>Work Type</th>
                         <th>Paid Days</th>
                         <th>Deliveries</th>
+                        <th>Salary Rule</th>
                         <th>Base Salary</th>
                         <th>Commission</th>
                         <th>Gross Pay</th>
@@ -140,17 +174,51 @@
                             <td>
                                 <div class="rp-rider">
                                     <strong>{{ $row['name'] }}</strong>
+
                                     <span>
-                                        RDR-{{ str_pad($row['id'], 3, '0', STR_PAD_LEFT) }}
-                                        · {{ $row['active'] ? 'Active' : 'Inactive' }}
+                                        RDR-{{ str_pad(
+                                            $row['id'],
+                                            3,
+                                            '0',
+                                            STR_PAD_LEFT
+                                        ) }}
+                                        ·
+                                        {{ $row['active']
+                                            ? 'Active'
+                                            : 'Inactive' }}
                                     </span>
                                 </div>
                             </td>
 
+                            <td>{{ $row['job_type'] }}</td>
+
                             <td>{{ $row['paid_days'] }}</td>
+
                             <td>{{ $row['deliveries'] }}</td>
+
+                            <td>
+                                @if($row['payroll_rule'] === 'monthly_prorated')
+                                    {{ $peso($row['monthly_salary_minor']) }}
+                                    monthly
+
+                                    <br>
+
+                                    <small>
+                                        Prorated by verified paid days
+                                    </small>
+                                @else
+                                    {{ $peso($dailyRate) }}
+                                    per verified day
+                                @endif
+                            </td>
+
                             <td>{{ $peso($row['base_minor']) }}</td>
-                            <td>{{ $peso($row['commission_minor']) }}</td>
+
+                            <td>
+                                {{ $row['commission_minor'] > 0
+                                    ? $peso($row['commission_minor'])
+                                    : '—' }}
+                            </td>
 
                             <td class="rp-money">
                                 {{ $peso($row['gross_minor']) }}
@@ -158,7 +226,9 @@
 
                             <td>
                                 @if($row['saved'])
-                                    <span class="rp-status rp-status-{{ $row['saved']->status }}">
+                                    <span
+                                        class="rp-status rp-status-{{ $row['saved']->status }}"
+                                    >
                                         {{ ucfirst($row['saved']->status) }}
                                     </span>
                                 @else
@@ -172,14 +242,30 @@
                                 @if(!$row['saved'])
                                     <form
                                         method="POST"
-                                        action="{{ route('logistics.riders.payroll.store') }}"
+                                        action="{{ route(
+                                            'logistics.riders.payroll.store'
+                                        ) }}"
                                         class="rp-generate-form"
                                     >
                                         @csrf
 
-                                        <input type="hidden" name="rider_id" value="{{ $row['id'] }}">
-                                        <input type="hidden" name="from" value="{{ $from }}">
-                                        <input type="hidden" name="to" value="{{ $to }}">
+                                        <input
+                                            type="hidden"
+                                            name="rider_id"
+                                            value="{{ $row['id'] }}"
+                                        >
+
+                                        <input
+                                            type="hidden"
+                                            name="from"
+                                            value="{{ $from }}"
+                                        >
+
+                                        <input
+                                            type="hidden"
+                                            name="to"
+                                            value="{{ $to }}"
+                                        >
 
                                         <button
                                             type="submit"
@@ -188,16 +274,37 @@
                                             Generate Draft
                                         </button>
                                     </form>
+                                @elseif($row['saved']->status === 'draft')
+                                    <form
+                                        method="POST"
+                                        action="{{ route(
+                                            'logistics.riders.payroll.pay',
+                                            $row['saved']->id
+                                        ) }}"
+                                        class="rp-generate-form"
+                                    >
+                                        @csrf
+
+                                        <button
+                                            type="submit"
+                                            class="rp-button rp-small"
+                                        >
+                                            Pay from Hub Fund
+                                        </button>
+                                    </form>
                                 @else
                                     <span class="rp-saved-label">
-                                        Record saved
+                                        Paid: {{ $row['saved']->payment_reference }}
                                     </span>
                                 @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="rp-empty">
+                            <td
+                                colspan="10"
+                                class="rp-empty"
+                            >
                                 No riders found for this Logistics provider.
                             </td>
                         </tr>
@@ -209,15 +316,24 @@
 
     <div class="rp-note">
         <strong>Payroll policy:</strong>
-        Riders receive ₱630 for each verified eligible paid working day,
-        plus ₱5 for each successfully delivered parcel.
-        Failed attempts and returned parcels do not earn delivery commission.
+
+        Delivery and Seller Pickup riders receive ₱630
+        for each verified eligible paid workday.
+
+        Delivery riders additionally receive ₱5 for every
+        successful customer delivery.
+
+        Long-distance Handover riders receive ₱20,000 per month,
+        prorated by their verified paid workdays for each calendar month.
+
         Draft payroll records are not proof of payment.
     </div>
-
 </div>
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/logistics/payroll.js') }}" defer></script>
+<script
+    src="{{ asset('js/logistics/payroll.js') }}"
+    defer
+></script>
 @endpush

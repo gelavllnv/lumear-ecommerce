@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><style>
+body{font-family:DejaVu Sans,sans-serif;color:#292323;font-size:10px}h1{color:#651d32;font-size:22px;margin:0 0 4px}.muted{color:#735f59}.header{border-bottom:3px solid #c9a36a;padding-bottom:14px;margin-bottom:18px}.summary{width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:16px}.summary td{width:20%;padding:12px;background:#f4e8db;border:1px solid #e0cdbb}.summary strong{display:block;color:#651d32;font-size:16px;margin-top:5px}table{width:100%;border-collapse:collapse}th{background:#651d32;color:#fffdf9;padding:9px;text-align:left;font-size:8px}td{padding:8px;border-bottom:1px solid #ead9c9;vertical-align:top}.money{font-weight:bold;color:#651d32}.footer{margin-top:16px;color:#735f59;font-size:8px}
+</style></head><body>
+@php($peso = fn ($minor) => 'PHP ' . number_format($minor / 100, 2))
+<div class="header"><h1>LUMEAR Logistics - Head Admin Report</h1><div class="muted">Reporting period: {{ $from }} to {{ $to }} | Generated: {{ $generatedAt }}</div></div>
+<table class="summary"><tr><td>Registered hubs<strong>{{ $summary['hub_count'] }}</strong></td><td>Central fund balance<strong>{{ $peso($summary['central_fund_minor']) }}</strong></td><td>Central funding received<strong>{{ $peso($summary['central_funding_minor']) }}</strong></td><td>Hub payroll funding<strong>{{ $peso($summary['hub_funding_minor']) }}</strong></td><td>All salaries paid<strong>{{ $peso($summary['hub_admin_salary_paid_minor'] + $summary['rider_driver_salary_paid_minor']) }}</strong></td></tr></table>
+<h2>Registered City and Bayan Hubs</h2><table><thead><tr><th>Hub</th><th>City / Bayan</th><th>Province</th><th>Hub Admin</th><th>Salary Tier</th><th>Hub Admin Salary Paid</th><th>Rider / Driver Salary Paid</th><th>Current Rider Payroll Fund</th></tr></thead><tbody>
+@forelse($hubs as $hub)<tr><td>{{ $hub->name }}</td><td>{{ $hub->municipality_name ?? 'Not set' }}</td><td>{{ $hub->province_name ?? 'Not set' }}</td><td>{{ $hub->hub_admin_name ?? 'Not set' }}</td><td>{{ $hub->tier_name ?? 'Not assigned' }}</td><td class="money">{{ $peso($hub->hub_admin_salary_paid_minor) }}</td><td class="money">{{ $peso($hub->rider_driver_salary_paid_minor) }}</td><td class="money">{{ $peso($hub->rider_payroll_balance_minor) }}</td></tr>
+@empty<tr><td colspan="8">No approved Logistics hubs found.</td></tr>@endforelse
+</tbody></table><div class="footer">This report covers LUMEAR Logistics only. COD remittance and Marketplace Admin finances are not included.</div>
+</body></html>

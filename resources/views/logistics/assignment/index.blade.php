@@ -21,10 +21,26 @@
         </div>
 
         <div class="da-heading-actions">
-            <button type="button" class="da-btn da-btn-outline" id="daRefresh">
+            <a
+                class="da-btn da-btn-primary"
+                href="{{ route('logistics.semi-assignment.index') }}"
+            >
+                Suggest Assignments
+            </a>
+
+            <button
+                type="button"
+                class="da-btn da-btn-outline"
+                id="daRefresh"
+            >
                 <span>↻</span> Refresh
             </button>
-            <button type="button" class="da-btn da-btn-primary" id="daAssignSelected">
+
+            <button
+                type="button"
+                class="da-btn da-btn-primary"
+                id="daAssignSelected"
+            >
                 <span>＋</span> Assign Selected
             </button>
         </div>

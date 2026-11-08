@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Mail\LogisticsOtpMail;
 use App\Models\LogisticsApplication;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -120,7 +121,7 @@ class LogisticsRegistrationController extends Controller
         );
 
         return response()->json([
-            'available' => !$taken,
+            'available' => ! $taken,
             'message' => $taken
                 ? 'This city or municipality already has an approved Logistics provider.'
                 : 'This city or municipality is available.',
@@ -170,8 +171,8 @@ class LogisticsRegistrationController extends Controller
             ]);
         }
 
-        $rateKey = 'logistics-otp:' .
-            hash('sha256', $email . '|' . $request->ip());
+        $rateKey = 'logistics-otp:'.
+            hash('sha256', $email.'|'.$request->ip());
 
         if (RateLimiter::tooManyAttempts($rateKey, 3)) {
             return response()->json([
@@ -192,15 +193,7 @@ class LogisticsRegistrationController extends Controller
         $code = (string) random_int(100000, 999999);
 
         try {
-            Mail::raw(
-                "Your LUMEAR Logistics verification code is: {$code}\n\n" .
-                "This code expires in 5 minutes.\n\n" .
-                "If you did not request this code, ignore this email.",
-                function ($message) use ($email) {
-                    $message->to($email)
-                        ->subject('LUMEAR Logistics Email Verification');
-                }
-            );
+            Mail::to($email)->send(new LogisticsOtpMail($code));
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -242,8 +235,8 @@ class LogisticsRegistrationController extends Controller
         $expiresAt = (int) $request->session()->get('logistics_otp_expires', 0);
         $attempts = (int) $request->session()->get('logistics_otp_attempts', 0);
 
-        if (!$storedEmail || !$storedHash ||
-            !hash_equals($storedEmail, $email)) {
+        if (! $storedEmail || ! $storedHash ||
+            ! hash_equals($storedEmail, $email)) {
             return response()->json([
                 'message' => 'No verification code was requested for this email.',
             ], 422);
@@ -267,7 +260,7 @@ class LogisticsRegistrationController extends Controller
 
         $request->session()->increment('logistics_otp_attempts');
 
-        if (!hash_equals($storedHash, hash('sha256', $data['otp']))) {
+        if (! hash_equals($storedHash, hash('sha256', $data['otp']))) {
             return response()->json([
                 'message' => 'Incorrect verification code.',
             ], 422);
@@ -338,7 +331,7 @@ class LogisticsRegistrationController extends Controller
             ->where('name', 'logistics')
             ->value('id');
 
-        if (!$roleId) {
+        if (! $roleId) {
             return response()->json([
                 'message' => 'Logistics role is missing. Contact the administrator.',
             ], 500);
@@ -354,7 +347,7 @@ class LogisticsRegistrationController extends Controller
             $permitPath = $request->file('business_permit')
                 ->store('logistics/business-permits', 'local');
 
-            if (!$validIdPath || !$permitPath) {
+            if (! $validIdPath || ! $permitPath) {
                 throw new \RuntimeException('Document storage failed.');
             }
 
@@ -367,7 +360,7 @@ class LogisticsRegistrationController extends Controller
                 $permitPath
             ) {
                 $userId = DB::table('users')->insertGetId([
-                    'name' => trim($data['first_name'] . ' ' . $data['last_name']),
+                    'name' => trim($data['first_name'].' '.$data['last_name']),
                     'email' => $email,
                     'email_verified_at' => now(),
                     'password' => Hash::make($data['password']),
@@ -389,7 +382,7 @@ class LogisticsRegistrationController extends Controller
                 }
 
                 // A unique suffix avoids conflicts with existing company slugs.
-                $slug .= '-' . Str::lower(Str::random(10));
+                $slug .= '-'.Str::lower(Str::random(10));
 
                 $providerId = DB::table('logistics_providers')
                     ->insertGetId([

@@ -32,10 +32,12 @@
             </p>
         </div>
 
-        <div class="remittance-heading-label">
-            <span class="remittance-heading-dot"></span>
-            Digital Transfer Management
-        </div>
+        <a
+            class="remittance-btn remittance-btn-primary"
+            href="{{ route('logistics.cod-forwarding.index') }}"
+        >
+            Forward COD to Admin
+        </a>
     </div>
 
     @if(session('success'))

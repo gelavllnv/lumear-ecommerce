@@ -2,33 +2,18 @@
 
 namespace App\Services;
 
+use App\Support\RiderJobType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class RiderPayrollService
 {
-    /*
-    |--------------------------------------------------------------------------
-    | LUMEAR RIDER PAYROLL RATES
-    |--------------------------------------------------------------------------
-    |
-    | All money is stored in centavos.
-    |
-    | Daily salary: PHP 630.00
-    | Delivery commission: PHP 5.00
-    |
-    */
-
     public const DAILY_SALARY_MINOR = 63000;
 
-    public const DELIVERY_COMMISSION_MINOR = 500;
+    public const HUB_MONTHLY_SALARY_MINOR = 2000000;
 
-    /*
-    |--------------------------------------------------------------------------
-    | VERIFY RIDER AND LOGISTICS PROVIDER
-    |--------------------------------------------------------------------------
-    */
+    public const DELIVERY_COMMISSION_MINOR = 500;
 
     private function verifiedRider(
         int $riderId,
@@ -39,7 +24,7 @@ class RiderPayrollService
             ->where('logistics_provider_id', $providerId)
             ->first();
 
-        if (!$rider) {
+        if (! $rider) {
             throw ValidationException::withMessages([
                 'rider' => 'Rider does not belong to this Logistics provider.',
             ]);
@@ -47,12 +32,6 @@ class RiderPayrollService
 
         return $rider;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | VERIFY DATE
-    |--------------------------------------------------------------------------
-    */
 
     private function validDate(string $date): string
     {
@@ -69,16 +48,6 @@ class RiderPayrollService
         }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CHECK FOR LOCKED PAYROLL PERIOD
-    |--------------------------------------------------------------------------
-    |
-    | Approved and paid payrolls must not be
-    | silently changed by attendance updates.
-    |
-    */
-
     private function hasLockedPayroll(
         int $riderId,
         string $date
@@ -94,20 +63,20 @@ class RiderPayrollService
             ->exists();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | RECORD RIDER ATTENDANCE
-    |--------------------------------------------------------------------------
-    |
-    | One record per rider per work date.
-    |
-    | Paid days are explicitly verified.
-    | Deliveries do not determine base pay.
-    |
-    | This method must be called only from
-    | an authorized Logistics backend action.
-    |
-    */
+    private function isDailySalaryRole(string $jobType): bool
+    {
+        return in_array($jobType, [
+            RiderJobType::DELIVERY,
+            RiderJobType::SELLER_PICKUP,
+        ], true);
+    }
+
+    private function payrollRule(string $jobType): string
+    {
+        return $jobType === RiderJobType::HUB_TRANSFER
+            ? 'monthly_prorated'
+            : 'daily';
+    }
 
     public function recordWorkDay(
         int $riderId,
@@ -127,11 +96,7 @@ class RiderPayrollService
             'pending_review',
         ];
 
-        if (!in_array(
-            $attendanceStatus,
-            $allowedStatuses,
-            true
-        )) {
+        if (! in_array($attendanceStatus, $allowedStatuses, true)) {
             throw ValidationException::withMessages([
                 'attendance_status' => 'Invalid attendance status.',
             ]);
@@ -149,7 +114,7 @@ class RiderPayrollService
             ]);
         }
 
-        if ($attendanceStatus !== 'pending_review' && !$verifiedBy) {
+        if ($attendanceStatus !== 'pending_review' && ! $verifiedBy) {
             throw ValidationException::withMessages([
                 'verified_by' => 'An authorized verifier is required.',
             ]);
@@ -164,21 +129,17 @@ class RiderPayrollService
             $verifiedBy,
             $remarks
         ) {
-            $this->verifiedRider(
+            $rider = $this->verifiedRider(
                 $riderId,
                 $providerId
             );
 
-            // Serialize attendance and payroll changes for this rider.
             DB::table('riders')
                 ->where('id', $riderId)
                 ->lockForUpdate()
                 ->first();
 
-            if ($this->hasLockedPayroll(
-                $riderId,
-                $workDate
-            )) {
+            if ($this->hasLockedPayroll($riderId, $workDate)) {
                 throw ValidationException::withMessages([
                     'work_date' => 'This date belongs to an approved or paid payroll period.',
                 ]);
@@ -189,11 +150,15 @@ class RiderPayrollService
                 ->where('work_date', $workDate)
                 ->first();
 
+            $dailyBaseSalary = $this->isDailySalaryRole($rider->job_type)
+                ? self::DAILY_SALARY_MINOR
+                : 0;
+
             $values = [
                 'logistics_provider_id' => $providerId,
                 'attendance_status' => $attendanceStatus,
                 'is_paid_day' => $isPaidDay,
-                'base_salary_minor' => self::DAILY_SALARY_MINOR,
+                'base_salary_minor' => $dailyBaseSalary,
                 'remarks' => $remarks,
                 'verified_by' => $verifiedBy,
                 'verified_at' => $verifiedBy ? now() : null,
@@ -224,44 +189,28 @@ class RiderPayrollService
         }, 3);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CREDIT SUCCESSFUL DELIVERY COMMISSION
-    |--------------------------------------------------------------------------
-    |
-    | PHP 5.00 per successfully delivered shipment.
-    |
-    | Does not award commission for failed
-    | deliveries or returned shipments.
-    |
-    | Unique shipment_id prevents duplicates.
-    |
-    */
-
-    public function creditDeliveredShipment(
-        int $shipmentId
-    ): bool {
-        return DB::transaction(function () use (
-            $shipmentId
-        ) {
+    public function creditDeliveredShipment(int $shipmentId): bool
+    {
+        return DB::transaction(function () use ($shipmentId) {
             $shipment = DB::table('shipments')
                 ->where('id', $shipmentId)
                 ->lockForUpdate()
                 ->first();
 
-            if (!$shipment) {
-                return false;
-            }
-
-            if (strtolower(trim(
-                (string) $shipment->status
-            )) !== 'delivered') {
+            if (! $shipment) {
                 return false;
             }
 
             if (
-                !$shipment->rider_id ||
-                !$shipment->logistics_provider_id
+                strtolower(trim((string) $shipment->status))
+                !== 'delivered'
+            ) {
+                return false;
+            }
+
+            if (
+                ! $shipment->rider_id
+                || ! $shipment->logistics_provider_id
             ) {
                 return false;
             }
@@ -274,13 +223,14 @@ class RiderPayrollService
                 )
                 ->first();
 
-            if (!$rider) {
+            if (
+                ! $rider
+                || $rider->job_type !== RiderJobType::DELIVERY
+            ) {
                 return false;
             }
 
-            $existing = DB::table(
-                'rider_delivery_commissions'
-            )
+            $existing = DB::table('rider_delivery_commissions')
                 ->where('shipment_id', $shipmentId)
                 ->exists();
 
@@ -288,34 +238,15 @@ class RiderPayrollService
                 return false;
             }
 
-            /*
-            |----------------------------------------------------------
-            | Do not backdate earnings from shipment creation.
-            | The credit is recorded when the verified delivery
-            | is processed by this service.
-            |----------------------------------------------------------
-            */
-
-            $earnedAt = now();
-
             DB::table('rider_delivery_commissions')
                 ->insert([
                     'rider_id' => $rider->id,
-
-                    'logistics_provider_id' =>
-                        $shipment->logistics_provider_id,
-
+                    'logistics_provider_id' => $shipment->logistics_provider_id,
                     'shipment_id' => $shipmentId,
-
-                    'amount_minor' =>
-                        self::DELIVERY_COMMISSION_MINOR,
-
+                    'amount_minor' => self::DELIVERY_COMMISSION_MINOR,
                     'delivery_status' => 'delivered',
-
-                    'earned_at' => $earnedAt,
-
+                    'earned_at' => now(),
                     'created_at' => now(),
-
                     'updated_at' => now(),
                 ]);
 
@@ -323,23 +254,52 @@ class RiderPayrollService
         }, 3);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CALCULATE RIDER PAYROLL
-    |--------------------------------------------------------------------------
-    |
-    | Formula:
-    |
-    | Base salary = paid days x PHP 630
-    |
-    | Commission = delivered shipments x PHP 5
-    |
-    | Gross pay = base salary + commission
-    |
-    | This returns a preview.
-    | It does not create a payment.
-    |
-    */
+    private function hubMonthlySalary(
+        $workDays
+    ): array {
+        $grouped = $workDays->groupBy(function ($workDay) {
+            return Carbon::parse(
+                $workDay->work_date,
+                'Asia/Manila'
+            )->format('Y-m');
+        });
+
+        $salaryMinor = 0;
+        $calendarDays = 0;
+        $breakdown = [];
+
+        foreach ($grouped as $month => $days) {
+            $monthDate = Carbon::createFromFormat(
+                'Y-m',
+                $month,
+                'Asia/Manila'
+            );
+
+            $daysInMonth = $monthDate->daysInMonth;
+            $paidDays = $days->count();
+
+            $monthSalary = intdiv(
+                self::HUB_MONTHLY_SALARY_MINOR * $paidDays,
+                $daysInMonth
+            );
+
+            $salaryMinor += $monthSalary;
+            $calendarDays += $daysInMonth;
+
+            $breakdown[] = [
+                'month' => $month,
+                'paid_days' => $paidDays,
+                'calendar_days' => $daysInMonth,
+                'salary_minor' => $monthSalary,
+            ];
+        }
+
+        return [
+            'salary_minor' => $salaryMinor,
+            'calendar_days' => $calendarDays,
+            'breakdown' => $breakdown,
+        ];
+    }
 
     public function calculatePayroll(
         int $riderId,
@@ -356,23 +316,14 @@ class RiderPayrollService
             ]);
         }
 
-        $this->verifiedRider(
+        $rider = $this->verifiedRider(
             $riderId,
             $providerId
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | COUNT ELIGIBLE PAID WORK DAYS
-        |--------------------------------------------------------------------------
-        */
-
         $workDays = DB::table('rider_work_days')
             ->where('rider_id', $riderId)
-            ->where(
-                'logistics_provider_id',
-                $providerId
-            )
+            ->where('logistics_provider_id', $providerId)
             ->whereBetween('work_date', [
                 $periodStart,
                 $periodEnd,
@@ -383,112 +334,97 @@ class RiderPayrollService
 
         $paidDays = $workDays->count();
 
-        $baseSalaryMinor = (int) $workDays
-            ->sum('base_salary_minor');
+        $payrollRule = $this->payrollRule($rider->job_type);
 
-        /*
-        |--------------------------------------------------------------------------
-        | COUNT SUCCESSFUL DELIVERY COMMISSIONS
-        |--------------------------------------------------------------------------
-        */
+        $monthlySalaryMinor = 0;
+        $calendarDays = 0;
+        $monthlyBreakdown = [];
 
-        $startTime = Carbon::parse(
-            $periodStart,
-            'Asia/Manila'
-        )->startOfDay()->utc();
+        if ($rider->job_type === RiderJobType::HUB_TRANSFER) {
+            $hubSalary = $this->hubMonthlySalary($workDays);
 
-        $endTime = Carbon::parse(
-            $periodEnd,
-            'Asia/Manila'
-        )->endOfDay()->utc();
+            $baseSalaryMinor = $hubSalary['salary_minor'];
+            $monthlySalaryMinor = self::HUB_MONTHLY_SALARY_MINOR;
+            $calendarDays = $hubSalary['calendar_days'];
+            $monthlyBreakdown = $hubSalary['breakdown'];
+            $dailyRateMinor = 0;
+        } else {
+            $baseSalaryMinor = (int) $workDays
+                ->sum('base_salary_minor');
 
-        $commissions = DB::table(
-            'rider_delivery_commissions'
-        )
-            ->where('rider_id', $riderId)
-            ->where(
-                'logistics_provider_id',
-                $providerId
-            )
-            ->whereBetween('earned_at', [
-                $startTime,
-                $endTime,
-            ])
-            ->get();
+            $dailyRateMinor = self::DAILY_SALARY_MINOR;
+        }
 
-        $successfulDeliveries = $commissions->count();
+        $successfulDeliveries = 0;
+        $commissionMinor = 0;
 
-        $commissionMinor = (int) $commissions
-            ->sum('amount_minor');
+        if ($rider->job_type === RiderJobType::DELIVERY) {
+            $startTime = Carbon::parse(
+                $periodStart,
+                'Asia/Manila'
+            )->startOfDay()->utc();
 
-        $grossPayMinor = $baseSalaryMinor
-            + $commissionMinor;
+            $endTime = Carbon::parse(
+                $periodEnd,
+                'Asia/Manila'
+            )->endOfDay()->utc();
+
+            $commissions = DB::table('rider_delivery_commissions')
+                ->where('rider_id', $riderId)
+                ->where('logistics_provider_id', $providerId)
+                ->whereBetween('earned_at', [
+                    $startTime,
+                    $endTime,
+                ])
+                ->get();
+
+            $successfulDeliveries = $commissions->count();
+
+            $commissionMinor = (int) $commissions
+                ->sum('amount_minor');
+        }
+
+        $grossPayMinor = $baseSalaryMinor + $commissionMinor;
 
         return [
             'rider_id' => $riderId,
-
             'logistics_provider_id' => $providerId,
-
+            'job_type' => $rider->job_type,
+            'payroll_rule' => $payrollRule,
             'period_start' => $periodStart,
-
             'period_end' => $periodEnd,
-
             'paid_days' => $paidDays,
-
-            'successful_deliveries' =>
-                $successfulDeliveries,
-
-            'daily_rate_minor' =>
-                self::DAILY_SALARY_MINOR,
-
-            'delivery_rate_minor' =>
-                self::DELIVERY_COMMISSION_MINOR,
-
-            'base_salary_minor' =>
-                $baseSalaryMinor,
-
-            'commission_minor' =>
-                $commissionMinor,
-
-            'gross_pay_minor' =>
-                $grossPayMinor,
-
-            'base_salary' =>
-                number_format(
-                    $baseSalaryMinor / 100,
-                    2,
-                    '.',
-                    ''
-                ),
-
-            'commission' =>
-                number_format(
-                    $commissionMinor / 100,
-                    2,
-                    '.',
-                    ''
-                ),
-
-            'gross_pay' =>
-                number_format(
-                    $grossPayMinor / 100,
-                    2,
-                    '.',
-                    ''
-                ),
+            'successful_deliveries' => $successfulDeliveries,
+            'daily_rate_minor' => $dailyRateMinor,
+            'monthly_salary_minor' => $monthlySalaryMinor,
+            'calendar_days' => $calendarDays,
+            'monthly_breakdown' => $monthlyBreakdown,
+            'delivery_rate_minor' => $rider->job_type === RiderJobType::DELIVERY
+                    ? self::DELIVERY_COMMISSION_MINOR
+                    : 0,
+            'base_salary_minor' => $baseSalaryMinor,
+            'commission_minor' => $commissionMinor,
+            'gross_pay_minor' => $grossPayMinor,
+            'base_salary' => number_format(
+                $baseSalaryMinor / 100,
+                2,
+                '.',
+                ''
+            ),
+            'commission' => number_format(
+                $commissionMinor / 100,
+                2,
+                '.',
+                ''
+            ),
+            'gross_pay' => number_format(
+                $grossPayMinor / 100,
+                2,
+                '.',
+                ''
+            ),
         ];
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | CREATE DRAFT PAYROLL
-    |--------------------------------------------------------------------------
-    |
-    | Draft payroll is not yet an approved payment.
-    |
-    | Prevents overlapping payroll periods.
-    |
-    */
 
     public function createDraftPayroll(
         int $riderId,
@@ -502,10 +438,7 @@ class RiderPayrollService
             $periodStart,
             $periodEnd
         ) {
-            $this->verifiedRider(
-                $riderId,
-                $providerId
-            );
+            $this->verifiedRider($riderId, $providerId);
 
             DB::table('riders')
                 ->where('id', $riderId)
@@ -543,62 +476,33 @@ class RiderPayrollService
             $id = DB::table('rider_payrolls')
                 ->insertGetId([
                     'rider_id' => $riderId,
-
-                    'logistics_provider_id' =>
-                        $providerId,
-
-                    'period_start' =>
-                        $calculation['period_start'],
-
-                    'period_end' =>
-                        $calculation['period_end'],
-
-                    'paid_days' =>
-                        $calculation['paid_days'],
-
-                    'successful_deliveries' =>
-                        $calculation['successful_deliveries'],
-
-                    'base_salary_minor' =>
-                        $calculation['base_salary_minor'],
-
-                    'commission_minor' =>
-                        $calculation['commission_minor'],
-
-                    'gross_pay_minor' =>
-                        $calculation['gross_pay_minor'],
-
+                    'logistics_provider_id' => $providerId,
+                    'period_start' => $calculation['period_start'],
+                    'period_end' => $calculation['period_end'],
+                    'paid_days' => $calculation['paid_days'],
+                    'successful_deliveries' => $calculation['successful_deliveries'],
+                    'payroll_rule' => $calculation['payroll_rule'],
+                    'monthly_salary_minor' => $calculation['monthly_salary_minor'],
+                    'calendar_days' => $calculation['calendar_days'],
+                    'base_salary_minor' => $calculation['base_salary_minor'],
+                    'commission_minor' => $calculation['commission_minor'],
+                    'gross_pay_minor' => $calculation['gross_pay_minor'],
                     'status' => 'draft',
-
                     'created_at' => now(),
-
                     'updated_at' => now(),
                 ]);
 
             DB::table('rider_payroll_audit_logs')
                 ->insert([
                     'rider_payroll_id' => $id,
-
                     'rider_id' => $riderId,
-
-                    'logistics_provider_id' =>
-                        $providerId,
-
+                    'logistics_provider_id' => $providerId,
                     'performed_by' => null,
-
                     'action' => 'draft_created',
-
                     'old_values' => null,
-
-                    'new_values' => json_encode(
-                        $calculation
-                    ),
-
-                    'remarks' =>
-                        'Draft payroll generated by system.',
-
+                    'new_values' => json_encode($calculation),
+                    'remarks' => 'Draft payroll generated by system.',
                     'created_at' => now(),
-
                     'updated_at' => now(),
                 ]);
 

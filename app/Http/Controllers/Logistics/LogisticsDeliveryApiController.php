@@ -8,7 +8,9 @@ use App\Services\RiderPayrollService;
 use App\Services\RiderRemittanceService;
 use App\Services\RiderTaskAssignmentService;
 use App\Support\LogisticsNotification;
+use App\Support\RegisteredRiderArea;
 use App\Support\RiderJobType;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -34,33 +36,13 @@ class LogisticsDeliveryApiController extends Controller
 
     private function destination($value): string
     {
-        $address = is_array($value)
-            ? $value
-            : json_decode($value ?: '{}', true);
-
-        if (!is_array($address)) {
-            return '';
-        }
-
-        return implode(', ', array_filter([
-            $address['city'] ?? '',
-            $address['province'] ?? '',
-        ]));
+        return RegisteredRiderArea::label($value);
     }
 
     private function riders(
         int $providerId,
         RiderRemittanceService $remittanceService
     ) {
-        $provider = DB::table('logistics_providers')
-            ->where('id', $providerId)
-            ->first();
-
-        $serviceArea = implode(', ', array_filter([
-            $provider->municipality_name ?? '',
-            $provider->province_name ?? '',
-        ]));
-
         return DB::table('riders as r')
             ->join('users as u', 'u.id', '=', 'r.user_id')
             ->where('r.logistics_provider_id', $providerId)
@@ -69,6 +51,8 @@ class LogisticsDeliveryApiController extends Controller
                 'r.id',
                 'r.vehicle_type',
                 'r.job_type',
+                'r.municipality',
+                'r.province',
                 'r.is_active',
                 'r.management_status',
                 'u.name'
@@ -76,33 +60,30 @@ class LogisticsDeliveryApiController extends Controller
             ->orderBy('u.name')
             ->get()
             ->filter(
-                fn ($rider) =>
-                    $rider->job_type === RiderJobType::DELIVERY
+                fn ($rider) => $rider->job_type === RiderJobType::DELIVERY
+                    && RegisteredRiderArea::hasArea($rider)
             )
             ->values()
             ->map(function ($rider) use (
-                $serviceArea,
                 $providerId,
                 $remittanceService
             ) {
-                $available = $remittanceService
-                    ->canAcceptNewAssignment(
-                        (int) $rider->id,
-                        $providerId
-                    );
-
                 return [
-                    'id' => 'RDR-' . str_pad(
+                    'id' => 'RDR-'.str_pad(
                         (string) $rider->id,
                         3,
                         '0',
                         STR_PAD_LEFT
                     ),
                     'name' => $rider->name,
-                    'area' => $serviceArea,
+                    'area' => RegisteredRiderArea::label($rider),
                     'vehicle' => $rider->vehicle_type ?: 'Rider',
                     'capacity' => 5,
-                    'available' => $available,
+                    'available' => $remittanceService
+                        ->canAcceptNewAssignment(
+                            (int) $rider->id,
+                            $providerId
+                        ),
                     'remittanceRestricted' => DB::table(
                         'rider_remittance_restrictions'
                     )
@@ -205,7 +186,7 @@ class LogisticsDeliveryApiController extends Controller
                     'type' => 'Standard',
                     'weight' => '—',
                     'batch' => $shipment->batch_id
-                        ? 'BATCH-' . str_pad(
+                        ? 'BATCH-'.str_pad(
                             (string) $shipment->batch_id,
                             3,
                             '0',
@@ -213,7 +194,7 @@ class LogisticsDeliveryApiController extends Controller
                         )
                         : '—',
                     'riderId' => $shipment->rider_id
-                        ? 'RDR-' . str_pad(
+                        ? 'RDR-'.str_pad(
                             (string) $shipment->rider_id,
                             3,
                             '0',
@@ -250,13 +231,12 @@ class LogisticsDeliveryApiController extends Controller
 
         $providerId = $this->providerId();
 
-        if (!$remittanceService->canAcceptNewAssignment(
+        if (! $remittanceService->canAcceptNewAssignment(
             (int) $data['rider_id'],
             $providerId
         )) {
             throw ValidationException::withMessages([
-                'rider_id' =>
-                    'This rider cannot receive new assignments. Check approval status and outstanding COD remittances.',
+                'rider_id' => 'This rider cannot receive new assignments. Check approval status and outstanding COD remittances.',
             ]);
         }
 
@@ -283,13 +263,12 @@ class LogisticsDeliveryApiController extends Controller
                 RiderJobType::DELIVERY
             );
 
-            if (!$remittanceService->canAcceptNewAssignment(
+            if (! $remittanceService->canAcceptNewAssignment(
                 (int) $rider->id,
                 $providerId
             )) {
                 throw ValidationException::withMessages([
-                    'rider_id' =>
-                        'Rider is restricted from receiving new parcels.',
+                    'rider_id' => 'Rider is restricted from receiving new parcels.',
                 ]);
             }
 
@@ -314,9 +293,9 @@ class LogisticsDeliveryApiController extends Controller
                     ->first();
 
                 if (
-                    !$shipment
+                    ! $shipment
                     || $shipment->stage !== 'sorted'
-                    || !in_array(
+                    || ! in_array(
                         $shipment->status,
                         [
                             'unassigned',
@@ -328,8 +307,7 @@ class LogisticsDeliveryApiController extends Controller
                     )
                 ) {
                     throw ValidationException::withMessages([
-                        'shipment_ids' =>
-                            'A parcel is unavailable or not sorted.',
+                        'shipment_ids' => 'A parcel is unavailable or not sorted.',
                     ]);
                 }
 
@@ -343,8 +321,7 @@ class LogisticsDeliveryApiController extends Controller
                     && (int) $shipment->rider_id !== (int) $rider->id
                 ) {
                     throw ValidationException::withMessages([
-                        'shipment_ids' =>
-                            'An in-progress parcel cannot be reassigned.',
+                        'shipment_ids' => 'An in-progress parcel cannot be reassigned.',
                     ]);
                 }
 
@@ -354,8 +331,7 @@ class LogisticsDeliveryApiController extends Controller
 
                 if ($used > 5) {
                     throw ValidationException::withMessages([
-                        'rider_id' =>
-                            'Rider assignment capacity exceeded.',
+                        'rider_id' => 'Rider assignment capacity exceeded.',
                     ]);
                 }
 
@@ -501,7 +477,7 @@ class LogisticsDeliveryApiController extends Controller
                     ?? $address['name']
                     ?? 'Recipient',
                 'destination' => $this->destination($address),
-                'riderId' => 'RDR-' . str_pad(
+                'riderId' => 'RDR-'.str_pad(
                     (string) $shipment->rider_id,
                     3,
                     '0',
@@ -548,8 +524,7 @@ class LogisticsDeliveryApiController extends Controller
         RiderRemittanceService $remittanceService
     ) {
         $data = $request->validate([
-            'status' =>
-                'required|in:In Transit,Out for Delivery,Delivered,Delayed,Failed Attempt',
+            'status' => 'required|in:In Transit,Out for Delivery,Delivered,Delayed,Failed Attempt',
             'remarks' => 'nullable|string|max:500',
         ]);
 
@@ -562,8 +537,7 @@ class LogisticsDeliveryApiController extends Controller
             && empty(trim($data['remarks'] ?? ''))
         ) {
             throw ValidationException::withMessages([
-                'remarks' =>
-                    'Remarks are required for delivery exceptions.',
+                'remarks' => 'Remarks are required for delivery exceptions.',
             ]);
         }
 
@@ -706,10 +680,9 @@ class LogisticsDeliveryApiController extends Controller
                     ->where('logistics_provider_id', $providerId)
                     ->exists();
 
-                if (!$commissionExists) {
+                if (! $commissionExists) {
                     throw ValidationException::withMessages([
-                        'shipment' =>
-                            'Rider commission could not be recorded. Delivery update cancelled.',
+                        'shipment' => 'Rider commission could not be recorded. Delivery update cancelled.',
                     ]);
                 }
 
@@ -728,7 +701,7 @@ class LogisticsDeliveryApiController extends Controller
                     $codObligationCreated =
                         $remittanceService->createCodObligation(
                             $id,
-                            \Carbon\Carbon::parse($deliveryTime)
+                            Carbon::parse($deliveryTime)
                         );
                 }
             } elseif (
@@ -798,7 +771,7 @@ class LogisticsDeliveryApiController extends Controller
 
             if (
                 $result['cod_amount_minor'] > 0
-                && !$result['cod_collection_confirmed']
+                && ! $result['cod_collection_confirmed']
             ) {
                 $message .=
                     ' COD collection is not yet confirmed; remittance obligation was not created.';
@@ -815,10 +788,8 @@ class LogisticsDeliveryApiController extends Controller
             'rider_commission_amount' => $result['rider_credited']
                 ? 5.00
                 : 0,
-            'cod_obligation_created' =>
-                $result['cod_obligation_created'],
-            'cod_collection_confirmed' =>
-                $result['cod_collection_confirmed'],
+            'cod_obligation_created' => $result['cod_obligation_created'],
+            'cod_collection_confirmed' => $result['cod_collection_confirmed'],
             'cod_amount_minor' => $result['cod_amount_minor'],
             'shipment_status' => $result['shipment_status'],
         ]);
@@ -856,10 +827,10 @@ class LogisticsDeliveryApiController extends Controller
         if (isset($notificationTitles[$status])) {
             LogisticsNotification::create(
                 (int) $shipment->logistics_provider_id,
-                'delivery_' . $status,
+                'delivery_'.$status,
                 $notificationTitles[$status],
-                'Waybill ' . $shipment->tracking_code
-                    . ' — ' . $notificationTitles[$status] . '.',
+                'Waybill '.$shipment->tracking_code
+                    .' — '.$notificationTitles[$status].'.',
                 null
             );
         }

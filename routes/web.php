@@ -1,35 +1,37 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
-
-use App\Http\Controllers\Logistics\LogisticsRegistrationController;
+use App\Http\Controllers\Logistics\LogisticsAccountController;
 use App\Http\Controllers\Logistics\LogisticsAuthController;
 use App\Http\Controllers\Logistics\LogisticsDashboardController;
-use App\Http\Controllers\Logistics\LogisticsPickupController;
-use App\Http\Controllers\Logistics\LogisticsOperationsController;
-use App\Http\Controllers\Logistics\LogisticsIncomingApiController;
-use App\Http\Controllers\Logistics\LogisticsSortingApiController;
 use App\Http\Controllers\Logistics\LogisticsDeliveryApiController;
-use App\Http\Controllers\Logistics\LogisticsRiderManagementApiController;
-use App\Http\Controllers\Logistics\LogisticsRiderTaskController;
-use App\Http\Controllers\Logistics\LogisticsMessagingApiController;
-use App\Http\Controllers\Logistics\LogisticsReportsApiController;
-use App\Http\Controllers\Logistics\LogisticsReportPdfController;
-use App\Http\Controllers\Logistics\LogisticsAccountController;
-use App\Http\Controllers\Logistics\LogisticsWaybillScannerController;
-use App\Http\Controllers\Logistics\LogisticsNotificationController;
-use App\Http\Controllers\Logistics\LogisticsSearchController;
-use App\Http\Controllers\Logistics\LogisticsWalletController;
-use App\Http\Controllers\Logistics\RiderPayrollController;
-use App\Http\Controllers\Logistics\RiderRemittanceController;
-
+use App\Http\Controllers\Logistics\LogisticsHeadAdminApplicationController;
 use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
 use App\Http\Controllers\Logistics\LogisticsHeadAdminDashboardController;
-use App\Http\Controllers\Logistics\LogisticsHeadAdminApplicationController;
-
+use App\Http\Controllers\Logistics\LogisticsHeadAdminReportController;
+use App\Http\Controllers\Logistics\LogisticsHeadAdminSalaryDistributionController;
+use App\Http\Controllers\Logistics\LogisticsHeadAdminSalaryMatrixController;
+use App\Http\Controllers\Logistics\LogisticsIncomingApiController;
+use App\Http\Controllers\Logistics\LogisticsMessagingApiController;
+use App\Http\Controllers\Logistics\LogisticsNotificationController;
+use App\Http\Controllers\Logistics\LogisticsOperationsController;
+use App\Http\Controllers\Logistics\LogisticsPickupController;
+use App\Http\Controllers\Logistics\LogisticsRegistrationController;
+use App\Http\Controllers\Logistics\LogisticsReportPdfController;
+use App\Http\Controllers\Logistics\LogisticsReportsApiController;
+use App\Http\Controllers\Logistics\LogisticsRiderManagementApiController;
+use App\Http\Controllers\Logistics\LogisticsRiderTaskController;
+use App\Http\Controllers\Logistics\LogisticsSearchController;
+use App\Http\Controllers\Logistics\LogisticsSortingApiController;
+use App\Http\Controllers\Logistics\LogisticsWalletController;
+use App\Http\Controllers\Logistics\LogisticsWaybillScannerController;
+use App\Http\Controllers\Logistics\RiderPayrollController;
+use App\Http\Controllers\Logistics\RiderRemittanceController;
 use App\Http\Middleware\EnsureApprovedLogistics;
 use App\Http\Middleware\EnsureLogisticsHeadAdmin;
+use App\Support\BuyerCategories;
+use App\Support\BuyerProducts;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,13 +62,13 @@ Route::get('/product/{slug}', function ($slug) {
 });
 
 Route::get('/category/{slug}', function ($slug) {
-    $category = \App\Support\BuyerCategories::find($slug);
+    $category = BuyerCategories::find($slug);
 
-    abort_if(!$category, 404);
+    abort_if(! $category, 404);
 
     return view('buyer.category.show', [
         'category' => $category,
-        'products' => \App\Support\BuyerProducts::forCategory($slug),
+        'products' => BuyerProducts::forCategory($slug),
     ]);
 });
 
@@ -91,7 +93,7 @@ Route::get('/search', function () {
 
     return view('buyer.search', [
         'query' => $query,
-        'products' => \App\Support\BuyerProducts::search($query),
+        'products' => BuyerProducts::search($query),
     ]);
 });
 
@@ -190,7 +192,7 @@ Route::prefix('logistics')
                 }
 
                 return response()->json($response->json());
-            } catch (\Exception $exception) {
+            } catch (Exception $exception) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Address service is unavailable.',
@@ -206,8 +208,8 @@ Route::prefix('logistics')
                         ->acceptJson()
                         ->get(
                             'https://psgc.cloud/api/v2/provinces/'
-                            . urlencode($province)
-                            . '/cities-municipalities'
+                            .urlencode($province)
+                            .'/cities-municipalities'
                         );
 
                     if ($response->failed()) {
@@ -218,7 +220,7 @@ Route::prefix('logistics')
                     }
 
                     return response()->json($response->json());
-                } catch (\Exception $exception) {
+                } catch (Exception $exception) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Address service is unavailable.',
@@ -235,8 +237,8 @@ Route::prefix('logistics')
                         ->acceptJson()
                         ->get(
                             'https://psgc.cloud/api/v2/cities-municipalities/'
-                            . urlencode($municipality)
-                            . '/barangays'
+                            .urlencode($municipality)
+                            .'/barangays'
                         );
 
                     if ($response->failed()) {
@@ -247,7 +249,7 @@ Route::prefix('logistics')
                     }
 
                     return response()->json($response->json());
-                } catch (\Exception $exception) {
+                } catch (Exception $exception) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Address service is unavailable.',
@@ -258,7 +260,7 @@ Route::prefix('logistics')
 
         /*
         |--------------------------------------------------------------------------
-        | Protected logistics workspace
+        | Protected logistics workspace — Hub Admin
         |--------------------------------------------------------------------------
         */
 
@@ -316,12 +318,10 @@ Route::prefix('logistics')
                 return view('logistics.sorting.index');
             })->name('sorting.index');
 
-            // Keep direct sorting disabled so verification cannot be bypassed.
             Route::post('/parcel-sorting/{id}/sort', function (int $id) {
                 return response()->json([
                     'success' => false,
-                    'message' =>
-                        'Direct sorting is disabled. Receive the parcel, verify its QR code or written waybill, then use Parcel Sorting.',
+                    'message' => 'Direct sorting is disabled. Receive the parcel, verify its QR code or written waybill, then use Parcel Sorting.',
                 ], 403);
             })
                 ->whereNumber('id')
@@ -394,7 +394,7 @@ Route::prefix('logistics')
 
             /*
             |--------------------------------------------------------------------------
-            | Rider list and payroll
+            | Rider list and rider payroll
             |--------------------------------------------------------------------------
             */
 
@@ -418,6 +418,13 @@ Route::prefix('logistics')
                 RiderPayrollController::class,
                 'store',
             ])->name('riders.payroll.store');
+
+            Route::post('/riders/payroll/{id}/pay', [
+                RiderPayrollController::class,
+                'pay',
+            ])
+                ->whereNumber('id')
+                ->name('riders.payroll.pay');
 
             /*
             |--------------------------------------------------------------------------
@@ -750,7 +757,7 @@ Route::prefix('logistics')
 
 /*
 |--------------------------------------------------------------------------
-| Logistics head admin
+| Logistics Head / Super Admin
 |--------------------------------------------------------------------------
 */
 
@@ -780,6 +787,12 @@ Route::prefix('logistics/head-admin')
                 LogisticsHeadAdminAuthController::class,
                 'logout',
             ])->name('logout');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Logistics applications
+            |--------------------------------------------------------------------------
+            */
 
             Route::get('/applications', [
                 LogisticsHeadAdminApplicationController::class,
@@ -814,7 +827,78 @@ Route::prefix('logistics/head-admin')
             ])
                 ->whereNumber('id')
                 ->name('applications.reject');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Location-based salary matrix
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/salary-matrix', [
+                LogisticsHeadAdminSalaryMatrixController::class,
+                'index',
+            ])->name('salary-matrix.index');
+
+            Route::post('/salary-matrix', [
+                LogisticsHeadAdminSalaryMatrixController::class,
+                'store',
+            ])->name('salary-matrix.store');
+
+            Route::post('/salary-matrix/hubs/{id}/tier', [
+                LogisticsHeadAdminSalaryMatrixController::class,
+                'assignTier',
+            ])
+                ->whereNumber('id')
+                ->name('salary-matrix.assign-tier');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Salary distribution
+            |
+            | Head Admin → Central Fund
+            | Head Admin → Hub Rider Payroll Fund
+            | Head Admin → Hub Admin salary
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get('/salary-distribution', [
+                LogisticsHeadAdminSalaryDistributionController::class,
+                'index',
+            ])->name('salary-distribution.index');
+
+            Route::post('/salary-distribution/fund-central', [
+                LogisticsHeadAdminSalaryDistributionController::class,
+                'fundCentral',
+            ])->name('salary-distribution.fund-central');
+
+            Route::post('/salary-distribution/hubs/{id}/fund', [
+                LogisticsHeadAdminSalaryDistributionController::class,
+                'fundHub',
+            ])
+                ->whereNumber('id')
+                ->name('salary-distribution.fund-hub');
+
+            Route::post('/salary-distribution/hubs/{id}/pay-admin', [
+                LogisticsHeadAdminSalaryDistributionController::class,
+                'payHubAdmin',
+            ])
+                ->whereNumber('id')
+                ->name('salary-distribution.pay-hub-admin');
+
+            Route::get('/reports', [
+                LogisticsHeadAdminReportController::class,
+                'index',
+            ])->name('reports.index');
+
+            Route::post('/reports/pdf', [
+                LogisticsHeadAdminReportController::class,
+                'download',
+            ])->name('reports.pdf');
         });
     });
 
-require __DIR__ . '/logistics-hub-transfers.php';
+require __DIR__.'/logistics-hub-transfers.php';
+require __DIR__.'/logistics-password.php';
+require __DIR__.'/logistics-semi-assignment.php';
+require __DIR__.'/logistics-cod-forwarding.php';
+require __DIR__.'/logistics-returns.php';

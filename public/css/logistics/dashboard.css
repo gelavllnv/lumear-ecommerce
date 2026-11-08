@@ -61,41 +61,41 @@ html[data-theme="dark"] {
 
     color-scheme: dark;
 
-    --maroon: #8f353b;
-    --maroon-strong: #a74449;
-    --maroon-soft: #6f2a2f;
+    --maroon: #651d32;
+    --maroon-strong: #c9a36a;
+    --maroon-soft: #4e1626;
 
-    --beige: #caae9f;
-    --cream: #eadbd1;
+    --beige: #f4e8db;
+    --cream: #fffdf9;
 
-    --page-bg: #151112;
-    --sidebar-bg: #1b1517;
+    --page-bg: #292323;
+    --sidebar-bg: #211b1c;
 
     --topbar-bg:
-        rgba(24, 18, 20, 0.94);
+        rgba(41, 35, 35, 0.94);
 
-    --card-bg: #21191b;
-    --card-bg-soft: #281e20;
+    --card-bg: #332b2b;
+    --card-bg-soft: #403536;
 
-    --surface-hover: #302225;
+    --surface-hover: #4a3d3e;
 
-    --input-bg: #21191b;
+    --input-bg: #332b2b;
 
-    --text-primary: #f1e6df;
-    --text-secondary: #cbb8af;
-    --text-muted: #a58d84;
-    --text-faint: #806c66;
+    --text-primary: #fffdf9;
+    --text-secondary: #f4e8db;
+    --text-muted: #d9c5ae;
+    --text-faint: #b99f8a;
 
-    --border: #3b2c2f;
-    --border-strong: #50383c;
+    --border: #59484a;
+    --border-strong: #766064;
 
-    --icon-bg: #342326;
-    --avatar-bg: #3a292c;
+    --icon-bg: #4b3038;
+    --avatar-bg: #651d32;
 
-    --table-header: #261d1f;
-    --table-hover: #2a1f21;
+    --table-header: #3b3031;
+    --table-hover: #4a3d3e;
 
-    --dropdown-bg: #241b1d;
+    --dropdown-bg: #332b2b;
 
     --overlay:
         rgba(5, 3, 4, 0.66);

@@ -10,12 +10,6 @@ class LogisticsWalletController extends Controller
 {
     public function index()
     {
-        /*
-        |--------------------------------------------------------------------------
-        | GET AUTHENTICATED LOGISTICS PROVIDER
-        |--------------------------------------------------------------------------
-        */
-
         $provider = DB::table('logistics_providers')
             ->where('user_id', Auth::id())
             ->where('status', 'approved')
@@ -26,12 +20,6 @@ class LogisticsWalletController extends Controller
             403,
             'Approved Logistics account required.'
         );
-
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE WALLET IF IT DOES NOT EXIST
-        |--------------------------------------------------------------------------
-        */
 
         DB::table('logistics_wallets')->insertOrIgnore([
             'logistics_provider_id' => $provider->id,
@@ -46,54 +34,33 @@ class LogisticsWalletController extends Controller
 
         abort_unless($wallet, 500, 'Unable to load wallet.');
 
-        /*
-        |--------------------------------------------------------------------------
-        | WALLET SUMMARY
-        |--------------------------------------------------------------------------
-        */
+        $baseQuery = DB::table('logistics_wallet_transactions')
+            ->where('logistics_wallet_id', $wallet->id);
 
-        $transactionsQuery = DB::table(
-            'logistics_wallet_transactions'
-        )->where('logistics_wallet_id', $wallet->id);
+        $availableBalanceMinor = (int) (clone $baseQuery)
+            ->sum('amount_minor');
 
-        $totalEarningsMinor = (int) (clone $transactionsQuery)
+        $totalCommissionMinor = (int) (clone $baseQuery)
             ->where('type', 'commission')
             ->sum('amount_minor');
 
-        $completedDeliveries = (clone $transactionsQuery)
+        $totalSalaryMinor = (int) (clone $baseQuery)
+            ->where('type', 'hub_admin_salary')
+            ->sum('amount_minor');
+
+        $completedDeliveries = (clone $baseQuery)
             ->where('type', 'commission')
             ->count();
 
-        $thisMonthMinor = (int) (clone $transactionsQuery)
-            ->where('type', 'commission')
+        $thisMonthMinor = (int) (clone $baseQuery)
             ->whereBetween('earned_at', [
                 now()->startOfMonth(),
                 now()->endOfMonth(),
             ])
             ->sum('amount_minor');
 
-        /*
-        |--------------------------------------------------------------------------
-        | AVAILABLE BALANCE
-        |--------------------------------------------------------------------------
-        |
-        | Currently the wallet only supports commission credits.
-        | No withdrawal or transfer system has been implemented.
-        |
-        */
-
-        $availableBalanceMinor = $totalEarningsMinor;
-
-        /*
-        |--------------------------------------------------------------------------
-        | TRANSACTION HISTORY
-        |--------------------------------------------------------------------------
-        */
-
-        $transactions = DB::table(
-            'logistics_wallet_transactions as wt'
-        )
-            ->join(
+        $transactions = DB::table('logistics_wallet_transactions as wt')
+            ->leftJoin(
                 'shipments as s',
                 's.id',
                 '=',
@@ -115,6 +82,7 @@ class LogisticsWalletController extends Controller
             ->select(
                 'wt.id',
                 'wt.type',
+                'wt.reference',
                 'wt.shipping_fee_minor',
                 'wt.commission_rate_basis_points',
                 'wt.amount_minor',
@@ -130,7 +98,8 @@ class LogisticsWalletController extends Controller
             'provider' => $provider,
             'wallet' => $wallet,
             'availableBalanceMinor' => $availableBalanceMinor,
-            'totalEarningsMinor' => $totalEarningsMinor,
+            'totalEarningsMinor' => $totalCommissionMinor,
+            'totalSalaryMinor' => $totalSalaryMinor,
             'completedDeliveries' => $completedDeliveries,
             'thisMonthMinor' => $thisMonthMinor,
             'transactions' => $transactions,

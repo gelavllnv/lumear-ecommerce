@@ -13,13 +13,13 @@ class LogisticsHeadAdminApplicationController extends Controller
 {
     public function index(Request $request)
     {
-        $status = $request->query('status', 'pending');
+        $status = $request->query('status', 'all');
 
-        if (!in_array($status, [
+        if (! in_array($status, [
             'pending',
             'approved',
             'rejected',
-            'all'
+            'all',
         ], true)) {
             abort(404);
         }
@@ -103,7 +103,7 @@ class LogisticsHeadAdminApplicationController extends Controller
         abort_unless(
             is_string($path) &&
             str_starts_with($path, $prefix) &&
-            !str_contains($path, '..') &&
+            ! str_contains($path, '..') &&
             Storage::disk('local')->exists($path),
             404
         );
@@ -133,8 +133,7 @@ class LogisticsHeadAdminApplicationController extends Controller
 
                 if ($application->status !== 'pending') {
                     throw ValidationException::withMessages([
-                        'application' =>
-                            'Only pending applications can be approved.',
+                        'application' => 'Only pending applications can be approved.',
                     ]);
                 }
 
@@ -147,18 +146,16 @@ class LogisticsHeadAdminApplicationController extends Controller
 
                 if ($provider->status !== 'pending') {
                     throw ValidationException::withMessages([
-                        'application' =>
-                            'The provider is no longer pending.',
+                        'application' => 'The provider is no longer pending.',
                     ]);
                 }
 
                 $municipalityCode =
                     $application->municipality_psgc_code;
 
-                if (!$municipalityCode) {
+                if (! $municipalityCode) {
                     throw ValidationException::withMessages([
-                        'application' =>
-                            'This application has no municipality code.',
+                        'application' => 'This application has no municipality code.',
                     ]);
                 }
 
@@ -173,8 +170,7 @@ class LogisticsHeadAdminApplicationController extends Controller
 
                 if ($alreadyAssigned) {
                     throw ValidationException::withMessages([
-                        'application' =>
-                            'Another Logistics provider is already approved for this municipality.',
+                        'application' => 'Another Logistics provider is already approved for this municipality.',
                     ]);
                 }
 
@@ -207,8 +203,7 @@ class LogisticsHeadAdminApplicationController extends Controller
                 )
             ) {
                 return back()->withErrors([
-                    'application' =>
-                        'Approval could not be completed because the municipality may already be assigned or the record was updated concurrently. Please refresh and try again.',
+                    'application' => 'Approval could not be completed because the municipality may already be assigned or the record was updated concurrently. Please refresh and try again.',
                 ]);
             }
 
@@ -248,8 +243,7 @@ class LogisticsHeadAdminApplicationController extends Controller
 
             if ($application->status !== 'pending') {
                 throw ValidationException::withMessages([
-                    'application' =>
-                        'Only pending applications can be rejected.',
+                    'application' => 'Only pending applications can be rejected.',
                 ]);
             }
 
@@ -262,8 +256,7 @@ class LogisticsHeadAdminApplicationController extends Controller
 
             if ($provider->status !== 'pending') {
                 throw ValidationException::withMessages([
-                    'application' =>
-                        'The provider is no longer pending.',
+                    'application' => 'The provider is no longer pending.',
                 ]);
             }
 
@@ -271,8 +264,7 @@ class LogisticsHeadAdminApplicationController extends Controller
                 ->where('id', $provider->id)
                 ->update([
                     'status' => 'rejected',
-                    'rejection_reason' =>
-                        trim($data['rejection_reason']),
+                    'rejection_reason' => trim($data['rejection_reason']),
                     'updated_at' => now(),
                 ]);
 

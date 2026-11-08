@@ -10,9 +10,9 @@
 
         body {
             margin: 0;
-            background: #f7f3f0;
+            background: #f4e8db;
             font-family: 'Segoe UI', sans-serif;
-            color: #302626;
+            color: #292323;
         }
 
         .container {
@@ -24,24 +24,24 @@
         .back {
             display: inline-block;
             margin-bottom: 20px;
-            color: #62191c;
+            color: #651d32;
             text-decoration: none;
             font-weight: 700;
         }
 
         h1 {
-            color: #62191c;
+            color: #651d32;
             margin-bottom: 8px;
         }
 
         .subtitle {
-            color: #847777;
+            color: #735f59;
             margin-bottom: 30px;
         }
 
         .card {
             background: white;
-            border: 1px solid #eaded7;
+            border: 1px solid #e0cdbb;
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 20px;

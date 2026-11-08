@@ -459,8 +459,8 @@
             <h1>LUMEAR E-Wallet</h1>
 
             <p>
-                Manage your Logistics commission earnings
-                and view your delivery transaction history.
+                View your Hub Admin salary, Logistics commissions,
+                and wallet transaction history.
             </p>
         </div>
 
@@ -493,7 +493,7 @@
 
                 <div>
                     <strong>LUMEAR Wallet</strong>
-                    <span>Logistics Commission Account</span>
+                    <span>Admin Salary and Commission Wallet</span>
                 </div>
 
             </div>
@@ -516,7 +516,7 @@
             </span>
 
             <strong>
-                10% Delivery Commission
+                Salary + 10% Commission Balance
             </strong>
         </div>
 
@@ -565,21 +565,22 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                 >
-                    <path d="M20 7 9 18l-5-5"/>
-                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 3v18"/>
+                    <path d="m7 8 5-5 5 5"/>
+                    <path d="M4 13v6h16v-6"/>
                 </svg>
             </div>
 
             <div class="wallet-stat-label">
-                Commissioned Deliveries
+                Salary Received
             </div>
 
             <div class="wallet-stat-value">
-                {{ number_format($completedDeliveries) }}
+                {{ $formatMoney($totalSalaryMinor) }}
             </div>
 
             <div class="wallet-stat-note">
-                Deliveries credited to your wallet
+                Paid by the Logistics Head / Super Admin
             </div>
 
         </div>
@@ -647,8 +648,8 @@
                             <th>Transaction</th>
                             <th>Order / Waybill</th>
                             <th>Shipping Fee</th>
-                            <th>Commission</th>
-                            <th>Date Earned</th>
+                            <th>Amount</th>
+                            <th>Date Credited</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -657,8 +658,11 @@
 
                         @foreach($transactions as $transaction)
 
-                            <tr>
+                            @php
+                                $isSalary = $transaction->type === 'hub_admin_salary';
+                            @endphp
 
+                            <tr>
                                 <td>
                                     <strong>
                                         #{{ str_pad(
@@ -670,30 +674,40 @@
                                     </strong>
 
                                     <small>
-                                        Delivery Commission
+                                        {{ $isSalary
+                                            ? 'Hub Admin Salary'
+                                            : 'Delivery Commission' }}
                                     </small>
                                 </td>
 
                                 <td>
                                     <strong>
-                                        {{ $transaction->order_reference ?? '—' }}
+                                        @if($isSalary)
+                                            {{ $transaction->reference }}
+                                        @else
+                                            {{ $transaction->order_reference ?? '—' }}
+                                        @endif
                                     </strong>
 
                                     <small>
-                                        {{ $transaction->tracking_code }}
+                                        @if($isSalary)
+                                            Salary payment from Head / Super Admin
+                                        @else
+                                            {{ $transaction->tracking_code ?? '—' }}
+                                        @endif
                                     </small>
                                 </td>
 
                                 <td>
-                                    {{ $formatMoney(
-                                        $transaction->shipping_fee_minor
-                                    ) }}
+                                    @if($isSalary)
+                                        —
+                                    @else
+                                        {{ $formatMoney($transaction->shipping_fee_minor) }}
+                                    @endif
                                 </td>
 
                                 <td class="wallet-positive">
-                                    +{{ $formatMoney(
-                                        $transaction->amount_minor
-                                    ) }}
+                                    +{{ $formatMoney($transaction->amount_minor) }}
                                 </td>
 
                                 <td>
@@ -713,7 +727,6 @@
                                         Credited
                                     </span>
                                 </td>
-
                             </tr>
 
                         @endforeach
@@ -778,14 +791,13 @@
             <strong>How your commission works</strong>
 
             <p>
-                LUMEAR applies a fixed ₱50.00 shipping fee.
-                Logistics providers receive a 10% commission,
-                equivalent to ₱5.00 per successful delivery.
-                The commission is credited once the parcel
-                reaches Delivered status. Each shipment can
-                generate only one commission credit.
-                This wallet currently records earnings only;
-                withdrawals and transfers are not yet available.
+                This wallet receives two kinds of Hub Admin earnings:
+                salary paid by the Logistics Head / Super Admin and
+                delivery commissions earned from successful deliveries.
+                COD Remittance is separate and never becomes part of
+                this balance. Rider, Seller Pickup Rider, and Hub-to-Hub
+                Driver salaries are paid only from the protected Hub
+                Rider Payroll Fund.
             </p>
         </div>
 

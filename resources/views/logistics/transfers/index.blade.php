@@ -17,10 +17,10 @@
     .ht-form {
         display: grid;
         gap: 10px;
-        min-width: 230px;
+        min-width: 250px;
     }
 
-    .ht-form input,
+    .ht-form input:not([type="checkbox"]),
     .ht-form textarea {
         width: 100%;
         padding: 10px;
@@ -31,11 +31,26 @@
         font: inherit;
     }
 
+    .ht-check {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        white-space: normal;
+    }
+
+    .ht-check input {
+        margin-top: 4px;
+    }
+
     .ht-pages {
         display: flex;
         justify-content: space-between;
         gap: 12px;
         padding: 16px;
+    }
+
+    .ht-panel {
+        margin-top: 20px;
     }
 </style>
 @endpush
@@ -94,11 +109,11 @@
     <section class="rm-panel">
         <div class="rm-panel-header">
             <div>
-                <h2>Awaiting Dispatch</h2>
+                <h2>Origin Hub: Awaiting Dispatch</h2>
 
                 <p>
-                    Origin hub: dispatch only after handing
-                    the parcel to the assigned driver.
+                    Register departure after handing the parcel
+                    to its assigned truck driver.
                 </p>
             </div>
         </div>
@@ -111,6 +126,7 @@
                         <th>Waybill</th>
                         <th>Driver</th>
                         <th>Destination</th>
+                        <th>Truck Status</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -118,10 +134,11 @@
                 <tbody>
                     @forelse($pending as $task)
                         <tr>
-                            <td>{{ $task->id }}</td>
+                            <td>#{{ $task->id }}</td>
                             <td>{{ $task->tracking_code }}</td>
                             <td>{{ $task->driver }}</td>
                             <td>{{ $task->destination }}</td>
+                            <td>{{ $task->truck_status }}</td>
 
                             <td>
                                 <form
@@ -144,7 +161,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">
+                            <td colspan="6">
                                 No transfer tasks awaiting dispatch.
                             </td>
                         </tr>
@@ -154,33 +171,110 @@
         </div>
 
         <div class="ht-pages">
-            @if($pending->previousPageUrl())
-                <a href="{{ $pending->previousPageUrl() }}">
-                    Previous
-                </a>
-            @else
-                <span></span>
-            @endif
+            <a href="{{ $pending->previousPageUrl() ?? '#' }}">
+                Previous
+            </a>
 
             <span>
                 Page {{ $pending->currentPage() }}
                 of {{ $pending->lastPage() }}
             </span>
 
-            @if($pending->nextPageUrl())
-                <a href="{{ $pending->nextPageUrl() }}">
-                    Next
-                </a>
-            @else
-                <span></span>
-            @endif
+            <a href="{{ $pending->nextPageUrl() ?? '#' }}">
+                Next
+            </a>
         </div>
     </section>
 
-    <section class="rm-panel" style="margin-top: 20px">
+    <section class="rm-panel ht-panel">
         <div class="rm-panel-header">
             <div>
-                <h2>Incoming Transfers and History</h2>
+                <h2>
+                    Destination Hub:
+                    Incoming Tasks Without Dispatch Registration
+                </h2>
+
+                <p>
+                    These tasks are assigned to this hub.
+                    Confirm only when the physical parcel is here.
+                </p>
+
+                <p>
+                    A truck status such as Arrived does not confirm
+                    hub receipt. Missing origin departure details
+                    remain unconfirmed.
+                </p>
+            </div>
+        </div>
+
+        <div class="rm-table-scroll">
+            <table class="rm-table">
+                <thead>
+                    <tr>
+                        <th>Task / Waybill</th>
+                        <th>Origin</th>
+                        <th>Driver</th>
+                        <th>Truck Status</th>
+                        <th>Physical Receipt</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @forelse($incomingTasks as $task)
+                        <tr>
+                            <td>
+                                #{{ $task->id }}
+                                <br>
+                                {{ $task->tracking_code }}
+                            </td>
+
+                            <td>{{ $task->origin }}</td>
+                            <td>{{ $task->driver }}</td>
+                            <td>{{ $task->truck_status }}</td>
+
+                            <td>
+                                @include(
+                                    'logistics.transfers.receipt-form',
+                                    [
+                                        'receiptAction' => route(
+                                            'logistics.transfers.receive-task',
+                                            $task->id
+                                        ),
+                                    ]
+                                )
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5">
+                                No incoming tasks without dispatch registration.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ht-pages">
+            <a href="{{ $incomingTasks->previousPageUrl() ?? '#' }}">
+                Previous
+            </a>
+
+            <span>
+                Page {{ $incomingTasks->currentPage() }}
+                of {{ $incomingTasks->lastPage() }}
+            </span>
+
+            <a href="{{ $incomingTasks->nextPageUrl() ?? '#' }}">
+                Next
+            </a>
+        </div>
+    </section>
+
+    <section class="rm-panel ht-panel">
+        <div class="rm-panel-header">
+            <div>
+                <h2>Registered Transfers and History</h2>
 
                 <p>
                     Only the designated destination hub
@@ -220,10 +314,19 @@
 
                                 <br>
 
-                                <small>
-                                    Dispatched:
-                                    {{ $transfer->dispatched_at }}
-                                </small>
+                                @if($transfer->origin_dispatch_confirmed)
+                                    <small>
+                                        Dispatched:
+                                        {{ $transfer->dispatched_at }}
+                                    </small>
+                                @else
+                                    <small>
+                                        Origin departure not registered.
+                                        <br>
+                                        Handover registered at destination:
+                                        {{ $transfer->registered_at }}
+                                    </small>
+                                @endif
                             </td>
 
                             <td>
@@ -232,55 +335,15 @@
                                     && (int) $transfer->destination_provider_id
                                         === $providerId
                                 )
-                                    <form
-                                        class="ht-form"
-                                        method="POST"
-                                        action="{{ route(
-                                            'logistics.transfers.receive',
-                                            $transfer->id
-                                        ) }}"
-                                    >
-                                        @csrf
-
-                                        <label>
-                                            Waybill on the physical parcel
-
-                                            <input
-                                                name="tracking_code"
-                                                required
-                                                maxlength="255"
-                                                autocomplete="off"
-                                                placeholder="Scan or enter waybill"
-                                            >
-                                        </label>
-
-                                        <label>
-                                            Parcel condition
-
-                                            <input
-                                                name="condition"
-                                                maxlength="120"
-                                                placeholder="Example: Intact"
-                                            >
-                                        </label>
-
-                                        <label>
-                                            Receipt remarks
-
-                                            <textarea
-                                                name="remarks"
-                                                rows="2"
-                                                maxlength="500"
-                                            ></textarea>
-                                        </label>
-
-                                        <button
-                                            class="rm-button rm-button-primary"
-                                            type="submit"
-                                        >
-                                            Confirm Physical Receipt
-                                        </button>
-                                    </form>
+                                    @include(
+                                        'logistics.transfers.receipt-form',
+                                        [
+                                            'receiptAction' => route(
+                                                'logistics.transfers.receive',
+                                                $transfer->id
+                                            ),
+                                        ]
+                                    )
                                 @elseif($transfer->status === 'received')
                                     {{ $transfer->received_at }}
                                     <br>
@@ -288,15 +351,14 @@
                                     <br>
                                     {{ $transfer->receipt_remarks ?? '' }}
                                 @else
-                                    Awaiting confirmation from
-                                    destination hub.
+                                    Awaiting confirmation from destination hub.
                                 @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
                             <td colspan="5">
-                                No dispatched hub transfers yet.
+                                No registered hub transfers yet.
                             </td>
                         </tr>
                     @endforelse
@@ -305,33 +367,26 @@
         </div>
 
         <div class="ht-pages">
-            @if($transfers->previousPageUrl())
-                <a href="{{ $transfers->previousPageUrl() }}">
-                    Previous
-                </a>
-            @else
-                <span></span>
-            @endif
+            <a href="{{ $transfers->previousPageUrl() ?? '#' }}">
+                Previous
+            </a>
 
             <span>
                 Page {{ $transfers->currentPage() }}
                 of {{ $transfers->lastPage() }}
             </span>
 
-            @if($transfers->nextPageUrl())
-                <a href="{{ $transfers->nextPageUrl() }}">
-                    Next
-                </a>
-            @else
-                <span></span>
-            @endif
+            <a href="{{ $transfers->nextPageUrl() ?? '#' }}">
+                Next
+            </a>
         </div>
     </section>
 
     <p class="rm-note">
-        Receiving completes the hub-transfer task, not customer delivery.
-        The destination hub must verify the waybill again and complete
-        sorting before assigning customer delivery.
+        Receiving completes the hub-transfer task.
+        It does not mark customer delivery complete.
+        Verify the waybill and sort the parcel at this hub
+        before assigning its next journey.
     </p>
 </div>
 @endsection

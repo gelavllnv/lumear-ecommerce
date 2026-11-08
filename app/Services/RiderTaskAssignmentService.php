@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\RegisteredRiderArea;
 use App\Support\RiderJobType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -30,12 +31,12 @@ class RiderTaskAssignmentService
         $awaitingReceipt = DB::table('logistics_hub_transfers')
             ->where('shipment_id', $shipment->id)
             ->where('status', 'in_transit')
-            ->exists();
+            ->lockForUpdate()
+            ->first();
 
         if ($awaitingReceipt) {
             throw ValidationException::withMessages([
-                'shipment_ids' =>
-                    'The destination hub must receive this parcel before another task can be assigned.',
+                'shipment_ids' => 'The destination hub must receive this parcel before another task can be assigned.',
             ]);
         }
 
@@ -46,12 +47,11 @@ class RiderTaskAssignmentService
                 !== (int) $rider->logistics_provider_id
         ) {
             throw ValidationException::withMessages([
-                'rider_id' =>
-                    'Rider and shipment must belong to the same logistics provider.',
+                'rider_id' => 'Rider and shipment must belong to the same logistics provider.',
             ]);
         }
 
-        if (!RiderJobType::isAvailable($rider)) {
+        if (! RiderJobType::isAvailable($rider)) {
             throw ValidationException::withMessages([
                 'rider_id' => 'Rider is not available.',
             ]);
@@ -64,20 +64,46 @@ class RiderTaskAssignmentService
                 ->first();
 
             if (
-                !$destination
+                ! $destination
                 || (int) $destination->id
                     === (int) $shipment->logistics_provider_id
             ) {
                 throw ValidationException::withMessages([
-                    'destination_provider_id' =>
-                        'Choose a different approved destination hub.',
+                    'destination_provider_id' => 'Choose a different approved destination hub.',
                 ]);
             }
         } elseif ($destinationProviderId !== null) {
             throw ValidationException::withMessages([
-                'destination_provider_id' =>
-                    'A destination hub is only used for hub-to-hub tasks.',
+                'destination_provider_id' => 'A destination hub is only used for hub-to-hub tasks.',
             ]);
+        }
+
+        if ($jobType === RiderJobType::DELIVERY) {
+            RegisteredRiderArea::ensureShipmentMatches(
+                $rider,
+                $shipment
+            );
+
+            $activeCount = DB::table('shipments')
+                ->where('rider_id', $rider->id)
+                ->where('id', '!=', $shipment->id)
+                ->whereIn(
+                    'status',
+                    SemiAutomaticDeliveryService::ACTIVE_STATUSES
+                )
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id'])
+                ->count();
+
+            if (
+                $activeCount
+                >= SemiAutomaticDeliveryService::CAPACITY
+            ) {
+                throw ValidationException::withMessages([
+                    'rider_id' => 'Rider already has five active delivery parcels.',
+                ]);
+            }
         }
 
         $activeTasks = DB::table('rider_tasks')
@@ -104,8 +130,7 @@ class RiderTaskAssignmentService
                 || $task->status !== 'assigned'
             ) {
                 throw ValidationException::withMessages([
-                    'shipment_ids' =>
-                        'This parcel already has an active task. Complete it before assigning the next leg.',
+                    'shipment_ids' => 'This parcel already has an active task. Complete it before assigning the next leg.',
                 ]);
             }
 
@@ -118,8 +143,7 @@ class RiderTaskAssignmentService
                 )
             ) {
                 throw ValidationException::withMessages([
-                    'shipment_ids' =>
-                        'This parcel already has a different assignment.',
+                    'shipment_ids' => 'This parcel already has a different assignment.',
                 ]);
             }
 

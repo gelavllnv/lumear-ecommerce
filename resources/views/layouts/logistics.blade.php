@@ -284,6 +284,11 @@
                     'icon' => 'package',
                 ],
                 [
+                    'label' => 'Rider Tasks',
+                    'route' => 'logistics.tasks.index',
+                    'icon' => 'truck',
+                ],
+                [
                     'label' => 'Incoming Parcels',
                     'route' => 'logistics.incoming.index',
                     'icon' => 'incoming',
@@ -299,13 +304,13 @@
                     'icon' => 'sorting',
                 ],
                 [
-                    'label' => 'Delivery Assignment',
-                    'route' => 'logistics.assignment.index',
+                    'label' => 'Hub Transfers',
+                    'route' => 'logistics.transfers.index',
                     'icon' => 'truck',
                 ],
                 [
-                    'label' => 'Rider Tasks',
-                    'route' => 'logistics.tasks.index',
+                    'label' => 'Delivery Assignment',
+                    'route' => 'logistics.assignment.index',
                     'icon' => 'truck',
                 ],
                 [
@@ -313,15 +318,10 @@
                     'route' => 'logistics.monitoring.index',
                     'icon' => 'clock',
                 ],
-            ],
-        ],
-        [
-            'label' => 'Communication',
-            'items' => [
                 [
-                    'label' => 'Messages',
-                    'route' => 'logistics.messages.index',
-                    'icon' => 'message',
+                    'label' => 'Returns',
+                    'route' => 'logistics.returns.index',
+                    'icon' => 'package',
                 ],
             ],
         ],
@@ -337,16 +337,6 @@
                     'label' => 'COD Remittance',
                     'route' => 'logistics.remittance.index',
                     'icon' => 'wallet',
-                ],
-            ],
-        ],
-        [
-            'label' => 'Reports',
-            'items' => [
-                [
-                    'label' => 'Generate Reports',
-                    'route' => 'logistics.reports.index',
-                    'icon' => 'report',
                 ],
             ],
         ],

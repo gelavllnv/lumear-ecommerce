@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Services\LogisticsSalaryDistributionService;
 use App\Services\RiderPayrollService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -19,7 +20,11 @@ class RiderPayrollController extends Controller
             ->where('status', 'approved')
             ->value('id');
 
-        abort_unless($id, 403, 'Approved logistics account required.');
+        abort_unless(
+            $id,
+            403,
+            'Approved logistics account required.'
+        );
 
         return (int) $id;
     }
@@ -28,11 +33,22 @@ class RiderPayrollController extends Controller
     {
         $data = $request->validate([
             'from' => ['required', 'date_format:Y-m-d'],
-            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'to' => [
+                'required',
+                'date_format:Y-m-d',
+                'after_or_equal:from',
+            ],
         ]);
 
-        $from = Carbon::createFromFormat('!Y-m-d', $data['from']);
-        $to = Carbon::createFromFormat('!Y-m-d', $data['to']);
+        $from = Carbon::createFromFormat(
+            '!Y-m-d',
+            $data['from']
+        );
+
+        $to = Carbon::createFromFormat(
+            '!Y-m-d',
+            $data['to']
+        );
 
         if ($from->diffInDays($to) > 365) {
             throw ValidationException::withMessages([
@@ -40,11 +56,17 @@ class RiderPayrollController extends Controller
             ]);
         }
 
-        return [$data['from'], $data['to']];
+        return [
+            $data['from'],
+            $data['to'],
+        ];
     }
 
-    public function index(Request $request, RiderPayrollService $service)
-    {
+    public function index(
+        Request $request,
+        RiderPayrollService $service,
+        LogisticsSalaryDistributionService $distribution
+    ) {
         $providerId = $this->providerId();
 
         $today = now('Asia/Manila');
@@ -60,7 +82,10 @@ class RiderPayrollController extends Controller
         );
 
         [$from, $to] = $this->period(
-            new Request(['from' => $from, 'to' => $to])
+            new Request([
+                'from' => $from,
+                'to' => $to,
+            ])
         );
 
         $riders = DB::table('riders as r')
@@ -68,6 +93,7 @@ class RiderPayrollController extends Controller
             ->where('r.logistics_provider_id', $providerId)
             ->select(
                 'r.id',
+                'r.job_type',
                 'r.is_active',
                 'r.management_status',
                 'u.name'
@@ -97,19 +123,21 @@ class RiderPayrollController extends Controller
                 $to
             );
 
-            $saved = $payrolls->get($rider->id);
-
             return [
                 'id' => $rider->id,
                 'name' => $rider->name,
+                'job_type' => $rider->job_type,
                 'active' => (bool) $rider->is_active,
                 'management_status' => $rider->management_status,
                 'paid_days' => $preview['paid_days'],
                 'deliveries' => $preview['successful_deliveries'],
+                'payroll_rule' => $preview['payroll_rule'],
+                'monthly_salary_minor' => $preview['monthly_salary_minor'],
+                'calendar_days' => $preview['calendar_days'],
                 'base_minor' => $preview['base_salary_minor'],
                 'commission_minor' => $preview['commission_minor'],
                 'gross_minor' => $preview['gross_pay_minor'],
-                'saved' => $saved,
+                'saved' => $payrolls->get($rider->id),
             ];
         });
 
@@ -118,22 +146,30 @@ class RiderPayrollController extends Controller
             'from' => $from,
             'to' => $to,
             'dailyRate' => RiderPayrollService::DAILY_SALARY_MINOR,
+            'hubMonthlyRate' => RiderPayrollService::HUB_MONTHLY_SALARY_MINOR,
             'deliveryRate' => RiderPayrollService::DELIVERY_COMMISSION_MINOR,
             'riderCount' => $riders->count(),
             'totalBase' => $rows->sum('base_minor'),
             'totalCommission' => $rows->sum('commission_minor'),
             'totalGross' => $rows->sum('gross_minor'),
+            'hubPayrollFundMinor' => $distribution->hubFundBalance($providerId),
         ]);
     }
 
-    public function store(Request $request, RiderPayrollService $service)
-    {
+    public function store(
+        Request $request,
+        RiderPayrollService $service
+    ) {
         $providerId = $this->providerId();
 
         $data = $request->validate([
             'rider_id' => ['required', 'integer'],
             'from' => ['required', 'date_format:Y-m-d'],
-            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'to' => [
+                'required',
+                'date_format:Y-m-d',
+                'after_or_equal:from',
+            ],
         ]);
 
         [$from, $to] = $this->period(
@@ -145,7 +181,10 @@ class RiderPayrollController extends Controller
 
         $rider = DB::table('riders')
             ->where('id', $data['rider_id'])
-            ->where('logistics_provider_id', $providerId)
+            ->where(
+                'logistics_provider_id',
+                $providerId
+            )
             ->first();
 
         abort_unless($rider, 404, 'Rider not found.');
@@ -162,6 +201,27 @@ class RiderPayrollController extends Controller
                 'from' => $from,
                 'to' => $to,
             ])
-            ->with('payroll_success', 'Draft payroll generated successfully.');
+            ->with(
+                'payroll_success',
+                'Draft payroll generated successfully.'
+            );
+    }
+
+    public function pay(
+        int $id,
+        LogisticsSalaryDistributionService $distribution
+    ) {
+        $providerId = $this->providerId();
+
+        $reference = $distribution->payRiderPayroll(
+            (int) Auth::id(),
+            $providerId,
+            $id
+        );
+
+        return back()->with(
+            'payroll_success',
+            'Rider payroll paid. Reference: '.$reference
+        );
     }
 }
