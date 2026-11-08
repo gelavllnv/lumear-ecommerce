@@ -4,7 +4,7 @@
 @section('title', 'My Orders — Lumear')
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/buyer/account-center.css') }}?v=1">
+<link rel="stylesheet" href="{{ asset('css/buyer/account-center.css') }}?v=2">
 @endpush
 
 @section('content')
@@ -20,6 +20,13 @@
             </div>
             <a class="lac-heading-link" href="{{ url('/search') }}">Continue Shopping ↗</a>
         </div>
+
+        @if(session('status'))
+            <div class="lac-return-message" role="status">{{ session('status') }}</div>
+        @endif
+        @if($errors->has('return'))
+            <div class="lac-return-message lac-return-error" role="alert">{{ $errors->first('return') }}</div>
+        @endif
 
         <div class="lac-order-stats">
             <div><span>ALL ORDERS</span><strong id="lacOrdersAll">0</strong><small>Your complete history</small></div>
@@ -55,9 +62,42 @@
             </div>
         </div>
 
+        <section class="lac-order-main mt-8" aria-labelledby="returnsHeading">
+            <div class="lac-returns-heading">
+                <div>
+                    <span class="lac-eyebrow">AFTER-SALES SUPPORT</span>
+                    <h2 id="returnsHeading">Return a product</h2>
+                    <p>Request a return after delivery. The seller reviews it before Logistics can schedule a rider pickup.</p>
+                </div>
+            </div>
+            @foreach($orders as $order)
+                @foreach($order->sellerOrders as $sellerOrder)
+                    @foreach($sellerOrder->items as $item)
+                        @php($returnRequest = $sellerOrder->returnRequests->where('order_item_id', $item->id)->sortByDesc('id')->first())
+                        <article class="lac-return-item">
+                            <h3>{{ $item->product_name }}</h3>
+                            <p>Order {{ $order->reference }} · {{ $sellerOrder->seller->name }}</p>
+                            @if($returnRequest && $returnRequest->status !== 'rejected')
+                                <p class="lac-return-status">Return status: {{ str_replace('_', ' ', $returnRequest->status) }} · Pickup: {{ str_replace('_', ' ', $returnRequest->pickup_status) }}</p>
+                            @elseif(in_array($sellerOrder->status, ['delivered', 'completed'], true))
+                                <form class="lac-return-form" method="POST" action="{{ route('buyer.returns.store', $item) }}">
+                                    @csrf
+                                    <label>Reason<input name="reason" maxlength="100" required placeholder="e.g. Damaged item"></label>
+                                    <label>Details<textarea name="description" minlength="10" maxlength="2000" required placeholder="Describe why you want to return this product."></textarea></label>
+                                    <button type="submit">Request return</button>
+                                </form>
+                            @else
+                                <p class="lac-return-muted">Return requests are available after delivery.</p>
+                            @endif
+                        </article>
+                    @endforeach
+                @endforeach
+            @endforeach
+        </section>
+
         <div class="lac-order-note">
             <span>✦</span>
-            <p>Order history is a demonstration until checkout and order management are connected to Laravel's database.</p>
+            <p>Return requests are reviewed by the seller. Once approved, Logistics can assign a rider to pick up the item and confirm its return to the hub.</p>
         </div>
     </div>
     <div class="lac-toast" id="lacToast" role="status" aria-live="polite"></div>

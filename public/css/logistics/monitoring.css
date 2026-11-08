@@ -815,6 +815,7 @@
 }
 
 .dm-field select,
+.dm-field input,
 .dm-field textarea {
     width: 100%;
     min-height: 43px;
@@ -828,6 +829,13 @@
 
 .dm-field textarea {
     resize: vertical;
+}
+
+.dm-field small {
+    display: block;
+    margin-top: 6px;
+    color: var(--dm-muted);
+    font-size: 10px;
 }
 
 .dm-dialog-footer {

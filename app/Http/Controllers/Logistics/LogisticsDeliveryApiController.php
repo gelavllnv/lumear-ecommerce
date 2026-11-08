@@ -3,10 +3,17 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
-use App\Models\SellerOrder;
+use App\Models\Conversation;
+use App\Models\OrderTimeline;
+use App\Models\User;
 use App\Notifications\MarketplaceAlert;
 use App\Services\LogisticsWalletService;
+use App\Services\RiderPayrollService;
+use App\Services\RiderRemittanceService;
+use App\Services\RiderTaskAssignmentService;
+use App\Support\RiderHubEligibility;
 use App\Support\LogisticsNotification;
+use App\Support\RiderJobType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,42 +53,68 @@ class LogisticsDeliveryApiController extends Controller
         ]));
     }
 
-    private function riders(int $providerId)
-    {
+    private function riders(
+        int $providerId,
+        RiderRemittanceService $remittanceService
+    ) {
         $provider = DB::table('logistics_providers')
             ->where('id', $providerId)
             ->first();
-
-        $serviceArea = implode(', ', array_filter([
-            $provider->municipality_name ?? '',
-            $provider->province_name ?? '',
-        ]));
+        abort_unless($provider, 403, 'Approved logistics hub required.');
 
         return DB::table('riders as r')
             ->join('users as u', 'u.id', '=', 'r.user_id')
             ->where('r.logistics_provider_id', $providerId)
+            ->where('r.job_type', RiderJobType::DELIVERY)
             ->select(
                 'r.id',
                 'r.vehicle_type',
+                'r.job_type',
                 'r.is_active',
+                'r.management_status',
+                'r.municipality',
+                'r.province',
+                'r.barangay',
                 'u.name'
             )
             ->orderBy('u.name')
             ->get()
-            ->map(function ($r) use ($serviceArea) {
+            ->filter(
+                fn ($rider) => $rider->job_type === RiderJobType::DELIVERY
+                    && RiderHubEligibility::matches($rider, $provider)
+            )
+            ->values()
+            ->map(function ($rider) use ($providerId, $remittanceService) {
+                $available = $remittanceService
+                    ->canAcceptNewAssignment(
+                        (int) $rider->id,
+                        $providerId
+                    );
+
                 return [
-                    'id' => (int) $r->id,
-                    'code' => 'RDR-' . str_pad(
-                        $r->id,
+                    'id' => 'RDR-' . str_pad(
+                        (string) $rider->id,
                         3,
                         '0',
                         STR_PAD_LEFT
                     ),
-                    'name' => $r->name,
-                    'area' => $serviceArea,
-                    'vehicle' => $r->vehicle_type ?: 'Rider',
+                    'name' => $rider->name,
+                    'area' => implode(', ', array_filter([
+                        $rider->barangay ?? '',
+                        $rider->municipality ?? '',
+                        $rider->province ?? '',
+                    ])),
+                    'vehicle' => $rider->vehicle_type ?: 'Rider',
                     'capacity' => 5,
-                    'available' => (bool) $r->is_active,
+                    'available' => $available,
+                    'remittanceRestricted' => DB::table(
+                        'rider_remittance_restrictions'
+                    )
+                        ->where('rider_id', $rider->id)
+                        ->where('logistics_provider_id', $providerId)
+                        ->where('status', 'active')
+                        ->where('blocks_new_assignments', true)
+                        ->exists(),
                 ];
             });
     }
@@ -128,25 +161,20 @@ class LogisticsDeliveryApiController extends Controller
             );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | DELIVERY ASSIGNMENT
-    |--------------------------------------------------------------------------
-    */
-
-    public function assignment()
-    {
+    public function assignment(
+        RiderRemittanceService $remittanceService
+    ) {
         $providerId = $this->providerId();
 
         $shipments = $this->baseShipments($providerId)
             ->where(function ($query) {
-                // Newly sorted parcels always wait here until a rider is
-                // selected. Their historical shipment status is irrelevant.
-                $query->where(function ($awaitingAssignment) {
-                    $awaitingAssignment
-                        ->where('ls.stage', 'sorted')
-                        ->whereNull('s.rider_id');
-                })->orWhere(function ($assignedOrDispatched) {
+                $query
+                    ->where(function ($awaitingAssignment) {
+                        $awaitingAssignment
+                            ->where('ls.stage', 'sorted')
+                            ->whereNull('s.rider_id');
+                    })
+                    ->orWhere(function ($assignedOrDispatched) {
                         $assignedOrDispatched
                             ->whereNotNull('s.rider_id')
                             ->whereIn('s.status', [
@@ -154,14 +182,16 @@ class LogisticsDeliveryApiController extends Controller
                                 'in_transit',
                                 'out_for_delivery',
                             ]);
-                });
+                    });
             })
             ->orderByDesc('s.id')
             ->get();
 
         return response()->json([
-            'riders' => $this->riders($providerId),
-
+            'riders' => $this->riders(
+                $providerId,
+                $remittanceService
+            ),
             'parcels' => $shipments->map(function ($shipment) {
                 $address = json_decode(
                     $shipment->shipping_address ?: '{}',
@@ -182,7 +212,7 @@ class LogisticsDeliveryApiController extends Controller
                     'weight' => '—',
                     'batch' => $shipment->batch_id
                         ? 'BATCH-' . str_pad(
-                            $shipment->batch_id,
+                            (string) $shipment->batch_id,
                             3,
                             '0',
                             STR_PAD_LEFT
@@ -190,7 +220,7 @@ class LogisticsDeliveryApiController extends Controller
                         : '—',
                     'riderId' => $shipment->rider_id
                         ? 'RDR-' . str_pad(
-                            $shipment->rider_id,
+                            (string) $shipment->rider_id,
                             3,
                             '0',
                             STR_PAD_LEFT
@@ -213,8 +243,10 @@ class LogisticsDeliveryApiController extends Controller
         ]);
     }
 
-    public function assign(Request $request)
-    {
+    public function assign(
+        Request $request,
+        RiderRemittanceService $remittanceService
+    ) {
         $data = $request->validate([
             'rider_id' => 'required|integer',
             'shipment_ids' => 'required|array|min:1|max:50',
@@ -223,8 +255,28 @@ class LogisticsDeliveryApiController extends Controller
         ]);
 
         $providerId = $this->providerId();
+        $provider = DB::table('logistics_providers')
+            ->where('id', $providerId)
+            ->first();
 
-        DB::transaction(function () use ($data, $providerId) {
+        abort_unless($provider, 403, 'Approved logistics hub required.');
+
+        if (!$remittanceService->canAcceptNewAssignment(
+            (int) $data['rider_id'],
+            $providerId
+        )) {
+            throw ValidationException::withMessages([
+                'rider_id' =>
+                    'This rider cannot receive new assignments. Check approval status and outstanding COD remittances.',
+            ]);
+        }
+
+        DB::transaction(function () use (
+            $data,
+            $providerId,
+            $provider,
+            $remittanceService
+        ) {
             $rider = DB::table('riders')
                 ->where('id', $data['rider_id'])
                 ->where('logistics_provider_id', $providerId)
@@ -237,6 +289,23 @@ class LogisticsDeliveryApiController extends Controller
                 422,
                 'Active rider not found.'
             );
+
+            RiderHubEligibility::ensureMatches($rider, $provider);
+
+            RiderJobType::ensureMatches(
+                $rider,
+                RiderJobType::DELIVERY
+            );
+
+            if (!$remittanceService->canAcceptNewAssignment(
+                (int) $rider->id,
+                $providerId
+            )) {
+                throw ValidationException::withMessages([
+                    'rider_id' =>
+                        'Rider is restricted from receiving new parcels.',
+                ]);
+            }
 
             $used = DB::table('shipments')
                 ->where('rider_id', $rider->id)
@@ -259,9 +328,9 @@ class LogisticsDeliveryApiController extends Controller
                     ->first();
 
                 if (
-                    !$shipment ||
-                    $shipment->stage !== 'sorted' ||
-                    !in_array(
+                    !$shipment
+                    || $shipment->stage !== 'sorted'
+                    || !in_array(
                         $shipment->status,
                         [
                             'unassigned',
@@ -279,9 +348,39 @@ class LogisticsDeliveryApiController extends Controller
                     ]);
                 }
 
+                if (
+                    in_array(
+                        $shipment->status,
+                        ['picked_up', 'in_transit'],
+                        true
+                    )
+                    && $shipment->rider_id
+                    && (int) $shipment->rider_id !== (int) $rider->id
+                ) {
+                    throw ValidationException::withMessages([
+                        'shipment_ids' =>
+                            'An in-progress parcel cannot be reassigned.',
+                    ]);
+                }
+
                 if ((int) $shipment->rider_id !== (int) $rider->id) {
                     $used++;
                 }
+
+                if ($used > 5) {
+                    throw ValidationException::withMessages([
+                        'rider_id' =>
+                            'Rider assignment capacity exceeded.',
+                    ]);
+                }
+
+                app(RiderTaskAssignmentService::class)->record(
+                    $shipment,
+                    $rider,
+                    RiderJobType::DELIVERY,
+                    null,
+                    $data['notes'] ?? null
+                );
 
                 DB::table('shipments')
                     ->where('id', $id)
@@ -291,31 +390,43 @@ class LogisticsDeliveryApiController extends Controller
                         'updated_at' => now(),
                     ]);
 
+                $buyerId = DB::table('seller_orders as so')
+                    ->join('orders as o', 'o.id', '=', 'so.order_id')
+                    ->where('so.id', $shipment->seller_order_id)
+                    ->value('o.buyer_id');
+                if ($buyerId) {
+                    $conversation = Conversation::firstOrCreate([
+                        'buyer_id' => $buyerId,
+                        'rider_id' => $rider->id,
+                        'shipment_id' => $shipment->id,
+                    ]);
+                    if (!$conversation->wasRecentlyCreated && $conversation->rider_deleted_at) {
+                        $conversation->update([
+                            'rider_deleted_at' => null,
+                            'updated_at' => now(),
+                        ]);
+                    }
+                    if ($conversation->wasRecentlyCreated) {
+                        User::query()->find($buyerId)?->notify(new MarketplaceAlert(
+                            'Your delivery rider has been assigned',
+                            'You can now message your rider about parcel ' . $shipment->tracking_code . '.',
+                            route('messages.show', $conversation),
+                        ));
+                    }
+                }
+
                 $this->event(
                     $shipment,
                     'assigned',
                     $data['notes'] ?? 'Assigned to rider.'
                 );
             }
-
-            if ($used > 5) {
-                throw ValidationException::withMessages([
-                    'rider_id' =>
-                        'Rider assignment capacity exceeded.',
-                ]);
-            }
-        });
+        }, 3);
 
         return response()->json([
             'message' => 'Assignments saved successfully.',
         ]);
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | DISPATCH SHIPMENT
-    |--------------------------------------------------------------------------
-    */
 
     public function dispatch(int $id)
     {
@@ -331,8 +442,8 @@ class LogisticsDeliveryApiController extends Controller
             abort_unless($shipment, 404);
 
             abort_unless(
-                $shipment->status === 'assigned' &&
-                $shipment->rider_id,
+                $shipment->status === 'assigned'
+                    && $shipment->rider_id,
                 422,
                 'Shipment must be assigned first.'
             );
@@ -349,21 +460,16 @@ class LogisticsDeliveryApiController extends Controller
                 'dispatched',
                 'Parcel dispatched to rider.'
             );
-        });
+        }, 3);
 
         return response()->json([
             'message' => 'Shipment dispatched.',
         ]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | DELIVERY MONITORING
-    |--------------------------------------------------------------------------
-    */
-
-    public function monitoring()
-    {
+    public function monitoring(
+        RiderRemittanceService $remittanceService
+    ) {
         $providerId = $this->providerId();
 
         $shipments = $this->baseShipments($providerId)
@@ -389,77 +495,75 @@ class LogisticsDeliveryApiController extends Controller
                 ->get()
                 ->groupBy('shipment_id');
 
-        $deliveries = $shipments->map(
-            function ($shipment) use ($events) {
-                $address = json_decode(
-                    $shipment->shipping_address ?: '{}',
-                    true
-                ) ?: [];
+        $deliveries = $shipments->map(function ($shipment) use ($events) {
+            $address = json_decode(
+                $shipment->shipping_address ?: '{}',
+                true
+            ) ?: [];
 
-                $history = ($events->get($shipment->id) ?? collect())
-                    ->map(fn ($event) => [
-                        'status' => $this->displayStatus(
-                            $event->status
-                        ),
-                        'time' => substr(
-                            $event->occurred_at,
-                            0,
-                            16
-                        ),
-                        'note' => $event->note ?? '',
-                    ])
-                    ->values()
-                    ->all();
-
-                $latest = end($history);
-
-                $status = $this->displayStatus(
-                    $shipment->status
-                );
-
-                if (
-                    in_array(
-                        $latest['status'] ?? '',
-                        [
-                            'Dispatched',
-                            'Delayed',
-                            'Failed Attempt',
-                        ],
-                        true
-                    ) &&
-                    $shipment->status !== 'delivered'
-                ) {
-                    $status = $latest['status'];
-                }
-
-                return [
-                    'id' => $shipment->id,
-                    'tracking' => $shipment->tracking_code,
-                    'recipient' => $address['recipient']
-                        ?? $address['recipient_name']
-                        ?? $address['name']
-                        ?? 'Recipient',
-                    'destination' => $this->destination($address),
-                    'riderId' => 'RDR-' . str_pad(
-                        $shipment->rider_id,
-                        3,
-                        '0',
-                        STR_PAD_LEFT
-                    ),
-                    'date' => substr(
-                        $shipment->created_at,
+            $history = ($events->get($shipment->id) ?? collect())
+                ->map(fn ($event) => [
+                    'status' => $this->displayStatus($event->status),
+                    'time' => substr(
+                        (string) $event->occurred_at,
                         0,
-                        10
+                        16
                     ),
-                    'status' => $status,
-                    'remarks' => $latest['note'] ?? '',
-                    'history' => $history,
-                ];
+                    'note' => $event->note ?? '',
+                ])
+                ->values()
+                ->all();
+
+            $latest = end($history);
+
+            $status = $this->displayStatus($shipment->status);
+
+            if (
+                in_array(
+                    $latest['status'] ?? '',
+                    [
+                        'Dispatched',
+                        'Delay Reported',
+                        'Delayed',
+                        'Failed Attempt',
+                    ],
+                    true
+                )
+                && $shipment->status !== 'delivered'
+            ) {
+                $status = $latest['status'];
             }
-        );
+
+            return [
+                'id' => $shipment->id,
+                'tracking' => $shipment->tracking_code,
+                'recipient' => $address['recipient']
+                    ?? $address['recipient_name']
+                    ?? $address['name']
+                    ?? 'Recipient',
+                'destination' => $this->destination($address),
+                'riderId' => 'RDR-' . str_pad(
+                    (string) $shipment->rider_id,
+                    3,
+                    '0',
+                    STR_PAD_LEFT
+                ),
+                'date' => substr(
+                    (string) $shipment->created_at,
+                    0,
+                    10
+                ),
+                'status' => $status,
+                'remarks' => $latest['note'] ?? '',
+                'history' => $history,
+            ];
+        });
 
         return response()->json([
-            'riders' => $this->riders($providerId),
+            'riders' => $this->riders(
+                $providerId,
+                $remittanceService
+            ),
             'deliveries' => $deliveries,
         ]);
     }
@@ -471,34 +575,30 @@ class LogisticsDeliveryApiController extends Controller
             'in_transit' => 'In Transit',
             'out_for_delivery' => 'Out for Delivery',
             'delivered' => 'Delivered',
-            'delivery_delayed' => 'Delayed',
+            'delivery_delayed', 'delivery_rescheduled' => 'Delayed',
+            'delivery_delay_reported' => 'Delay Reported',
             'delivery_failed_attempt', 'failed' => 'Failed Attempt',
             default => ucwords(str_replace('_', ' ', $status)),
         };
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | UPDATE DELIVERY STATUS
-    |--------------------------------------------------------------------------
-    |
-    | NEW:
-    | Successful delivery credits the Logistics E-Wallet.
-    |
-    | The delivery update, wallet credit, delivery event,
-    | and notification are processed in one DB transaction.
-    |--------------------------------------------------------------------------
-    */
-
     public function updateStatus(
         Request $request,
         int $id,
-        LogisticsWalletService $walletService
+        LogisticsWalletService $walletService,
+        RiderPayrollService $payrollService,
+        RiderRemittanceService $remittanceService
     ) {
         $data = $request->validate([
             'status' =>
                 'required|in:In Transit,Out for Delivery,Delivered,Delayed,Failed Attempt',
             'remarks' => 'nullable|string|max:500',
+            'rescheduled_for' => [
+                'required_if:status,Delayed',
+                'nullable',
+                'date',
+                'after:now',
+            ],
         ]);
 
         if (
@@ -506,8 +606,8 @@ class LogisticsDeliveryApiController extends Controller
                 $data['status'],
                 ['Delayed', 'Failed Attempt'],
                 true
-            ) &&
-            empty(trim($data['remarks'] ?? ''))
+            )
+            && empty(trim($data['remarks'] ?? ''))
         ) {
             throw ValidationException::withMessages([
                 'remarks' =>
@@ -516,252 +616,357 @@ class LogisticsDeliveryApiController extends Controller
         }
 
         $providerId = $this->providerId();
-        $sellerOrderId = null;
 
-        $commissionCredited = DB::transaction(
-            function () use (
-                $id,
-                $providerId,
-                $data,
-                $walletService,
-                &$sellerOrderId
+        $result = DB::transaction(function () use (
+            $id,
+            $providerId,
+            $data,
+            $walletService,
+            $payrollService,
+            $remittanceService
+        ) {
+            $shipment = DB::table('shipments')
+                ->where('id', $id)
+                ->where('logistics_provider_id', $providerId)
+                ->whereNotNull('rider_id')
+                ->lockForUpdate()
+                ->first();
+
+            abort_unless($shipment, 404);
+
+            $lastEvent = DB::table('delivery_events')
+                ->where('shipment_id', $id)
+                ->orderByDesc('occurred_at')
+                ->orderByDesc('id')
+                ->first();
+
+            $current = $this->displayStatus($shipment->status);
+
+            if (
+                in_array(
+                    $lastEvent?->status,
+                    [
+                        'dispatched',
+                        'delivery_delayed',
+                        'delivery_rescheduled',
+                        'delivery_delay_reported',
+                        'delivery_failed_attempt',
+                    ],
+                    true
+                )
+                && $shipment->status !== 'delivered'
             ) {
-                $shipment = DB::table('shipments')
-                    ->where('id', $id)
-                    ->where('logistics_provider_id', $providerId)
-                    ->whereNotNull('rider_id')
-                    ->lockForUpdate()
-                    ->first();
-
-                abort_unless($shipment, 404);
-
-                $lastEvent = DB::table('delivery_events')
-                    ->where('shipment_id', $id)
-                    ->orderByDesc('occurred_at')
-                    ->orderByDesc('id')
-                    ->first();
-
                 $current = $this->displayStatus(
-                    $shipment->status
+                    $lastEvent->status
                 );
+            }
 
-                if (
-                    in_array(
-                        $lastEvent?->status,
-                        [
-                            'dispatched',
-                            'delivery_delayed',
-                            'delivery_failed_attempt',
-                        ],
-                        true
-                    ) &&
-                    $shipment->status !== 'delivered'
-                ) {
-                    $current = $this->displayStatus(
-                        $lastEvent->status
-                    );
+            $allowed = [
+                'Dispatched' => [
+                    'In Transit',
+                    'Delayed',
+                    'Failed Attempt',
+                ],
+                'In Transit' => [
+                    'Out for Delivery',
+                    'Delayed',
+                    'Failed Attempt',
+                ],
+                'Out for Delivery' => [
+                    'Delivered',
+                    'Delayed',
+                    'Failed Attempt',
+                ],
+                'Delayed' => [
+                    'In Transit',
+                    'Out for Delivery',
+                    'Delayed',
+                    'Failed Attempt',
+                ],
+                'Delay Reported' => [
+                    'Delayed',
+                    'In Transit',
+                    'Out for Delivery',
+                    'Failed Attempt',
+                ],
+                'Failed Attempt' => [
+                    'Out for Delivery',
+                    'Delayed',
+                ],
+            ];
+
+            abort_unless(
+                in_array(
+                    $data['status'],
+                    $allowed[$current] ?? [],
+                    true
+                ),
+                422,
+                'Invalid delivery transition.'
+            );
+
+            $next = match ($data['status']) {
+                'In Transit' => 'in_transit',
+                'Out for Delivery' => 'out_for_delivery',
+                'Delivered' => 'delivered',
+                'Delayed' => 'delivery_rescheduled',
+                'Failed Attempt' => 'delivery_failed_attempt',
+            };
+
+            $eventNote = $data['remarks']
+                ?? 'Status updated by Logistics.';
+
+            if ($data['status'] === 'Delayed') {
+                $rescheduledAt = \Illuminate\Support\Carbon::parse(
+                    $data['rescheduled_for']
+                );
+                $rescheduledLabel = $rescheduledAt->format(
+                    'M j, Y g:i A'
+                );
+                $eventNote = 'Delivery rescheduled to '
+                    . $rescheduledLabel
+                    . '. Reason: '
+                    . trim((string) $data['remarks']);
+
+                $buyer = DB::table('seller_orders as so')
+                    ->join('orders as o', 'o.id', '=', 'so.order_id')
+                    ->where('so.id', $shipment->seller_order_id)
+                    ->first(['o.id as order_id', 'o.buyer_id']);
+
+                if ($buyer) {
+                    $buyerMessage = 'Your delivery is delayed. '
+                        . 'The new expected delivery is '
+                        . $rescheduledLabel
+                        . '. Your current rider will continue the delivery.';
+
+                    OrderTimeline::create([
+                        'order_id' => $buyer->order_id,
+                        'seller_order_id' => $shipment->seller_order_id,
+                        'actor_id' => Auth::id(),
+                        'status' => 'shipped',
+                        'event' => 'delivery_rescheduled',
+                        'note' => $buyerMessage,
+                    ]);
+
+                    User::query()
+                        ->find($buyer->buyer_id)?->notify(
+                            new MarketplaceAlert(
+                                'Delivery rescheduled',
+                                $buyerMessage,
+                                route('orders'),
+                            )
+                        );
                 }
 
-                $allowed = [
-                    'Dispatched' => [
-                        'In Transit',
-                        'Delayed',
-                        'Failed Attempt',
-                    ],
-                    'In Transit' => [
-                        'Out for Delivery',
-                        'Delayed',
-                        'Failed Attempt',
-                    ],
-                    'Out for Delivery' => [
-                        'Delivered',
-                        'Delayed',
-                        'Failed Attempt',
-                    ],
-                    'Delayed' => [
-                        'In Transit',
-                        'Out for Delivery',
-                        'Failed Attempt',
-                    ],
-                    'Failed Attempt' => [
-                        'Out for Delivery',
-                        'Delayed',
-                    ],
-                ];
+                $rider = DB::table('riders')
+                    ->where('id', $shipment->rider_id)
+                    ->where('logistics_provider_id', $providerId)
+                    ->first();
+
+                if ($rider) {
+                    User::query()
+                        ->find($rider->user_id)?->notify(
+                            new MarketplaceAlert(
+                                'Delivery rescheduled',
+                                'Parcel ' . $shipment->tracking_code
+                                    . ' is rescheduled for '
+                                    . $rescheduledLabel
+                                    . '. You remain assigned to this delivery.',
+                                null,
+                            )
+                        );
+                }
+            }
+
+            $walletCredited = false;
+            $riderCredited = false;
+            $codObligationCreated = false;
+            $codCollectionConfirmed = false;
+            $codAmountMinor = 0;
+
+            if ($data['status'] === 'Delivered') {
+                $rider = DB::table('riders')
+                    ->where('id', $shipment->rider_id)
+                    ->where('logistics_provider_id', $providerId)
+                    ->first();
 
                 abort_unless(
-                    in_array(
-                        $data['status'],
-                        $allowed[$current] ?? [],
-                        true
-                    ),
+                    $rider,
                     422,
-                    'Invalid delivery transition.'
+                    'Assigned rider does not belong to this Logistics provider.'
                 );
 
-                $next = match ($data['status']) {
-                    'In Transit' => 'in_transit',
-                    'Out for Delivery' => 'out_for_delivery',
-                    'Delivered' => 'delivered',
-                    'Delayed' => 'delivery_delayed',
-                    'Failed Attempt' => 'delivery_failed_attempt',
-                };
+                $deliveryTime = now();
 
-                $credited = false;
+                DB::table('shipments')
+                    ->where('id', $id)
+                    ->update([
+                        'status' => 'delivered',
+                        'updated_at' => $deliveryTime,
+                    ]);
 
-                /*
-                |--------------------------------------------------------------------------
-                | SUCCESSFUL DELIVERY
-                |--------------------------------------------------------------------------
-                */
+                DB::table('seller_orders')
+                    ->where('id', $shipment->seller_order_id)
+                    ->where('logistics_provider_id', $providerId)
+                    ->update([
+                        'status' => 'delivered',
+                        'delivered_at' => $deliveryTime,
+                        'updated_at' => $deliveryTime,
+                    ]);
 
-                if ($data['status'] === 'Delivered') {
-                    DB::table('shipments')
-                        ->where('id', $id)
-                        ->update([
-                            'status' => 'delivered',
-                            'updated_at' => now(),
-                        ]);
+                $walletCredited = $walletService
+                    ->creditDeliveredShipment($id);
 
-                    DB::table('seller_orders')
-                        ->where('id', $shipment->seller_order_id)
-                        ->where(
-                            'logistics_provider_id',
-                            $providerId
-                        )
-                        ->update([
-                            'status' => 'delivered',
-                            'delivered_at' => now(),
-                            'updated_at' => now(),
-                        ]);
+                $riderCredited = $payrollService
+                    ->creditDeliveredShipment($id);
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | NEW: CREDIT LOGISTICS COMMISSION
-                    |--------------------------------------------------------------------------
-                    |
-                    | ₱50 shipping fee
-                    | 10% Logistics commission
-                    | ₱5 credited to E-Wallet
-                    |
-                    | The wallet service prevents duplicate credits.
-                    | If the credit fails, the delivery transaction
-                    | rolls back instead of leaving inconsistent data.
-                    */
+                $commissionExists = DB::table(
+                    'rider_delivery_commissions'
+                )
+                    ->where('shipment_id', $id)
+                    ->where('rider_id', $rider->id)
+                    ->where('logistics_provider_id', $providerId)
+                    ->exists();
 
-                    $credited = $walletService
-                        ->creditDeliveredShipment($id);
-
-                } elseif (
-                    in_array(
-                        $next,
-                        ['in_transit', 'out_for_delivery'],
-                        true
-                    )
-                ) {
-                    DB::table('shipments')
-                        ->where('id', $id)
-                        ->update([
-                            'status' => $next,
-                            'updated_at' => now(),
-                        ]);
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | PRESERVE EXISTING DELIVERY HISTORY AND NOTIFICATIONS
-                |--------------------------------------------------------------------------
-                */
-
-                $this->event(
-                    $shipment,
-                    $next,
-                    $data['remarks'] ??
-                        'Status updated by Logistics.'
-                );
-
-                $sellerOrderId = (int) $shipment->seller_order_id;
-                $sellerOrder = DB::table('seller_orders')
-                    ->where('id', $sellerOrderId)
-                    ->first();
-
-                if ($sellerOrder) {
-                    DB::table('order_timelines')->insert([
-                        'order_id' => $sellerOrder->order_id,
-                        'seller_order_id' => $sellerOrder->id,
-                        'actor_id' => Auth::id(),
-                        'status' => $next === 'delivered' ? 'delivered' : 'shipped',
-                        'event' => 'logistics_' . $next,
-                        'note' => $data['remarks'] ?? 'Status updated by Logistics.',
-                        'metadata' => json_encode([
-                            'shipment_id' => $shipment->id,
-                            'tracking_code' => $shipment->tracking_code,
-                            'delivery_status' => $next,
-                        ]),
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                if (!$commissionExists) {
+                    throw ValidationException::withMessages([
+                        'shipment' =>
+                            'Rider commission could not be recorded. Delivery update cancelled.',
                     ]);
                 }
 
-                return $credited;
+                // COD collection must be confirmed by the collection workflow.
+                // Completing delivery does not automatically confirm payment.
+                $codCollectionConfirmed =
+                    (bool) $shipment->cod_collected;
+
+                $codAmountMinor =
+                    (int) $shipment->cod_amount_minor;
+
+                if (
+                    $codCollectionConfirmed
+                    && $codAmountMinor > 0
+                ) {
+                    $codObligationCreated =
+                        $remittanceService->createCodObligation(
+                            $id,
+                            \Carbon\Carbon::parse($deliveryTime)
+                        );
+                }
+            } elseif (
+                in_array(
+                    $next,
+                    ['in_transit', 'out_for_delivery'],
+                    true
+                )
+            ) {
+                DB::table('shipments')
+                    ->where('id', $id)
+                    ->update([
+                        'status' => $next,
+                        'updated_at' => now(),
+                    ]);
             }
-        );
 
-        if ($sellerOrderId) {
-            $sellerOrder = SellerOrder::with([
-                'order.buyer',
-                'seller.user',
-                'shipment.provider',
-            ])->find($sellerOrderId);
+            $this->event(
+                $shipment,
+                $next,
+                $eventNote
+            );
 
-            if ($sellerOrder) {
-                $tracking = $sellerOrder->shipment?->tracking_code;
-                $message = "{$sellerOrder->order->reference}: {$data['status']}."
-                    . ($tracking ? " Tracking: {$tracking}." : '');
+            if ($next === 'delivered') {
+                DB::table('rider_tasks')
+                    ->where('shipment_id', $shipment->id)
+                    ->where('logistics_provider_id', $providerId)
+                    ->where('rider_id', $shipment->rider_id)
+                    ->where('job_type', RiderJobType::DELIVERY)
+                    ->whereNotIn(
+                        'status',
+                        RiderTaskAssignmentService::TERMINAL_STATUSES
+                    )
+                    ->update([
+                        'status' => 'completed',
+                        'updated_at' => now(),
+                    ]);
+            }
 
-                $sellerOrder->order->buyer?->notify(new MarketplaceAlert(
-                    'Courier update',
-                    $message,
-                    route('orders')
-                ));
-                $sellerOrder->seller?->user?->notify(new MarketplaceAlert(
-                    'Delivery update',
-                    $message,
-                    route('seller.orders')
-                ));
+            return [
+                'wallet_credited' => $walletCredited,
+                'rider_credited' => $riderCredited,
+                'cod_obligation_created' => $codObligationCreated,
+                'cod_collection_confirmed' => $codCollectionConfirmed,
+                'cod_amount_minor' => $codAmountMinor,
+                'shipment_status' => $next,
+            ];
+        }, 3);
+
+        $message = 'Delivery status updated.';
+
+        if ($result['shipment_status'] === 'delivery_rescheduled') {
+            $message = 'Delivery rescheduled. The buyer and rider were notified.';
+        }
+
+        if ($result['shipment_status'] === 'delivered') {
+            $message = 'Delivery completed successfully.';
+
+            if (
+                $result['wallet_credited']
+                && $result['rider_credited']
+            ) {
+                $message =
+                    'Delivery completed. PHP 5.00 credited to Logistics E-Wallet and PHP 5.00 earned by the rider.';
+            }
+
+            if ($result['cod_obligation_created']) {
+                $message .=
+                    ' COD remittance obligation recorded.';
+            }
+
+            if (
+                $result['cod_amount_minor'] > 0
+                && !$result['cod_collection_confirmed']
+            ) {
+                $message .=
+                    ' COD collection is not yet confirmed; remittance obligation was not created.';
             }
         }
 
         return response()->json([
-            'message' => $commissionCredited
-                ? 'Delivery completed. ₱5.00 credited to Logistics E-Wallet.'
-                : 'Delivery status updated.',
-            'commission_credited' => $commissionCredited,
-            'commission_amount' => $commissionCredited
+            'message' => $message,
+            'commission_credited' => $result['wallet_credited'],
+            'commission_amount' => $result['wallet_credited']
                 ? 5.00
                 : 0,
+            'rider_commission_credited' => $result['rider_credited'],
+            'rider_commission_amount' => $result['rider_credited']
+                ? 5.00
+                : 0,
+            'cod_obligation_created' =>
+                $result['cod_obligation_created'],
+            'cod_collection_confirmed' =>
+                $result['cod_collection_confirmed'],
+            'cod_amount_minor' => $result['cod_amount_minor'],
+            'shipment_status' => $result['shipment_status'],
         ]);
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | DELIVERY EVENTS AND NOTIFICATIONS
-    |--------------------------------------------------------------------------
-    */
 
     private function event(
         object $shipment,
         string $status,
         string $note
     ): void {
-        // Preserve existing delivery event history.
         DB::table('delivery_events')->insert([
             'shipment_id' => $shipment->id,
             'status' => $status,
-            'attempt' => max(
-                1,
-                (int) ($shipment->attempts ?? 0)
-            ),
+            'attempt' => $status === 'delivery_rescheduled'
+                ? max(
+                    max(1, (int) ($shipment->attempts ?? 0)),
+                    (int) DB::table('delivery_events')
+                        ->where('shipment_id', $shipment->id)
+                        ->where('status', $status)
+                        ->max('attempt') + 1,
+                )
+                : max(1, (int) ($shipment->attempts ?? 0)),
             'user_id' => Auth::id(),
             'note' => $note,
             'occurred_at' => now(),
@@ -769,7 +974,6 @@ class LogisticsDeliveryApiController extends Controller
             'updated_at' => now(),
         ]);
 
-        // Preserve existing Logistics bell notifications.
         $notificationTitles = [
             'assigned' => 'Parcel Assigned to Rider',
             'dispatched' => 'Parcel Dispatched',
@@ -777,6 +981,8 @@ class LogisticsDeliveryApiController extends Controller
             'out_for_delivery' => 'Parcel Out for Delivery',
             'delivered' => 'Parcel Delivered',
             'delivery_delayed' => 'Delivery Delayed',
+            'delivery_rescheduled' => 'Delivery Rescheduled',
+            'delivery_delay_reported' => 'Rider Reported a Delivery Delay',
             'delivery_failed_attempt' => 'Failed Delivery Attempt',
         ];
 

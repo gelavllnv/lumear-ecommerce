@@ -294,7 +294,7 @@ class SellerController extends Controller
             ));
         }
 
-        return redirect()->route('seller.orders')->with('status', 'Fulfillment status updated.');
+        return $request->expectsJson() ? response()->json(['success' => true]) : redirect()->route('seller.orders')->with('status', 'Fulfillment status updated.');
     }
 
     /** @return array<string, array<int, string>> */

@@ -162,7 +162,8 @@ document.addEventListener("DOMContentLoaded", function () {
             notes: String(parcel.notes ?? ""),
             receivedAt: String(parcel.receivedAt ?? ""),
             condition: String(parcel.condition ?? ""),
-            remarks: String(parcel.remarks ?? "")
+            remarks: String(parcel.remarks ?? ""),
+            verifiedAt: String(parcel.verifiedAt ?? "")
         };
     }
 
@@ -420,7 +421,7 @@ document.addEventListener("DOMContentLoaded", function () {
         } else if (parcel.status === "Received") {
             addActionButton(
                 actionWrap,
-                "Verify",
+                parcel.verifiedAt ? "Update Verification" : "Verify",
                 "verify",
                 parcel.tracking,
                 true
@@ -538,7 +539,9 @@ document.addEventListener("DOMContentLoaded", function () {
             button.textContent = "Receive Parcel";
             button.dataset.action = "receive";
         } else if (parcel.status === "Received") {
-            button.textContent = "Verify Parcel";
+            button.textContent = parcel.verifiedAt
+                ? "Update Verification"
+                : "Verify Parcel";
             button.dataset.action = "verify";
         } else if (parcel.status === "Discrepancy") {
             button.textContent = "Review Discrepancy";
@@ -602,15 +605,24 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        const allowedStatus = {
-            receive: "Awaiting Arrival",
-            verify: "Received",
-            review: "Discrepancy"
-        };
+        if (
+            currentAction === "receive" &&
+            parcel.status !== "Awaiting Arrival"
+        ) {
+            showToast("Parcel has already been received.", true);
+            return;
+        }
 
-        if (!allowedStatus[currentAction] ||
-            parcel.status !== allowedStatus[currentAction]) {
-            showToast("This parcel is no longer available for that action.", true);
+        if (currentAction === "verify" && parcel.status !== "Received") {
+            showToast("Only received parcels can be verified.", true);
+            return;
+        }
+
+        if (
+            currentAction === "review" &&
+            parcel.status !== "Discrepancy"
+        ) {
+            showToast("This parcel has no discrepancy to review.", true);
             return;
         }
 
@@ -621,8 +633,14 @@ document.addEventListener("DOMContentLoaded", function () {
         confirm.disabled = true;
 
         try {
+            const endpoint = currentAction === "receive"
+                ? "receive"
+                : currentAction === "verify"
+                    ? "verify"
+                    : "review";
+
             const result = await apiRequest(
-                `${API}/${parcel.id}/${currentAction === "receive" ? "receive" : currentAction === "verify" ? "verify" : "review"}`,
+                `${API}/${parcel.id}/${endpoint}`,
                 {
                     method: "POST",
                     body: JSON.stringify({

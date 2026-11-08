@@ -42,7 +42,7 @@ class SellerReturnController extends Controller
                 abort(422, 'This return request has already been resolved or escalated.');
             }
             if ($data['decision'] === 'approve') {
-                $locked->update(['status' => 'approved', 'seller_response' => null, 'responded_at' => now()]);
+                $locked->update(['status' => 'approved', 'pickup_status' => 'awaiting_assignment', 'seller_response' => null, 'responded_at' => now()]);
                 $this->wallets->reverseForReturn($locked->sellerOrder, $request->user()->id);
             } else {
                 $locked->update(['status' => 'rejected', 'seller_response' => trim($data['reason']), 'responded_at' => now()]);

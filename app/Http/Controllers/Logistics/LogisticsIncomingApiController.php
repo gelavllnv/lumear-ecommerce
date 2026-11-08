@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
+use App\Models\LogisticsProvider;
+use App\Models\SellerOrder;
+use App\Models\User;
+use App\Services\FulfillmentService;
 use App\Support\LogisticsNotification;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class LogisticsIncomingApiController extends Controller
 {
@@ -23,7 +27,7 @@ class LogisticsIncomingApiController extends Controller
         return (int) $id;
     }
 
-    public function index()
+    public function index(): JsonResponse
     {
         $providerId = $this->providerId();
 
@@ -34,7 +38,7 @@ class LogisticsIncomingApiController extends Controller
             ->leftJoin('logistics_sorting as ls', 'ls.shipment_id', '=', 's.id')
             ->where('s.logistics_provider_id', $providerId)
             ->whereIn('s.status', [
-                'picked_up', 'in_transit', 'assigned'
+                'unassigned', 'picked_up', 'in_transit', 'assigned'
             ])
             ->select(
                 's.id',
@@ -47,8 +51,7 @@ class LogisticsIncomingApiController extends Controller
                 'ls.received_at',
                 'ls.condition',
                 'ls.remarks',
-                'ls.verified_at',
-                'ls.discrepancy_reviewed_at'
+                'ls.verified_at'
             )
             ->orderByDesc('s.created_at')
             ->get();
@@ -86,7 +89,7 @@ class LogisticsIncomingApiController extends Controller
                     ? 'Awaiting Arrival'
                     : ($shipment->sorting_stage === 'discrepancy'
                         ? 'Discrepancy'
-                        : ($shipment->sorting_stage === 'sorted' || $shipment->verified_at
+                        : ($shipment->sorting_stage === 'sorted'
                             ? 'Ready for Sorting'
                             : 'Received')),
                 'notes' => '',
@@ -95,6 +98,7 @@ class LogisticsIncomingApiController extends Controller
                     : '',
                 'condition' => $shipment->condition ?? '',
                 'remarks' => $shipment->remarks ?? '',
+                'verifiedAt' => $shipment->verified_at,
             ];
         });
 
@@ -104,7 +108,11 @@ class LogisticsIncomingApiController extends Controller
         ]);
     }
 
-    public function receive(Request $request, int $id)
+    public function receive(
+        Request $request,
+        int $id,
+        FulfillmentService $fulfillment
+    ): JsonResponse
     {
         $data = $request->validate([
             'condition' => [
@@ -121,7 +129,12 @@ class LogisticsIncomingApiController extends Controller
 
         $providerId = $this->providerId();
 
-        DB::transaction(function () use ($id, $providerId, $data) {
+        DB::transaction(function () use (
+            $id,
+            $providerId,
+            $data,
+            $fulfillment
+        ): void {
             $shipment = DB::table('shipments')
                 ->where('id', $id)
                 ->where('logistics_provider_id', $providerId)
@@ -132,10 +145,10 @@ class LogisticsIncomingApiController extends Controller
 
             abort_unless(
                 in_array($shipment->status, [
-                    'picked_up', 'in_transit'
+                    'unassigned', 'picked_up', 'in_transit'
                 ], true),
                 422,
-                'Shipment must be picked up before receiving.'
+                'Shipment is not waiting to be received at this hub.'
             );
 
             $existing = DB::table('logistics_sorting')
@@ -144,11 +157,30 @@ class LogisticsIncomingApiController extends Controller
 
             abort_if($existing, 422, 'Shipment already received.');
 
+            if ($shipment->status === 'unassigned') {
+                $sellerOrder = SellerOrder::query()
+                    ->whereKey($shipment->seller_order_id)
+                    ->where('logistics_provider_id', $providerId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $provider = LogisticsProvider::query()
+                    ->findOrFail($providerId);
+                $actor = Auth::user();
+
+                abort_unless($actor instanceof User, 403);
+
+                $fulfillment->confirmPickup(
+                    $sellerOrder,
+                    $provider,
+                    $actor
+                );
+            }
+
             DB::table('logistics_sorting')->insert([
                 'shipment_id' => $id,
                 'logistics_provider_id' => $providerId,
                 'stage' => 'received',
-                'condition' => $data['condition'] ?? 'Good condition',
+                'condition' => $data['condition'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'received_at' => now(),
                 'created_at' => now(),
@@ -190,107 +222,127 @@ class LogisticsIncomingApiController extends Controller
 
     public function verify(Request $request, int $id)
     {
-        return $this->recordInspection($request, $id, false);
-    }
-
-    public function review(Request $request, int $id)
-    {
-        return $this->recordInspection($request, $id, true);
-    }
-
-    private function recordInspection(Request $request, int $id, bool $review): \Illuminate\Http\JsonResponse
-    {
         $data = $request->validate([
             'condition' => [
                 'required',
-                Rule::in([
-                    'Good condition',
-                    'Damaged packaging',
-                    'Incorrect parcel information',
-                    'Other concern',
-                ]),
+                'string',
+                'in:Good condition,Damaged packaging,Incorrect parcel information,Other concern',
             ],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
         $providerId = $this->providerId();
-        $hasDiscrepancy = $data['condition'] !== 'Good condition';
 
-        DB::transaction(function () use (
-            $id,
-            $providerId,
-            $data,
-            $review,
-            $hasDiscrepancy
-        ): void {
-            $record = DB::table('logistics_sorting')
+        DB::transaction(function () use ($id, $providerId, $data): void {
+            $sorting = DB::table('logistics_sorting')
                 ->where('shipment_id', $id)
                 ->where('logistics_provider_id', $providerId)
                 ->lockForUpdate()
                 ->first();
 
-            abort_unless($record, 404, 'Received parcel not found.');
-
-            if ($review) {
-                abort_unless(
-                    $record->stage === 'discrepancy',
-                    422,
-                    'Only a flagged parcel can be reviewed.'
-                );
-            } else {
-                abort_unless(
-                    $record->stage === 'received' && !$record->verified_at,
-                    422,
-                    'This parcel has already been verified or is not available for verification.'
-                );
-            }
+            abort_unless($sorting, 404, 'Received parcel not found.');
+            abort_unless(
+                $sorting->stage === 'received',
+                422,
+                'Only a received parcel can be verified.'
+            );
 
             $now = now();
-            $update = [
-                'condition' => $data['condition'],
-                'remarks' => $data['remarks'] ?? null,
-                'stage' => $hasDiscrepancy ? 'discrepancy' : 'received',
-                'updated_at' => $now,
-            ];
-
-            if ($review) {
-                $update['discrepancy_reviewed_at'] = $now;
-                $update['discrepancy_reviewed_by'] = Auth::id();
-            }
-
-            if (!$hasDiscrepancy) {
-                $update['verified_at'] = $now;
-                $update['verified_by'] = Auth::id();
-            }
+            $hasDiscrepancy = $data['condition'] !== 'Good condition';
 
             DB::table('logistics_sorting')
-                ->where('id', $record->id)
-                ->update($update);
+                ->where('id', $sorting->id)
+                ->update([
+                    'condition' => $data['condition'],
+                    'remarks' => $data['remarks'] ?? null,
+                    'stage' => $hasDiscrepancy ? 'discrepancy' : 'received',
+                    'verified_at' => $now,
+                    'verified_by' => Auth::id(),
+                    'updated_at' => $now,
+                ]);
 
             DB::table('delivery_events')->insert([
                 'shipment_id' => $id,
                 'status' => $hasDiscrepancy
-                    ? ($review ? 'sorting_discrepancy_reviewed' : 'sorting_discrepancy_reported')
-                    : 'sorting_verified',
+                    ? 'parcel_discrepancy_reported'
+                    : 'parcel_condition_verified',
                 'attempt' => 1,
                 'user_id' => Auth::id(),
-                'note' => trim(
-                    ($review ? 'Discrepancy review: ' : 'Parcel verification: ')
-                    . $data['condition']
-                    . '. '
-                    . ($data['remarks'] ?? '')
-                ),
+                'note' => trim($data['condition'].' '.($data['remarks'] ?? '')),
                 'occurred_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,
-            'message' => $hasDiscrepancy
-                ? 'Discrepancy recorded for review.'
-                : 'Parcel verified and ready for sorting.',
+            'message' => $data['condition'] === 'Good condition'
+                ? 'Parcel verification saved. It is ready for waybill verification and sorting.'
+                : 'Parcel discrepancy recorded for review.',
+        ]);
+    }
+
+    public function review(Request $request, int $id)
+    {
+        $data = $request->validate([
+            'condition' => [
+                'required',
+                'string',
+                'in:Good condition,Damaged packaging,Incorrect parcel information,Other concern',
+            ],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $providerId = $this->providerId();
+
+        DB::transaction(function () use ($id, $providerId, $data): void {
+            $sorting = DB::table('logistics_sorting')
+                ->where('shipment_id', $id)
+                ->where('logistics_provider_id', $providerId)
+                ->lockForUpdate()
+                ->first();
+
+            abort_unless($sorting, 404, 'Parcel discrepancy not found.');
+            abort_unless(
+                $sorting->stage === 'discrepancy',
+                422,
+                'This parcel has no discrepancy to review.'
+            );
+
+            $now = now();
+            $hasDiscrepancy = $data['condition'] !== 'Good condition';
+
+            DB::table('logistics_sorting')
+                ->where('id', $sorting->id)
+                ->update([
+                    'condition' => $data['condition'],
+                    'remarks' => $data['remarks'] ?? null,
+                    'stage' => $hasDiscrepancy ? 'discrepancy' : 'received',
+                    'discrepancy_reviewed_at' => $now,
+                    'discrepancy_reviewed_by' => Auth::id(),
+                    'updated_at' => $now,
+                ]);
+
+            DB::table('delivery_events')->insert([
+                'shipment_id' => $id,
+                'status' => $hasDiscrepancy
+                    ? 'parcel_discrepancy_reviewed'
+                    : 'parcel_discrepancy_cleared',
+                'attempt' => 1,
+                'user_id' => Auth::id(),
+                'note' => trim($data['condition'].' '.($data['remarks'] ?? '')),
+                'occurred_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }, 3);
+
+        return response()->json([
+            'success' => true,
+            'message' => $data['condition'] === 'Good condition'
+                ? 'Discrepancy cleared. Parcel is ready for waybill verification and sorting.'
+                : 'Discrepancy review saved. The parcel remains on hold.',
         ]);
     }
 }

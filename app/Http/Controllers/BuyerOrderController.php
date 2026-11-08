@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\OrderItem;
 use App\Models\OrderTimeline;
 use App\Models\ProductReview;
+use App\Models\ReturnRequest;
 use App\Models\SellerOrder;
 use App\Services\AuditService;
 use Illuminate\Http\Request;
@@ -46,7 +47,7 @@ class BuyerOrderController extends Controller
 
         $this->audit->record($request, 'order.buyer_receipt_confirmed', $sellerOrder, ['status' => 'delivered'], ['status' => 'completed']);
 
-        return redirect()->route('orders')->with('status', 'Receipt confirmed. You can now rate the product. Seller earnings remain subject to courier COD remittance reconciliation.');
+        return $request->expectsJson() ? response()->json(['success' => true]) : redirect()->route('orders')->with('status', 'Receipt confirmed. You can now rate the product. Seller earnings remain subject to courier COD remittance reconciliation.');
     }
 
     public function storeReview(Request $request, OrderItem $orderItem)
@@ -81,5 +82,52 @@ class BuyerOrderController extends Controller
         $this->audit->record($request, 'product.reviewed', $orderItem, null, ['rating' => $data['rating']]);
 
         return redirect()->route('orders')->with('status', 'Thank you — your product rating has been saved.');
+    }
+
+    public function requestReturn(Request $request, OrderItem $orderItem)
+    {
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:100'],
+            'description' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+        $buyer = $request->user();
+
+        DB::transaction(function () use ($orderItem, $buyer, $data): void {
+            $item = OrderItem::with('sellerOrder.order')
+                ->lockForUpdate()
+                ->findOrFail($orderItem->id);
+            abort_unless($item->sellerOrder->order->buyer_id === $buyer->id, 403);
+
+            if (! in_array($item->sellerOrder->status, ['delivered', 'completed'], true)) {
+                throw ValidationException::withMessages([
+                    'return' => 'You can request a return after the order has been delivered.',
+                ]);
+            }
+
+            $hasOpenRequest = ReturnRequest::query()
+                ->where('order_item_id', $item->id)
+                ->whereIn('status', ['requested', 'approved', 'in_dispute', 'refunded'])
+                ->exists();
+            if ($hasOpenRequest) {
+                throw ValidationException::withMessages([
+                    'return' => 'A return request already exists for this item.',
+                ]);
+            }
+
+            ReturnRequest::create([
+                'seller_order_id' => $item->seller_order_id,
+                'order_item_id' => $item->id,
+                'buyer_id' => $buyer->id,
+                'reason' => $data['reason'],
+                'description' => $data['description'],
+                'status' => 'requested',
+                'pickup_status' => 'not_started',
+                'respond_by' => now()->addDays(2),
+            ]);
+        });
+
+        $this->audit->record($request, 'order.return_requested', $orderItem, null, ['reason' => $data['reason']]);
+
+        return redirect()->route('orders')->with('status', 'Return request sent to the seller for review.');
     }
 }

@@ -14,6 +14,7 @@ import '../services/marketplace_policy.dart';
 import '../services/top_notification.dart';
 import 'seller_stock_alerts_screen.dart';
 import 'seller_analytics_panel.dart';
+import 'seller_pickup_tasks_screen.dart';
 
 class SellerDashboardScreen extends StatefulWidget {
   const SellerDashboardScreen({super.key, this.connected = false});
@@ -195,6 +196,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                       ),
                     ),
                     const AppearanceButton(),
+                    if (widget.connected) IconButton(tooltip: 'Confirm rider pickups', icon: const Icon(Icons.local_shipping_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SellerPickupTasksScreen()))),
                     IconButton(
                       tooltip: 'Seller notifications',
                       onPressed: () {

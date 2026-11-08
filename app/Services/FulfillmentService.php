@@ -35,7 +35,7 @@ class FulfillmentService
             'tracking_code' => $this->trackingCode(),
             'status' => 'unassigned',
             'fee_minor' => (int) ($sellerOrder->shipping_fee_minor ?? 0),
-            'cod_amount_minor' => (int) $sellerOrder->subtotal_minor,
+            'cod_amount_minor' => (int) $sellerOrder->subtotal_minor + (int) $sellerOrder->shipping_fee_minor,
         ]);
 
         DeliveryEvent::create([

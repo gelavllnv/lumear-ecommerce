@@ -82,4 +82,3 @@ class LogisticsHeadAdminAuthController extends Controller
         return redirect()->route('logistics.head-admin.login');
     }
 }
-

@@ -2,9 +2,20 @@ import QRCode from 'qrcode';
 
 window.addEventListener('DOMContentLoaded', async () => {
     const canvas = document.getElementById('waybillQr');
-    const payload = document.getElementById('waybillQrPayload')?.textContent;
+    const payloadElement = document.getElementById('waybillQrPayload');
 
-    if (!canvas || !payload) {
+    if (!canvas || !payloadElement?.textContent) {
+        return;
+    }
+
+    let payload;
+    try {
+        payload = JSON.parse(payloadElement.textContent);
+    } catch {
+        payload = payloadElement.textContent.trim();
+    }
+
+    if (typeof payload !== 'string' || !payload.trim()) {
         return;
     }
 

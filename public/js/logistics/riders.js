@@ -1,10 +1,3 @@
-/* =========================================================
-   LUMEAR LOGISTICS — RIDER MANAGEMENT
-   Applications + Rider List
-   MySQL-connected Laravel API
-   Original UI preserved
-   ========================================================= */
-
 document.addEventListener("DOMContentLoaded", () => {
     "use strict";
 
@@ -25,8 +18,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function create(tag, className = "", text = "") {
         const node = document.createElement(tag);
+
         if (className) node.className = className;
         if (text !== "") node.textContent = String(text);
+
         return node;
     }
 
@@ -38,23 +33,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function getApplication(id) {
-        return data.applications.find(a => a.id === id);
+        return data.applications.find(item => item.id === id);
     }
 
     function getRider(id) {
-        return data.riders.find(r => r.id === id);
+        return data.riders.find(item => item.id === id);
     }
 
     function numericId(id, prefix) {
         const value = String(id);
+
         if (!value.startsWith(prefix)) {
             throw new Error("Invalid record ID.");
         }
 
         const number = Number(value.slice(prefix.length));
+
         if (!Number.isSafeInteger(number) || number < 1) {
             throw new Error("Invalid record ID.");
         }
+
         return number;
     }
 
@@ -67,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
         node.classList.add("show");
 
         clearTimeout(toastTimer);
+
         toastTimer = setTimeout(() => {
             node.classList.remove("show");
         }, 3500);
@@ -74,6 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function request(path = "", options = {}) {
         const method = (options.method || "GET").toUpperCase();
+
         const headers = {
             Accept: "application/json",
             ...options.headers
@@ -85,7 +85,9 @@ document.addEventListener("DOMContentLoaded", () => {
             )?.content;
 
             if (!token) {
-                throw new Error("CSRF token missing from Logistics layout.");
+                throw new Error(
+                    "CSRF token missing from Logistics layout."
+                );
             }
 
             headers["Content-Type"] = "application/json";
@@ -118,6 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function loadRiders() {
         if (loading) return;
+
         loading = true;
 
         try {
@@ -146,6 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         modal.classList.add("open");
         modal.setAttribute("aria-hidden", "false");
+
         modal.querySelector(
             "button, input, select, textarea"
         )?.focus();
@@ -164,12 +168,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".rm-modal").forEach(modal => {
         modal.addEventListener("click", event => {
-            if (event.target === modal) closeModals();
+            if (event.target === modal) {
+                closeModals();
+            }
         });
     });
 
     document.addEventListener("keydown", event => {
-        if (event.key === "Escape") closeModals();
+        if (event.key === "Escape") {
+            closeModals();
+        }
     });
 
     function currentItems() {
@@ -183,24 +191,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const filter = $("rmFilter").value;
 
         return currentItems().filter(item => {
-            const searchable = isApplications
-                ? [
-                    item.id,
-                    fullName(item),
-                    item.email,
-                    item.municipality,
-                    item.phone
-                ]
-                : [
-                    item.id,
-                    item.name,
-                    item.email,
-                    item.municipality,
-                    item.phone
-                ];
+            const searchable = [
+                item.id,
+                isApplications ? fullName(item) : item.name,
+                item.email,
+                item.municipality,
+                item.phone,
+                item.jobType
+            ];
 
-            return searchable.join(" ").toLowerCase().includes(query) &&
-                (filter === "All" || item.status === filter);
+            return searchable.join(" ").toLowerCase().includes(query)
+                && (filter === "All" || item.status === filter);
         });
     }
 
@@ -237,31 +238,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
         node.type = "button";
         node.addEventListener("click", callback);
+
         parent.appendChild(node);
     }
 
     function renderStats() {
         if (isApplications) {
             $("rmTotal").textContent = data.applications.length;
+
             $("rmPending").textContent = data.applications.filter(
-                a => a.status === "Pending"
+                item => item.status === "Pending"
             ).length;
+
             $("rmApproved").textContent = data.applications.filter(
-                a => a.status === "Approved"
+                item => item.status === "Approved"
             ).length;
+
             $("rmRejected").textContent = data.applications.filter(
-                a => a.status === "Rejected"
+                item => item.status === "Rejected"
             ).length;
         } else {
             $("rmTotal").textContent = data.riders.length;
+
             $("rmAvailable").textContent = data.riders.filter(
-                r => r.status === "Available"
+                item => item.status === "Available"
             ).length;
+
             $("rmOffline").textContent = data.riders.filter(
-                r => r.status === "Offline"
+                item => item.status === "Offline"
             ).length;
+
             $("rmSuspended").textContent = data.riders.filter(
-                r => r.status === "Suspended"
+                item => item.status === "Suspended"
             ).length;
         }
     }
@@ -272,7 +280,16 @@ document.addEventListener("DOMContentLoaded", () => {
         cell(row, item.id);
         cell(row, fullName(item), item.email);
         cell(row, item.municipality);
-        cell(row, item.vehicle, item.plate);
+
+        cell(
+            row,
+            item.vehicle,
+            [
+                item.plate,
+                item.jobType || "Job type not selected"
+            ].filter(Boolean).join(" · ")
+        );
+
         cell(row, item.submitted);
 
         const statusCell = create("td");
@@ -312,8 +329,18 @@ document.addEventListener("DOMContentLoaded", () => {
         cell(row, item.id);
         cell(row, item.name, item.email);
         cell(row, item.municipality);
-        cell(row, item.vehicle, item.plate);
+
+        cell(
+            row,
+            item.vehicle,
+            [
+                item.plate,
+                item.jobType || "Job type not selected"
+            ].filter(Boolean).join(" · ")
+        );
+
         cell(row, item.phone);
+        cell(row, formatShift(item.shiftStartTime, item.shiftEndTime));
 
         const statusCell = create("td");
         statusCell.appendChild(badge(item.status));
@@ -339,6 +366,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderTable() {
         const filtered = filteredItems();
+
         const pages = Math.max(
             1,
             Math.ceil(filtered.length / PAGE_SIZE)
@@ -371,8 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `Showing ${start + 1}–${start + visible.length} of ${filtered.length}`
             : "Showing 0 records";
 
-        $("rmPageLabel").textContent =
-            `Page ${page} of ${pages}`;
+        $("rmPageLabel").textContent = `Page ${page} of ${pages}`;
 
         $("rmPrev").disabled = page === 1;
         $("rmNext").disabled = page === pages;
@@ -387,11 +414,38 @@ document.addEventListener("DOMContentLoaded", () => {
         const item = create("div", "rm-detail-item");
 
         item.appendChild(create("span", "", label));
-        item.appendChild(
-            create("strong", "", value || "—")
-        );
+        item.appendChild(create("strong", "", value || "—"));
 
         grid.appendChild(item);
+    }
+
+    function renderDocuments(record) {
+        const documents = $("rmDocuments");
+        documents.replaceChildren();
+
+        [
+            ["Driver's license", "licenseDocument"],
+            ["Official receipt (OR)", "orDocument"],
+            ["Certificate of registration (CR)", "crDocument"]
+        ].forEach(([label, key]) => {
+            const card = create("div", "rm-document");
+            const document = record[key];
+
+            card.appendChild(create("strong", "", label));
+
+            if (document && document.path) {
+                const link = create("a", "rm-document-link", document.name || "View file");
+                link.href = document.path;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.setAttribute("aria-label", `View ${label}`);
+                card.appendChild(link);
+            } else {
+                card.appendChild(create("span", "", "Not uploaded"));
+            }
+
+            documents.appendChild(card);
+        });
     }
 
     function showApplication(id) {
@@ -415,6 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ["Municipality", applicant.municipality],
             ["Complete Address", applicant.address],
             ["Vehicle Type", applicant.vehicle],
+            ["Selected Job Type", applicant.jobType || "Not selected"],
             ["Plate Number", applicant.plate],
             ["License Reference", applicant.license],
             ["Date Submitted", applicant.submitted],
@@ -424,29 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
             addDetail(grid, label, value);
         });
 
-        const documents = $("rmDocuments");
-        documents.replaceChildren();
-
-        [
-            "Driver's License",
-            "Valid Identification"
-        ].forEach(name => {
-            const card = create("div", "rm-document");
-
-            card.appendChild(
-                create("strong", "", name)
-            );
-
-            card.appendChild(
-                create(
-                    "span",
-                    "",
-                    "Document not available through this API"
-                )
-            );
-
-            documents.appendChild(card);
-        });
+        renderDocuments(applicant);
 
         $("rmApproveFromDetail").hidden =
             applicant.status !== "Pending";
@@ -462,15 +495,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const applicant = getApplication(id);
 
         if (!applicant || applicant.status !== "Pending") {
-            toast(
-                "This application has already been reviewed.",
-                true
-            );
+            toast("This application has already been reviewed.", true);
             return;
         }
 
         activeId = id;
         decision = nextStatus;
+        const shiftFields = $("rmShiftFields");
+        const shiftStart = $("rmShiftStart");
+        const shiftEnd = $("rmShiftEnd");
+        shiftFields.hidden = nextStatus !== "Approved";
+        shiftStart.required = nextStatus === "Approved";
+        shiftEnd.required = nextStatus === "Approved";
 
         $("rmDecisionTitle").textContent =
             nextStatus === "Approved"
@@ -515,6 +551,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        const shiftStartTime = $("rmShiftStart").value;
+        const shiftEndTime = $("rmShiftEnd").value;
+
+        if (decision === "Approved" && shiftEndTime <= shiftStartTime) {
+            toast("Shift end time must be later than the start time.", true);
+            return;
+        }
+
         const submit = $("rmDecisionSubmit");
         submit.disabled = true;
 
@@ -527,13 +571,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     method: "POST",
                     body: JSON.stringify({
                         status: decision,
-                        remarks
+                        remarks,
+                        shift_start_time: decision === "Approved" ? shiftStartTime : null,
+                        shift_end_time: decision === "Approved" ? shiftEndTime : null
                     })
                 }
             );
 
             closeModals();
-
             toast(result.message || "Application reviewed.");
 
             await loadRiders();
@@ -564,6 +609,8 @@ document.addEventListener("DOMContentLoaded", () => {
             ["Assigned Municipality", rider.municipality],
             ["Address", rider.address],
             ["Vehicle Type", rider.vehicle],
+            ["Selected Job Type", rider.jobType || "Not selected"],
+            ["Assigned Shift", formatShift(rider.shiftStartTime, rider.shiftEndTime)],
             ["Plate Number", rider.plate],
             ["License Reference", rider.license],
             ["Account Status", rider.status],
@@ -573,8 +620,25 @@ document.addEventListener("DOMContentLoaded", () => {
             addDetail(grid, label, value);
         });
 
+        renderDocuments(rider);
+
         closeModals();
         openModal("rmDetailModal");
+    }
+
+    function formatShift(start, end) {
+        if (!start || !end) return "Not set by Logistics";
+
+        const formatTime = value => {
+            const [hourText, minuteText] = String(value).split(":");
+            const hour = Number(hourText);
+            if (!Number.isFinite(hour)) return value;
+            const suffix = hour >= 12 ? "PM" : "AM";
+            const displayHour = hour % 12 || 12;
+            return `${displayHour}:${minuteText || "00"} ${suffix}`;
+        };
+
+        return `${formatTime(start)}–${formatTime(end)}`;
     }
 
     function showStatus(id) {
@@ -608,10 +672,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (status === "Suspended" && !remarks) {
-            toast(
-                "Please enter a reason for suspension.",
-                true
-            );
+            toast("Please enter a reason for suspension.", true);
             return;
         }
 
@@ -662,39 +723,26 @@ document.addEventListener("DOMContentLoaded", () => {
             ? [
                 "ID", "Name", "Email", "Phone",
                 "Municipality", "Vehicle", "Submitted",
-                "Status", "Remarks"
+                "Status", "Job Type", "Remarks"
             ]
             : [
                 "ID", "Name", "Email", "Phone",
                 "Municipality", "Vehicle", "Plate",
-                "Status", "Remarks"
+                "Status", "Job Type", "Remarks"
             ];
 
-        const values = rows.map(item =>
-            isApplications
-                ? [
-                    item.id,
-                    fullName(item),
-                    item.email,
-                    item.phone,
-                    item.municipality,
-                    item.vehicle,
-                    item.submitted,
-                    item.status,
-                    item.remarks
-                ]
-                : [
-                    item.id,
-                    item.name,
-                    item.email,
-                    item.phone,
-                    item.municipality,
-                    item.vehicle,
-                    item.plate,
-                    item.status,
-                    item.remarks
-                ]
-        );
+        const values = rows.map(item => [
+            item.id,
+            isApplications ? fullName(item) : item.name,
+            item.email,
+            item.phone,
+            item.municipality,
+            item.vehicle,
+            isApplications ? item.submitted : item.plate,
+            item.status,
+            item.jobType || "Not selected",
+            item.remarks
+        ]);
 
         const escapeCSV = value => {
             let text = String(value ?? "");
@@ -721,7 +769,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const link = document.createElement("a");
 
         link.href = url;
-
         link.download = isApplications
             ? "lumear-rider-applications.csv"
             : "lumear-rider-list.csv";
@@ -734,8 +781,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         toast("CSV exported successfully.");
     }
-
-    // SHARED EVENT LISTENERS
 
     $("rmSearch").addEventListener("input", () => {
         page = 1;
@@ -782,8 +827,6 @@ document.addEventListener("DOMContentLoaded", () => {
             submitStatus
         );
     }
-
-    // INITIAL MYSQL LOAD
 
     loadRiders();
 });

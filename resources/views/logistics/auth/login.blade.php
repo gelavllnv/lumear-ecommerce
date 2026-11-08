@@ -164,20 +164,6 @@
                 </p>
             </div>
 
-            <a
-                class="google-sign-in"
-                href="{{ route('auth.google', ['role' => 'logistics', 'redirect' => '/logistics/dashboard']) }}"
-            >
-                <span class="google-sign-in-mark" aria-hidden="true">G</span>
-                Continue with Google
-            </a>
-
-            <div class="logistics-auth-divider" aria-hidden="true">
-                <span></span>
-                <small>or sign in with email</small>
-                <span></span>
-            </div>
-
             <form
                 id="logisticsLoginForm"
                 class="logistics-form"

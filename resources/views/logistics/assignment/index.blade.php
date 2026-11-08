@@ -75,7 +75,7 @@
             <div>
                 <p class="da-eyebrow">RIDER OPERATIONS</p>
                 <h2>Rider Availability</h2>
-                <p>Review active riders, service areas, and delivery capacity.</p>
+                <p>Only riders whose registered municipality and province match this hub can receive assignments.</p>
             </div>
             <span class="da-section-pill" id="daRiderTotal">0 riders</span>
         </div>

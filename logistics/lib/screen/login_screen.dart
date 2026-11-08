@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
-import 'dashboard_screen.dart';
+import '../logistics_api.dart';
 import 'forgot_password_screen.dart';
+import 'dashboard_screen.dart';
 
 const Color darkMaroon = Color(0xFF671B1D);
 const Color maroon = Color(0xFF873632);
@@ -18,6 +20,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const String _googleServerClientId =
+      '283451557966-65afnq0eh6gvnace1sladhp8lqsl9d04.apps.googleusercontent.com';
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -40,7 +45,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(milliseconds: 700));
+    try {
+      await LogisticsApi.login(_emailController.text.trim(), _passwordController.text);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+      return;
+    }
 
     if (!mounted) return;
 
@@ -350,11 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
               width: double.infinity,
               height: 54,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const DashboardScreen()),
-                  );
-                },
+                onPressed: _isLoading ? null : _signIn,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: darkMaroon,
                   foregroundColor: Colors.white,
@@ -419,7 +428,7 @@ class _LoginScreenState extends State<LoginScreen> {
               width: double.infinity,
               height: 52,
               child: OutlinedButton(
-                onPressed: _signInWithGoogle,
+                onPressed: _isLoading ? null : _signInWithGoogle,
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: darkMaroon,
@@ -463,20 +472,46 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --------------------------------------------------
-  // Google Sign-In placeholder
-  // --------------------------------------------------
+  Future<void> _signInWithGoogle() async {
+    FocusScope.of(context).unfocus();
+    if (_isLoading) return;
 
-  // Google authentication will be connected to Firebase and Laravel
-  // in the next integration step. This currently displays a placeholder.
-  void _signInWithGoogle() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Google Sign-In is not connected yet. Firebase setup is required.',
-        ),
-      ),
-    );
+    setState(() => _isLoading = true);
+    try {
+      final google = GoogleSignIn.instance;
+      await google.initialize(serverClientId: _googleServerClientId);
+      final account = await google.authenticate();
+      final idToken = account.authentication.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        throw StateError('Google could not verify your account. Please try again.');
+      }
+
+      await LogisticsApi.loginWithGoogle(idToken);
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    } on GoogleSignInException catch (error) {
+      if (!mounted) return;
+      if (error.code != GoogleSignInExceptionCode.canceled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Google sign-in setup needs checking. Confirm the Logistics Android package and SHA-1 are registered with Google, then try again.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   // --------------------------------------------------

@@ -60,6 +60,8 @@ class LogisticsReportsApiController extends Controller
             'rejected',
             'suspended',
             'delivery_delayed',
+            'delivery_delay_reported',
+            'delivery_rescheduled',
             'delivery_failed_attempt' => 'Exception',
 
             default => 'In Progress',

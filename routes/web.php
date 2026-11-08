@@ -27,6 +27,9 @@ use App\Http\Controllers\Logistics\LogisticsWaybillScannerController;
 use App\Http\Controllers\Logistics\LogisticsNotificationController;
 use App\Http\Controllers\Logistics\LogisticsSearchController;
 use App\Http\Controllers\Logistics\LogisticsWalletController;
+use App\Http\Controllers\Logistics\RiderPayrollController;
+use App\Http\Controllers\Logistics\RiderRemittanceController;
+use App\Http\Controllers\RiderTaskController;
 
 // LOGISTICS HEAD ADMIN
 use App\Http\Controllers\Logistics\LogisticsHeadAdminAuthController;
@@ -793,6 +796,66 @@ Route::prefix('logistics')
                 LogisticsWalletController::class,
                 'index'
             ])->name('wallet.index');
+
+            /* Rider handovers and finance use the same rider records as the
+             * assignment workspace, so the web and mobile apps stay in sync. */
+            Route::get('/tasks', [
+                RiderTaskController::class,
+                'page'
+            ])->name('tasks.index');
+
+            Route::get('/tasks/data', [
+                RiderTaskController::class,
+                'index'
+            ])->name('tasks.data');
+
+            Route::post('/tasks', [
+                RiderTaskController::class,
+                'assign'
+            ])->name('tasks.store');
+
+            Route::patch('/tasks/{taskId}', [
+                RiderTaskController::class,
+                'update'
+            ])
+                ->whereNumber('taskId')
+                ->name('tasks.update');
+
+            Route::get('/rider-payroll', [
+                RiderPayrollController::class,
+                'index'
+            ])->name('riders.payroll.index');
+
+            Route::post('/rider-payroll', [
+                RiderPayrollController::class,
+                'store'
+            ])->name('riders.payroll.store');
+
+            Route::get('/remittance', [
+                RiderRemittanceController::class,
+                'index'
+            ])->name('remittance.index');
+
+            Route::post('/remittance/{id}/verify', [
+                RiderRemittanceController::class,
+                'verify'
+            ])
+                ->whereNumber('id')
+                ->name('remittance.verify');
+
+            Route::post('/remittance/{id}/reject', [
+                RiderRemittanceController::class,
+                'reject'
+            ])
+                ->whereNumber('id')
+                ->name('remittance.reject');
+
+            Route::get('/remittance/{id}/receipt', [
+                RiderRemittanceController::class,
+                'receipt'
+            ])
+                ->whereNumber('id')
+                ->name('remittance.receipt');
 
         });
 

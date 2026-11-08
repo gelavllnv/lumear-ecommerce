@@ -120,6 +120,24 @@ document.addEventListener("DOMContentLoaded", () => {
         )].sort();
     }
 
+    function servesDestination(rider, destination) {
+        const riderArea = String(rider.area || "")
+            .split(",")
+            .map(part => part.trim().toLocaleLowerCase())
+            .filter(Boolean);
+        const parcelArea = String(destination || "")
+            .split(",")
+            .map(part => part.trim().toLocaleLowerCase())
+            .filter(Boolean);
+
+        if (!riderArea.length || !parcelArea.length) return false;
+        if (riderArea.join(",") === parcelArea.join(",")) return true;
+
+        return riderArea.length > 1 && parcelArea.length > 1 &&
+            riderArea[riderArea.length - 1] ===
+                parcelArea[parcelArea.length - 1];
+    }
+
     function openModal(id) {
         const modal = $(id);
         if (!modal) return;
@@ -229,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const info = el("div", "da-rider-name");
             info.appendChild(el("strong", "", rider.name));
-            info.appendChild(el("small", "", rider.code || `RDR-${rider.id}`));
+            info.appendChild(el("small", "", rider.id));
             top.appendChild(info);
             top.appendChild(el(
                 "span",
@@ -319,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cell(
             row,
             rider?.name || "Not assigned",
-            rider?.code || "Awaiting rider"
+            rider?.id || "Awaiting rider"
         );
 
         const statusCell = el("td");
@@ -492,12 +510,12 @@ document.addEventListener("DOMContentLoaded", () => {
         placeholder.value = "";
         select.appendChild(placeholder);
 
-        riders.filter(r =>
-            r.area === destinations[0] && r.available
-        ).forEach(r => {
-            const option = el(
-                "option", "", `${r.name} — ${r.code || `RDR-${r.id}`}`
-            );
+        const eligibleRiders = riders.filter(r =>
+            servesDestination(r, destinations[0]) && r.available
+        );
+
+        eligibleRiders.forEach(r => {
+            const option = el("option", "", `${r.name} — ${r.id}`);
             option.value = r.id;
             select.appendChild(option);
         });
@@ -506,7 +524,11 @@ document.addEventListener("DOMContentLoaded", () => {
             "Select a rider to view delivery capacity.";
 
         if (select.options.length === 1) {
-            toast("No available rider serves this destination.", true);
+            toast(
+                "No available Delivery rider is registered to this hub's municipality and covers the parcel destination. " +
+                "Check the rider's hub location, online status, and capacity.",
+                true
+            );
             return;
         }
 
@@ -545,7 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!rider || !targets.length || !rider.available ||
             targets.some(p =>
                 !p ||
-                p.destination !== rider.area ||
+                !servesDestination(rider, p.destination) ||
                 !["Awaiting Assignment", "Assigned"].includes(p.status)
             )) {
             toast("Invalid rider or parcel selection.", true);
@@ -565,10 +587,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (submit) submit.disabled = true;
 
         try {
+            const riderId = Number(
+                String(rider.id).replace(/^RDR-/, "")
+            );
+
             await request("/assign", {
                 method: "POST",
                 body: JSON.stringify({
-                    rider_id: rider.id,
+                    rider_id: riderId,
                     shipment_ids: targets.map(p => p.id),
                     notes: $("daAssignmentNotes").value.trim()
                 })
@@ -643,7 +669,7 @@ document.addEventListener("DOMContentLoaded", () => {
             rows.push([
                 p.tracking, p.recipient, p.contact, p.seller,
                 p.destination, p.type, p.weight, p.batch,
-                rider?.code || "", rider?.name || "", p.status, p.notes
+                p.riderId || "", rider?.name || "", p.status, p.notes
             ]);
         });
 

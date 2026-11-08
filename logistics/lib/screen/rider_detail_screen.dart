@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 
+import '../logistics_api.dart';
+
 const Color darkMaroon = Color(0xFF671B1D);
 const Color maroon = Color(0xFF873632);
 const Color brown = Color(0xFF9E7161);
@@ -40,18 +42,13 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
   /// Documents the reviewer has opened in this session.
   final Set<String> _reviewed = {};
 
-  /// While the real files are not connected yet, show sample documents so the
-  /// review flow can be seen. Set to false once rider data has real files.
-  static const bool _usePlaceholderDocuments = true;
-
   static const List<_DocSpec> _docSpecs = [
     _DocSpec(
       key: 'licenseDocument',
       title: "Driver's license",
       icon: Icons.badge_outlined,
-      allowed: {'png', 'jpg', 'jpeg'},
-      acceptedLabel: 'PNG or JPG',
-      placeholderName: 'drivers_license.png',
+      allowed: {'png', 'jpg', 'jpeg', 'pdf', 'doc', 'docx'},
+      acceptedLabel: 'PNG, JPG, PDF, DOC or DOCX',
     ),
     _DocSpec(
       key: 'orDocument',
@@ -59,7 +56,6 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
       icon: Icons.description_outlined,
       allowed: {'pdf', 'doc', 'docx'},
       acceptedLabel: 'PDF, DOC or DOCX',
-      placeholderName: 'or.pdf',
     ),
     _DocSpec(
       key: 'crDocument',
@@ -67,17 +63,12 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
       icon: Icons.article_outlined,
       allowed: {'pdf', 'doc', 'docx'},
       acceptedLabel: 'PDF, DOC or DOCX',
-      placeholderName: 'cr.pdf',
     ),
   ];
 
   static const Set<String> _imageExts = {'png', 'jpg', 'jpeg', 'webp'};
 
   Map<String, dynamic> get rider => widget.rider;
-
-  /// True when the rider data holds none of the document fields, which means
-  /// the real files are not connected yet.
-  bool get _noDocumentData => !_docSpecs.any((spec) => rider[spec.key] != null);
 
   String get _status => '${rider['status'] ?? 'Unknown'}';
 
@@ -262,7 +253,7 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
 
   _UploadedDoc? _uploadedDoc(String key) {
     final raw = rider[key];
-    if (raw == null) return _placeholderFor(key);
+    if (raw == null) return null;
 
     String path;
     String name = '';
@@ -276,7 +267,7 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
       path = raw.toString().trim();
     }
 
-    if (path.isEmpty) return _placeholderFor(key);
+    if (path.isEmpty) return null;
 
     if (name.isEmpty) {
       final clean = path.split('?').first.split('#').first;
@@ -287,18 +278,6 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
     if (ext.isEmpty) ext = _extensionOf(path);
 
     return _UploadedDoc(path: path, name: name, ext: ext);
-  }
-
-  _UploadedDoc? _placeholderFor(String key) {
-    if (!_usePlaceholderDocuments || !_noDocumentData) return null;
-
-    final spec = _docSpecs.firstWhere((s) => s.key == key);
-    return _UploadedDoc(
-      path: '',
-      name: spec.placeholderName,
-      ext: _extensionOf(spec.placeholderName),
-      isPlaceholder: true,
-    );
   }
 
   _DocStatus _statusOf(_DocSpec spec, _UploadedDoc? doc) {
@@ -343,19 +322,18 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
 
   Future<void> _reviewDocument(_DocSpec spec, _UploadedDoc doc) async {
     try {
-      if (doc.isPlaceholder) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _PlaceholderDocumentViewer(
-              title: spec.title,
-              fileName: doc.name,
-              isCard: _imageExts.contains(doc.ext),
-              holderName: _value('name', 'Rider'),
-            ),
-          ),
-        );
-      } else if (_imageExts.contains(doc.ext)) {
-        if (!doc.isRemote && !await File(doc.path).exists()) {
+      var filePath = doc.path;
+      if (filePath.startsWith('/logistics/')) {
+        final bytes = await LogisticsApi.downloadRiderDocument(filePath);
+        final safeName = '${rider['id']}_${spec.key}_'
+            '${DateTime.now().millisecondsSinceEpoch}.${doc.ext}';
+        final file = File('${Directory.systemTemp.path}${Platform.pathSeparator}$safeName');
+        await file.writeAsBytes(bytes, flush: true);
+        filePath = file.path;
+      }
+
+      if (_imageExts.contains(doc.ext)) {
+        if (!doc.isRemote && !await File(filePath).exists()) {
           _toast('File not found.');
           return;
         }
@@ -366,18 +344,18 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
             builder: (_) => _DocumentImageViewer(
               title: spec.title,
               fileName: doc.name,
-              path: doc.path,
+              path: filePath,
               isRemote: doc.isRemote,
             ),
           ),
         );
       } else if (!doc.isRemote) {
-        if (!await File(doc.path).exists()) {
+        if (!await File(filePath).exists()) {
           _toast('File not found.');
           return;
         }
 
-        final result = await OpenFilex.open(doc.path);
+        final result = await OpenFilex.open(filePath);
 
         if (result.type == ResultType.noAppToOpen) {
           _toast('No app found to open .${doc.ext} files.');
@@ -388,8 +366,7 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
           return;
         }
       } else {
-        // TODO: open online PDF / Word files (for example with url_launcher).
-        _toast('Opening online PDF and Word files is not connected yet.');
+        _toast('Unable to open this document format.');
         return;
       }
 
@@ -934,10 +911,6 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
     final reviewedCount = _docSpecs
         .where((spec) => _reviewed.contains(spec.key))
         .length;
-    final showingSamples = _docSpecs.any(
-      (spec) => _uploadedDoc(spec.key)?.isPlaceholder ?? false,
-    );
-
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -948,34 +921,6 @@ class _RiderDetailScreenState extends State<RiderDetailScreen> {
             '$reviewedCount of ${_docSpecs.length} reviewed',
             style: const TextStyle(color: mutedColor, fontSize: 12),
           ),
-          if (showingSamples) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: infoBlue.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded, color: infoBlue, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Sample documents for now. The rider\'s real files will '
-                      'appear here once they are connected.',
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 14),
           for (var i = 0; i < _docSpecs.length; i++) ...[
             if (i > 0) const SizedBox(height: 12),
@@ -1258,7 +1203,6 @@ class _DocSpec {
   final IconData icon;
   final Set<String> allowed;
   final String acceptedLabel;
-  final String placeholderName;
 
   const _DocSpec({
     required this.key,
@@ -1266,7 +1210,6 @@ class _DocSpec {
     required this.icon,
     required this.allowed,
     required this.acceptedLabel,
-    required this.placeholderName,
   });
 }
 
@@ -1274,13 +1217,11 @@ class _UploadedDoc {
   final String path;
   final String name;
   final String ext;
-  final bool isPlaceholder;
 
   const _UploadedDoc({
     required this.path,
     required this.name,
     required this.ext,
-    this.isPlaceholder = false,
   });
 
   bool get isRemote =>
@@ -1369,204 +1310,6 @@ class _DocumentImageViewer extends StatelessWidget {
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stack) => _error(),
                   ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Placeholder preview (used until real files are connected)
-// -----------------------------------------------------------------------------
-
-class _PlaceholderDocumentViewer extends StatelessWidget {
-  final String title;
-  final String fileName;
-  final bool isCard;
-  final String holderName;
-
-  const _PlaceholderDocumentViewer({
-    required this.title,
-    required this.fileName,
-    required this.isCard,
-    required this.holderName,
-  });
-
-  Widget _bar(double factor, {double height = 8, Color color = borderColor}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: FractionallySizedBox(
-        widthFactor: factor,
-        alignment: Alignment.centerLeft,
-        child: Container(
-          height: height,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _header() {
-    return Container(
-      height: 40,
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      alignment: Alignment.centerLeft,
-      color: darkMaroon,
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
-  Widget _licenseBody() {
-    return Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 72,
-            height: 90,
-            decoration: BoxDecoration(
-              color: cream,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor),
-            ),
-            child: const Icon(Icons.person_rounded, color: brown, size: 40),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  holderName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: darkMaroon,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _bar(0.9),
-                _bar(0.7),
-                _bar(0.8),
-                _bar(0.5),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pageBody() {
-    const lines = [1.0, 0.92, 1.0, 0.7, 1.0, 0.95, 0.6, 1.0, 0.85, 0.9, 0.55];
-    return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _bar(0.45, height: 12, color: brown.withValues(alpha: 0.5)),
-          const SizedBox(height: 6),
-          for (final f in lines) _bar(f),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E1413),
-      appBar: AppBar(
-        backgroundColor: darkMaroon,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            Text(
-              fileName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: warningOrange.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Placeholder preview',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AspectRatio(
-                    aspectRatio: isCard ? 1.6 : 0.74,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        color: paleCream,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _header(),
-                            Expanded(
-                              child: isCard ? _licenseBody() : _pageBody(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No actual file is attached yet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),

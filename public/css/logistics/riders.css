@@ -190,7 +190,7 @@
 .rm-toolbar select { width: 175px; }
 
 .rm-toolbar input, .rm-toolbar select,
-.rm-dialog select, .rm-dialog textarea {
+.rm-dialog select, .rm-dialog textarea, .rm-dialog input[type="time"] {
     min-height: 42px;
     padding: 10px 13px;
     border: 1px solid var(--rm-border);
@@ -436,6 +436,15 @@
 
 .rm-document span { color: var(--rm-muted); font-size: 10px; }
 
+.rm-document-link {
+    display: inline-flex;
+    color: var(--rm-accent, #873632);
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
+}
+
 .rm-label {
     display: block;
     margin-bottom: 9px;
@@ -445,8 +454,12 @@
 }
 
 .rm-label-spaced { margin-top: 17px; }
-.rm-dialog select, .rm-dialog textarea { width: 100%; }
+.rm-dialog select, .rm-dialog textarea, .rm-dialog input[type="time"] { width: 100%; }
 .rm-dialog textarea { resize: vertical; }
+.rm-shift-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 10px; }
+.rm-shift-fields .rm-label { margin: 0; }
+.rm-shift-fields input { display: block; margin-top: 7px; }
+.rm-shift-hint { margin: 0 0 16px; color: var(--rm-muted, #8b6f63); font-size: 13px; }
 
 .rm-dialog-footer {
     display: flex;

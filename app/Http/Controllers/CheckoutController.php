@@ -32,22 +32,37 @@ class CheckoutController extends Controller
             'payment_method' => ['required', 'in:cod'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
             'voucher_code' => ['nullable', 'regex:/^[A-Z0-9]{4,12}$/'],
+            'address_id' => ['nullable', 'integer'],
         ]);
         $buyer = $request->user();
+        $idempotencyValue = $request->header('Idempotency-Key', $data['idempotency_key'] ?? '');
+        if ($request->expectsJson() && $idempotencyValue !== '') {
+            $previous = IdempotencyKey::where('scope', 'order.create')->where('key', $idempotencyValue)->first();
+            if ($previous?->order) {
+                abort_unless($previous->order->buyer_id === $buyer->id, 409, 'This checkout key has already been used.');
+                return response()->json(['orders' => [['id' => (string) $previous->order_id, 'reference' => $previous->order->reference]]]);
+            }
+        }
         $cart = $buyer->cart;
         if (! $cart || ! $cart->items()->exists()) {
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages(['checkout' => 'Your bag is empty. Refresh your orders before trying again.']);
+            }
             return redirect()->route('cart')->withErrors(['checkout' => 'Your bag is empty. Add an item before checking out.']);
         }
 
-        $address = $buyer->addresses()->where('is_default', true)->first() ?? $buyer->addresses()->first();
+        $address = isset($data['address_id']) ? $buyer->addresses()->findOrFail($data['address_id']) : ($buyer->addresses()->where('is_default', true)->first() ?? $buyer->addresses()->first());
         if (! $this->hasCompleteAddress($address)) {
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages(['address' => 'Add a complete delivery address before checkout.']);
+            }
             return redirect()->route('buyer.address.create')->withErrors(['address' => 'Add a complete delivery address before placing a COD order.']);
         }
 
         $idempotencyValue = $request->header('Idempotency-Key', $data['idempotency_key'] ?? '');
 
         try {
-            $order = DB::transaction(function () use ($cart, $buyer, $data, $address, $idempotencyValue) {
+            $order = DB::transaction(function () use ($cart, $buyer, $data, $address, $idempotencyValue, $request) {
             $requestHash = hash('sha256', json_encode([
                 'buyer' => $buyer->id,
                 'cart' => $cart->id,
@@ -155,7 +170,11 @@ class CheckoutController extends Controller
                 $flashSale->increment('quantity_sold', $quantity);
             }
 
-            $total = $pricedItems->sum(fn (array $line) => $line['line_total_minor'] - $line['promotion_discount_minor']);
+            $shipping = $items->groupBy(fn (CartItem $item) => $variants->get($item->product_variant_id)->product->seller_id)->count() * 5000;
+            $total = $pricedItems->sum(fn (array $line) => $line['line_total_minor'] - $line['promotion_discount_minor']) + $shipping;
+            if ($request->has('expected_quote.total') && $request->input('expected_quote.total') !== $total) {
+                throw ValidationException::withMessages(['checkout' => 'Your total changed. Review the updated quote before placing your order.']);
+            }
 
             $order = Order::create(['buyer_id' => $buyer->id, 'reference' => 'LM-'.strtoupper(Str::random(10)), 'total_minor' => $total, 'payment_method' => $data['payment_method'], 'payment_status' => 'pending', 'shipping_address' => $address->only(['label', 'recipient', 'phone', 'line1', 'barangay', 'city', 'province', 'postal_code'])]);
             Payment::create(['order_id' => $order->id, 'method' => $data['payment_method'], 'amount_minor' => $total, 'status' => 'pending']);
@@ -164,7 +183,7 @@ class CheckoutController extends Controller
             $items->groupBy(fn (CartItem $item) => $variants->get($item->product_variant_id)->product->seller_id)->each(function ($sellerItems, $sellerId) use ($order, $variants, $buyer, $pricedItems) {
                 $subtotal = $sellerItems->sum(fn (CartItem $item) => $pricedItems[$item->id]['line_total_minor'] - $pricedItems[$item->id]['promotion_discount_minor']);
                 $seller = $variants->get($sellerItems->first()->product_variant_id)->product->seller;
-                $sellerOrder = SellerOrder::create(['order_id' => $order->id, 'seller_id' => $sellerId, 'subtotal_minor' => $subtotal, 'commission_minor' => (int) round($subtotal * $seller->commission_bps / 10000), 'status' => 'pending']);
+                $sellerOrder = SellerOrder::create(['order_id' => $order->id, 'seller_id' => $sellerId, 'subtotal_minor' => $subtotal, 'shipping_fee_minor' => 5000, 'commission_minor' => (int) round($subtotal * $seller->commission_bps / 10000), 'status' => 'pending']);
                 OrderTimeline::create(['order_id' => $order->id, 'seller_order_id' => $sellerOrder->id, 'actor_id' => $buyer->id, 'status' => 'pending', 'event' => 'seller_order_created', 'note' => 'Awaiting seller confirmation.']);
                 foreach ($sellerItems as $item) {
                     $variant = $variants->get($item->product_variant_id);
@@ -187,11 +206,18 @@ class CheckoutController extends Controller
         } catch (\Throwable $exception) {
             report($exception);
 
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'We could not place your order. Refresh your orders before retrying.'], 503);
+            }
+
             return redirect()->route('cart')->withErrors(['checkout' => 'We could not place your COD order right now. Your bag was not changed. Please try again.']);
         }
 
         $this->audit->record($request, 'order.created', $order, null, ['reference' => $order->reference, 'payment_method' => 'cod']);
         $buyer->notify(new MarketplaceAlert('Order placed', "Your order {$order->reference} is confirmed and awaiting seller action.", route('orders')));
+        if ($request->expectsJson()) {
+            return response()->json(['orders' => [['id' => (string) $order->id, 'reference' => $order->reference]]], 201);
+        }
         return redirect()->route('orders')->with('status', "Order {$order->reference} placed successfully.");
     }
 
@@ -213,7 +239,7 @@ class CheckoutController extends Controller
     public function orders(Request $request)
     {
         abort_unless($request->user()->isBuyer(), 403);
-        $orders = $request->user()->orders()->with(['sellerOrders.seller', 'sellerOrders.items.review', 'sellerOrders.shipment.provider', 'sellerOrders.shipment.events', 'timeline'])->latest()->get();
+        $orders = $request->user()->orders()->with(['sellerOrders.seller', 'sellerOrders.items.review', 'sellerOrders.returnRequests', 'sellerOrders.shipment.provider', 'sellerOrders.shipment.events', 'timeline'])->latest()->get();
         return view('orders.index', compact('orders'));
     }
 }

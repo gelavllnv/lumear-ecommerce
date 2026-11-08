@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "In Transit",
         "Out for Delivery",
         "Delivered",
+        "Delay Reported",
         "Delayed",
         "Failed Attempt"
     ];
@@ -136,7 +137,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return [
             "Dispatched",
             "In Transit",
-            "Out for Delivery"
+            "Out for Delivery",
+            "Delay Reported"
         ].includes(status);
     }
 
@@ -146,14 +148,32 @@ document.addEventListener("DOMContentLoaded", () => {
             "In Transit": 50,
             "Out for Delivery": 80,
             "Delivered": 100,
+            "Delay Reported": 50,
             "Delayed": 50,
             "Failed Attempt": 80
         })[status] ?? 0;
     }
 
+    function syncRescheduleFields() {
+        const isRescheduling = $("dmNewStatus").value === "Delayed";
+        const field = $("dmRescheduleField");
+        const input = $("dmRescheduleFor");
+
+        field.hidden = !isRescheduling;
+        input.required = isRescheduling;
+
+        if (isRescheduling) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            input.min = now.toISOString().slice(0, 16);
+        } else {
+            input.value = "";
+        }
+    }
+
     function statusColor(status) {
         if (status === "Delivered") return "green";
-        if (status === "Delayed") return "amber";
+        if (status === "Delayed" || status === "Delay Reported") return "amber";
         if (status === "Failed Attempt") return "red";
         return "blue";
     }
@@ -222,7 +242,9 @@ document.addEventListener("DOMContentLoaded", () => {
             deliveries.filter(d => d.status === "Delivered").length;
 
         $("dmDelayedCount").textContent =
-            deliveries.filter(d => d.status === "Delayed").length;
+            deliveries.filter(d =>
+                ["Delayed", "Delay Reported"].includes(d.status)
+            ).length;
 
         $("dmFailedCount").textContent =
             deliveries.filter(d => d.status === "Failed Attempt").length;
@@ -265,7 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderAlerts() {
         const alerts = deliveries.filter(d =>
-            ["Delayed", "Failed Attempt"].includes(d.status)
+            ["Delayed", "Delay Reported", "Failed Attempt"].includes(d.status)
         );
 
         $("dmAlertCount").textContent = `${alerts.length} alerts`;
@@ -518,7 +540,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 "Delivered", "Delayed", "Failed Attempt"
             ],
             "Delayed": [
-                "In Transit", "Out for Delivery", "Failed Attempt"
+                "In Transit", "Out for Delivery", "Delayed", "Failed Attempt"
+            ],
+            "Delay Reported": [
+                "Delayed", "In Transit", "Out for Delivery", "Failed Attempt"
             ],
             "Failed Attempt": [
                 "Out for Delivery", "Delayed"
@@ -559,6 +584,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         $("dmUpdateNotes").value = "";
+        $("dmRescheduleFor").value = "";
+        syncRescheduleFields();
 
         closeModals();
         openModal("dmUpdateModal");
@@ -570,6 +597,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const d = findDelivery(activeTracking);
         const status = $("dmNewStatus").value;
         const remarks = $("dmUpdateNotes").value.trim();
+        const rescheduledFor = $("dmRescheduleFor").value;
 
         if (!d || !allowedStatuses(d.status).includes(status)) {
             toast("Invalid delivery status change.", true);
@@ -578,6 +606,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (["Delayed", "Failed Attempt"].includes(status) && !remarks) {
             toast("Remarks are required for delivery exceptions.", true);
+            return;
+        }
+
+        if (status === "Delayed" && !rescheduledFor) {
+            toast("Choose the new delivery date and time.", true);
             return;
         }
 
@@ -590,11 +623,19 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             await request(`/monitoring/${d.id}/status`, {
                 method: "POST",
-                body: JSON.stringify({ status, remarks })
+                body: JSON.stringify({
+                    status,
+                    remarks,
+                    ...(status === "Delayed"
+                        ? { rescheduled_for: rescheduledFor }
+                        : {})
+                })
             });
 
             closeModals();
-            toast("Delivery status saved successfully.");
+            toast(status === "Delayed"
+                ? "Delivery rescheduled. The buyer has been notified."
+                : "Delivery status saved successfully.");
             await loadMonitoring();
         } catch (error) {
             toast(error.message, true);
@@ -692,6 +733,7 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     $("dmUpdateForm").addEventListener("submit", saveUpdate);
+    $("dmNewStatus").addEventListener("change", syncRescheduleFields);
     $("dmRefresh").addEventListener("click", loadMonitoring);
     $("dmExport").addEventListener("click", exportCSV);
 

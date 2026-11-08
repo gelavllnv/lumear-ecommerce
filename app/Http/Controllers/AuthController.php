@@ -149,7 +149,7 @@ class AuthController extends Controller
         }
         $this->audit->record($request, 'logistics.registered', $provider, null, ['email' => $provider->user->email]);
 
-        return redirect()->route('logistics.status')->with('status', $verificationMessage);
+        return redirect()->route('logistics.pending')->with('status', $verificationMessage);
     }
 
     public function login(Request $request)
@@ -188,7 +188,37 @@ class AuthController extends Controller
         }
 
         if ($user->isLogistics()) {
-            return redirect()->route('logistics.status');
+            $provider = $user->logisticsProvider;
+
+            if (! $provider) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect()->route('login')->withErrors([
+                    'email' => 'No Logistics provider record was found for this account.',
+                ]);
+            }
+
+            if ($provider->status === 'pending') {
+                return redirect()->route('logistics.pending');
+            }
+
+            if ($provider->status === 'approved') {
+                return redirect()->route('logistics.dashboard');
+            }
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            $message = match ($provider->status) {
+                'rejected' => 'Your Logistics application was rejected.',
+                'suspended' => 'Your Logistics provider account is suspended.',
+                default => 'Your Logistics account is not authorized.',
+            };
+
+            return redirect()->route('login')->withErrors(['email' => $message]);
         }
 
         return $user->isSeller() ? redirect()->route('seller.status') : redirect()->route('shop');

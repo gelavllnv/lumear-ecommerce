@@ -147,8 +147,8 @@
 
     <div class="inc-bottom-note">
         <span class="inc-demo-dot"></span>
-        UI demonstration — parcel data is temporary and is not connected to the
-        Seller, Rider, or Buyer databases.
+        Review the buyer’s delivery address and choose the destination hub
+        manually when assigning a long-distance transfer.
     </div>
 
     {{-- REGISTER PARCEL MODAL --}}

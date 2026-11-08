@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \App\Http\Middleware\EnsurePermission::class,
             'admin.2fa' => \App\Http\Middleware\EnsureAdminTwoFactor::class,
             'rider.api' => \App\Http\Middleware\AuthenticateRiderApi::class,
+            'mobile.api' => \App\Http\Middleware\AuthenticateMobileApi::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

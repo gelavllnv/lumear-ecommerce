@@ -13,16 +13,18 @@ class LogisticsWalletService
     |--------------------------------------------------------------------------
     |
     | General shipping fee: ₱50.00
-    | Logistics commission: 10%
-    | Commission per successful delivery: ₱5.00
+    | Logistics share: 20%
+    | Share per successful delivery: ₱10.00
     |
     | All monetary values are stored in centavos.
     |
     */
 
-    private const SHIPPING_FEE_MINOR = 5000;
+    public const SHIPPING_FEE_MINOR = 5000;
 
-    private const COMMISSION_BASIS_POINTS = 1000;
+    public const LOGISTICS_SHARE_MINOR = 1000;
+
+    private const COMMISSION_BASIS_POINTS = 2000;
 
     /*
     |--------------------------------------------------------------------------
@@ -133,17 +135,14 @@ class LogisticsWalletService
             |--------------------------------------------------------------------------
             |
             | ₱50 shipping fee = 5000 centavos
-            | 10% commission = 500 centavos
-            | ₱5.00 per successful delivery
+            | 20% commission = 1000 centavos
+            | ₱10.00 per successful delivery
             |
             */
 
             $shippingFeeMinor = self::SHIPPING_FEE_MINOR;
 
-            $commissionMinor = intdiv(
-                $shippingFeeMinor * self::COMMISSION_BASIS_POINTS,
-                10000
-            );
+            $commissionMinor = self::LOGISTICS_SHARE_MINOR;
 
             /*
             |--------------------------------------------------------------------------

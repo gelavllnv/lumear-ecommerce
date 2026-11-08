@@ -1,7 +1,10 @@
-/* =====================================================
-   LUMEAR LOGISTICS — WAYBILL QR SCANNER
-   Camera scanning + Laravel shipment verification
-   ===================================================== */
+/*
+|--------------------------------------------------------------------------
+| LUMEAR LOGISTICS — WAYBILL SCANNER
+|--------------------------------------------------------------------------
+| QR detection, manual entry, server verification,
+| duplicate protection, and session history.
+*/
 
 document.addEventListener("DOMContentLoaded", () => {
     "use strict";
@@ -24,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function notify(message, isError = false) {
         const element = $("lqsToast");
-
         element.textContent = message;
         element.classList.toggle("error", isError);
         element.classList.add("show");
@@ -38,7 +40,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function setError(message = "") {
         const element = $("lqsError");
-
         element.hidden = !message;
         element.textContent = message;
     }
@@ -68,26 +69,54 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    function validateCode(value) {
+        const code = String(value ?? "").trim();
+
+        if (!code || code.length > 255) {
+            throw new Error(
+                "A valid tracking code is required."
+            );
+        }
+
+        if (/[\u0000-\u001F\u007F]/.test(code)) {
+            throw new Error(
+                "Tracking code contains invalid characters."
+            );
+        }
+
+        return code;
+    }
+
     function extractTrackingCode(rawValue) {
-        const raw = String(rawValue || "").trim();
+        const raw = String(rawValue ?? "").trim();
 
         if (!raw || raw.length > 2048) {
             throw new Error("Invalid QR code content.");
         }
 
-        // A plain tracking code is the preferred format.
         if (!/^https?:\/\//i.test(raw)) {
-            return raw;
+            return validateCode(raw);
         }
 
-        // Some waybills encode a tracking URL instead.
-        // Accept only explicitly named tracking parameters.
         let url;
 
         try {
             url = new URL(raw);
         } catch {
             throw new Error("Invalid waybill URL.");
+        }
+
+        // Do not accept arbitrary websites as waybill URLs.
+        const allowedHosts = [
+            window.location.hostname.toLowerCase()
+        ];
+
+        if (!allowedHosts.includes(
+            url.hostname.toLowerCase()
+        )) {
+            throw new Error(
+                "This QR code is not from the current LUMEAR website."
+            );
         }
 
         const keys = [
@@ -100,16 +129,139 @@ document.addEventListener("DOMContentLoaded", () => {
             const value = url.searchParams.get(key);
 
             if (value && value.trim()) {
-                return value.trim();
+                return validateCode(value);
             }
         }
 
         throw new Error(
-            "The QR code contains a URL without a recognized tracking parameter."
+            "QR code does not contain a recognized tracking number."
         );
     }
 
-    async function lookupTracking(rawValue) {
+    function resetResult() {
+        $("lqsResult").hidden = true;
+        $("lqsEmpty").hidden = false;
+    }
+
+    function renderShipment(shipment) {
+        $("lqsEmpty").hidden = true;
+        $("lqsResult").hidden = false;
+
+        $("lqsResultTracking").textContent =
+            shipment.tracking_code || "—";
+
+        $("lqsResultId").textContent =
+            shipment.id ?? "—";
+
+        $("lqsResultStatus").textContent =
+            shipment.status || "Unknown";
+
+        $("lqsResultRider").textContent =
+            shipment.rider_id ?? "Not assigned";
+
+        $("lqsResultOrder").textContent =
+            shipment.seller_order_id ?? "—";
+
+        $("lqsResultCreated").textContent =
+            formatDate(shipment.created_at);
+
+        $("lqsResultUpdated").textContent =
+            formatDate(shipment.updated_at);
+
+        const verified = root.querySelector(
+            ".lqs-verified strong"
+        );
+
+        if (verified) {
+            verified.textContent =
+                "Waybill Verified";
+        }
+
+        const verifiedMessage = root.querySelector(
+            ".lqs-verified p"
+        );
+
+        if (verifiedMessage) {
+            verifiedMessage.textContent =
+                shipment.ready_for_sorting
+                    ? "Parcel verified and ready for sorting."
+                    : "Parcel verified in LUMEAR records.";
+        }
+
+        const readonly = root.querySelector(
+            ".lqs-readonly"
+        );
+
+        if (readonly) {
+            readonly.textContent =
+                shipment.ready_for_sorting
+                    ? "Verification saved. Open Parcel Sorting to continue processing this parcel."
+                    : "Verification saved. Check the parcel's current sorting stage.";
+        }
+    }
+
+    function addHistory(shipment) {
+        history = history.filter(
+            item =>
+                item.tracking_code !==
+                shipment.tracking_code
+        );
+
+        history.unshift({
+            tracking_code: shipment.tracking_code,
+            status: shipment.ready_for_sorting
+                ? "Ready for Sorting"
+                : "Verified",
+            scanned_at: new Date()
+        });
+
+        history = history.slice(0, 15);
+
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const container = $("lqsHistory");
+        container.replaceChildren();
+
+        if (!history.length) {
+            const empty = document.createElement("div");
+            empty.className = "lqs-history-empty";
+            empty.textContent = "No waybills verified yet.";
+            container.appendChild(empty);
+            return;
+        }
+
+        history.forEach(item => {
+            const row = document.createElement("div");
+            row.className = "lqs-history-row";
+
+            const information = document.createElement("div");
+
+            const code = document.createElement("strong");
+            code.textContent = item.tracking_code;
+
+            const detail = document.createElement("span");
+            detail.textContent =
+                `${item.status} • ${formatDate(item.scanned_at)}`;
+
+            information.append(code, detail);
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "lqs-btn lqs-btn-outline";
+            button.textContent = "View";
+
+            button.addEventListener("click", () => {
+                lookupTracking(item.tracking_code, "manual");
+            });
+
+            row.append(information, button);
+            container.appendChild(row);
+        });
+    }
+
+    async function lookupTracking(rawValue, method = "manual") {
         if (busy) return;
 
         let trackingCode;
@@ -117,17 +269,14 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             trackingCode = extractTrackingCode(rawValue);
         } catch (error) {
+            resetResult();
             setError(error.message);
             notify(error.message, true);
             return;
         }
 
-        if (trackingCode.length > 255) {
-            setError("Tracking code is too long.");
-            return;
-        }
-
         busy = true;
+        resetResult();
         setError("");
 
         const searchButton = $("lqsSearch");
@@ -156,23 +305,27 @@ document.addEventListener("DOMContentLoaded", () => {
                     "X-CSRF-TOKEN": token
                 },
                 body: JSON.stringify({
-                    tracking_code: trackingCode
+                    tracking_code: trackingCode,
+                    verification_method: method
                 })
             });
 
             const result = await response.json()
                 .catch(() => ({}));
 
-            if (!response.ok) {
-                throw new Error(
-                    result.message ||
-                    `Lookup failed (${response.status}).`
-                );
-            }
+            if (
+                !response.ok
+                || result.success !== true
+                || !result.shipment
+                || result.shipment.waybill_verified !== true
+            ) {
+                const validationMessage =
+                    result.errors?.tracking_code?.[0];
 
-            if (!result.shipment) {
                 throw new Error(
-                    "Shipment details were not returned."
+                    validationMessage
+                    || result.message
+                    || `Verification failed (${response.status}).`
                 );
             }
 
@@ -182,11 +335,12 @@ document.addEventListener("DOMContentLoaded", () => {
             $("lqsTrackingInput").value =
                 result.shipment.tracking_code;
 
-            notify("Waybill verified successfully.");
+            notify(
+                result.message ||
+                "Waybill verified successfully."
+            );
         } catch (error) {
-            $("lqsResult").hidden = true;
-            $("lqsEmpty").hidden = false;
-
+            resetResult();
             setError(error.message);
             notify(error.message, true);
         } finally {
@@ -194,90 +348,6 @@ document.addEventListener("DOMContentLoaded", () => {
             searchButton.disabled = false;
             searchButton.textContent = originalText;
         }
-    }
-
-    function renderShipment(shipment) {
-        $("lqsEmpty").hidden = true;
-        $("lqsResult").hidden = false;
-
-        $("lqsResultTracking").textContent =
-            shipment.tracking_code || "—";
-
-        $("lqsResultId").textContent =
-            shipment.id ?? "—";
-
-        $("lqsResultStatus").textContent =
-            shipment.status || "Unknown";
-
-        $("lqsResultRider").textContent =
-            shipment.rider_id ?? "Not assigned";
-
-        $("lqsResultOrder").textContent =
-            shipment.seller_order_id ?? "—";
-
-        $("lqsResultCreated").textContent =
-            formatDate(shipment.created_at);
-
-        $("lqsResultUpdated").textContent =
-            formatDate(shipment.updated_at);
-    }
-
-    function addHistory(shipment) {
-        history = history.filter(
-            item => item.tracking_code !==
-                shipment.tracking_code
-        );
-
-        history.unshift({
-            tracking_code: shipment.tracking_code,
-            status: shipment.status || "Unknown",
-            scanned_at: new Date()
-        });
-
-        history = history.slice(0, 15);
-
-        renderHistory();
-    }
-
-    function renderHistory() {
-        const container = $("lqsHistory");
-        container.replaceChildren();
-
-        if (!history.length) {
-            const empty = document.createElement("div");
-            empty.className = "lqs-history-empty";
-            empty.textContent = "No waybills scanned yet.";
-            container.appendChild(empty);
-            return;
-        }
-
-        history.forEach(item => {
-            const row = document.createElement("div");
-            row.className = "lqs-history-row";
-
-            const information = document.createElement("div");
-
-            const code = document.createElement("strong");
-            code.textContent = item.tracking_code;
-
-            const detail = document.createElement("span");
-            detail.textContent =
-                `${item.status} • ${formatDate(item.scanned_at)}`;
-
-            information.append(code, detail);
-
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "lqs-btn lqs-btn-outline";
-            button.textContent = "View";
-
-            button.addEventListener("click", () => {
-                lookupTracking(item.tracking_code);
-            });
-
-            row.append(information, button);
-            container.appendChild(row);
-        });
     }
 
     async function startCamera() {
@@ -305,7 +375,12 @@ document.addEventListener("DOMContentLoaded", () => {
         setCameraButtons();
 
         try {
-            scanner = new Html5Qrcode("lqsReader");
+            scanner = new Html5Qrcode("lqsReader", {
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.QR_CODE
+                ],
+                verbose: false
+            });
 
             await scanner.start(
                 { facingMode: "environment" },
@@ -317,12 +392,20 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 },
                 decodedText => {
+                    // This callback only receives decoded QR data.
+                    // Empty frames do not trigger verification.
+                    if (
+                        typeof decodedText !== "string"
+                        || !decodedText.trim()
+                    ) {
+                        return;
+                    }
+
                     const now = Date.now();
 
-                    // Ignore repeated frames of the same code.
                     if (
-                        decodedText === lastScan &&
-                        now - lastScanTime < 4000
+                        decodedText === lastScan
+                        && now - lastScanTime < 5000
                     ) {
                         return;
                     }
@@ -332,11 +415,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     lastScan = decodedText;
                     lastScanTime = now;
 
-                    lookupTracking(decodedText);
+                    lookupTracking(decodedText, "qr");
                 },
                 () => {
-                    // Normal frames without a QR code
-                    // do not need error messages.
+                    // No QR decoded in this frame.
+                    // Keep scanning silently.
                 }
             );
 
@@ -345,14 +428,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
             notify("Camera scanner started.");
         } catch (error) {
+            if (scanner) {
+                try {
+                    scanner.clear();
+                } catch (_) {}
+            }
+
             scanner = null;
+            running = false;
+            $("lqsPlaceholder").hidden = false;
 
             setError(
                 "Unable to access the camera. Check browser permissions."
             );
 
             notify(
-                "Camera unavailable. You can use manual lookup.",
+                "Camera unavailable. You can enter the waybill manually.",
                 true
             );
         } finally {
@@ -400,7 +491,8 @@ document.addEventListener("DOMContentLoaded", () => {
             event.preventDefault();
 
             lookupTracking(
-                $("lqsTrackingInput").value
+                $("lqsTrackingInput").value,
+                "manual"
             );
         }
     );

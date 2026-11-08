@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../logistics_api.dart';
 import 'login_screen.dart';
 
 const Color darkMaroon = Color(0xFF671B1D);
@@ -8,9 +9,6 @@ const Color brown = Color(0xFF9E7161);
 const Color cream = Color(0xFFFFF8E7);
 const Color paleCream = Color(0xFFFFFDF5);
 const Color borderColor = Color(0xFFE8D6C3);
-
-// Demo verification code only. No API or email sending yet.
-const String hardcodedVerificationCode = '1234';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -32,6 +30,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _codeVerified = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String? _resetToken;
 
   @override
   void dispose() {
@@ -42,25 +41,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  String? _validateGmail(String? value) {
-    final email = value?.trim().toLowerCase() ?? '';
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
 
     if (email.isEmpty) {
-      return 'Please enter your Gmail address.';
+      return 'Please enter your email address.';
     }
 
-    final gmailPattern = RegExp(r'^[a-z0-9][a-z0-9._%+-]*@gmail\.com$');
-
-    if (!gmailPattern.hasMatch(email)) {
-      return 'Please use a valid @gmail.com address.';
-    }
-
-    final username = email.split('@').first;
-
-    if (username.startsWith('.') ||
-        username.endsWith('.') ||
-        username.contains('..')) {
-      return 'Please enter a valid Gmail address.';
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      return 'Please enter a valid email address.';
     }
 
     return null;
@@ -72,42 +61,61 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-
-    // Demo only: no email is actually sent.
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-      _emailSubmitted = true;
-    });
+    try {
+      await LogisticsApi.sendPasswordResetCode(_emailController.text);
+      if (!mounted) return;
+      setState(() {
+        _emailSubmitted = true;
+        _codeVerified = false;
+        _resetToken = null;
+      });
+      _showMessage(
+        'If a Logistics account exists for this email, a reset code was sent.',
+      );
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _verifyCode() {
+  Future<void> _verifyCode() async {
     FocusScope.of(context).unfocus();
 
-    if (_codeController.text.trim() != hardcodedVerificationCode) {
+    final code = _codeController.text.trim();
+    if (!RegExp(r'^\d{4}$').hasMatch(code)) {
       _showMessage(
-        'Incorrect verification code. Please try again.',
+        'Enter the 4-digit code from your email.',
         isError: true,
       );
       return;
     }
 
-    setState(() {
-      _codeVerified = true;
-      _codeController.clear();
-    });
-
-    _showMessage('Verification successful!');
+    setState(() => _isLoading = true);
+    try {
+      final resetToken = await LogisticsApi.verifyPasswordResetCode(
+        email: _emailController.text,
+        code: code,
+      );
+      if (!mounted) return;
+      setState(() {
+        _resetToken = resetToken;
+        _codeVerified = true;
+        _codeController.clear();
+      });
+      _showMessage('Email verified. You can now set a new password.');
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _resetPassword() {
+  Future<void> _resetPassword() async {
     FocusScope.of(context).unfocus();
 
-    if (_passwordController.text.length < 6) {
-      _showMessage('Password must be at least 6 characters.', isError: true);
+    if (_passwordController.text.length < 8) {
+      _showMessage('Password must be at least 8 characters.', isError: true);
       return;
     }
 
@@ -116,13 +124,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    // Demo only: this does not change a real account password.
-    _showMessage('Password reset successful!');
+    final resetToken = _resetToken;
+    if (resetToken == null) {
+      _showMessage('Verify your email code first.', isError: true);
+      return;
+    }
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+    setState(() => _isLoading = true);
+    try {
+      await LogisticsApi.resetPassword(
+        email: _emailController.text,
+        resetToken: resetToken,
+        password: _passwordController.text,
+      );
+      if (!mounted) return;
+      _showMessage('Password reset successful. Please sign in.');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showMessage(String message, {bool isError = false}) {
@@ -313,12 +338,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               eyebrow: 'ACCOUNT RECOVERY',
               title: 'Forgot password?',
               description:
-                  'Enter the Gmail address associated with your '
+                  'Enter the email address associated with your '
                   'Lumear Logistics account to continue.',
             ),
             const SizedBox(height: 28),
             const Text(
-              'Gmail address',
+              'Email address',
               style: TextStyle(
                 color: darkMaroon,
                 fontSize: 12,
@@ -328,10 +353,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             const SizedBox(height: 8),
             _buildTextField(
               controller: _emailController,
-              hintText: 'yourname@gmail.com',
+              hintText: 'you@example.com',
               icon: Icons.mail_outline,
               keyboardType: TextInputType.emailAddress,
-              validator: _validateGmail,
+              validator: _validateEmail,
             ),
             const SizedBox(height: 24),
             _buildPrimaryButton(
@@ -343,7 +368,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             const SizedBox(height: 16),
             const Center(
               child: Text(
-                'Demo mode: no email will be sent.',
+                'We will email you a one-time verification code.',
                 style: TextStyle(color: brown, fontSize: 11),
               ),
             ),
@@ -364,8 +389,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             eyebrow: 'EMAIL VERIFICATION',
             title: 'Enter your code',
             description:
-                'A verification code is required to continue. '
-                'For this demo, use the hardcoded 4-digit code.',
+                'Enter the 4-digit verification code sent to your email. '
+                'The code expires after 10 minutes.',
           ),
           const SizedBox(height: 22),
           Container(
@@ -428,6 +453,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             label: 'Verify Code',
             icon: Icons.verified_outlined,
             onPressed: _verifyCode,
+            loading: _isLoading,
           ),
           const SizedBox(height: 10),
           Center(
@@ -435,11 +461,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               onPressed: () {
                 setState(() {
                   _emailSubmitted = false;
+                  _codeVerified = false;
+                  _resetToken = null;
                   _codeController.clear();
                 });
               },
               child: const Text(
-                'Change Gmail address',
+                'Change email address',
                 style: TextStyle(
                   color: maroon,
                   fontSize: 12,
@@ -448,10 +476,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
             ),
           ),
-          const Center(
-            child: Text(
-              'Demo verification code: 1234',
-              style: TextStyle(color: brown, fontSize: 11),
+          Center(
+            child: TextButton(
+              onPressed: _isLoading ? null : _confirmEmail,
+              child: const Text(
+                'Resend verification code',
+                style: TextStyle(
+                  color: maroon,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -469,8 +504,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             title: 'Reset password',
             description:
                 'Verification complete. Enter your new password '
-                'below. This is a UI demo and will not update a '
-                'real account yet.',
+                'with at least 8 characters.',
           ),
           const SizedBox(height: 26),
           const Text(
@@ -484,7 +518,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           const SizedBox(height: 8),
           _buildTextField(
             controller: _passwordController,
-            hintText: 'At least 6 characters',
+            hintText: 'At least 8 characters',
             icon: Icons.lock_outline,
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
@@ -535,6 +569,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             label: 'Save New Password',
             icon: Icons.check_circle_outline,
             onPressed: _resetPassword,
+            loading: _isLoading,
           ),
           const SizedBox(height: 12),
           _backToLoginButton(),

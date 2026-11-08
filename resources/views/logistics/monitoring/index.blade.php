@@ -124,6 +124,7 @@
                 <option value="In Transit">In Transit</option>
                 <option value="Out for Delivery">Out for Delivery</option>
                 <option value="Delivered">Delivered</option>
+                <option value="Delay Reported">Delay Reported</option>
                 <option value="Delayed">Delayed</option>
                 <option value="Failed Attempt">Failed Attempt</option>
             </select>
@@ -196,8 +197,8 @@
 
     <div class="dm-demo-note">
         <span></span>
-        Frontend demonstration only. Delivery status updates are temporary
-        and are not yet synchronized with MySQL or the Flutter Rider app.
+        Reschedule notices go to the buyer and assigned rider. Delivery
+        updates are recorded on the parcel timeline.
     </div>
 
     {{-- DETAILS MODAL --}}
@@ -256,10 +257,16 @@
                     </select>
                 </div>
 
+                <div class="dm-field" id="dmRescheduleField" hidden>
+                    <label for="dmRescheduleFor">New delivery date and time *</label>
+                    <input id="dmRescheduleFor" type="datetime-local">
+                    <small>The same rider stays assigned to this parcel.</small>
+                </div>
+
                 <div class="dm-field">
                     <label for="dmUpdateNotes">Status Remarks</label>
                     <textarea id="dmUpdateNotes" rows="3" maxlength="500"
-                              placeholder="Optional remarks about this delivery"></textarea>
+                              placeholder="Explain the delay or delivery issue"></textarea>
                 </div>
 
                 <div class="dm-dialog-footer">

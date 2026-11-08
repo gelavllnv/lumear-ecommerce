@@ -137,47 +137,6 @@ class LogisticsAuthController extends Controller
         return redirect()->route('logistics.dashboard');
     }
 
-    public function status(Request $request)
-    {
-        $user = $request->user();
-        abort_unless($user?->isLogistics(), 403);
-
-        $provider = DB::table('logistics_providers')
-            ->where('user_id', $user->id)
-            ->first();
-
-        if (! $provider) {
-            Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return redirect()->route('login')->withErrors([
-                'email' => 'No Logistics provider record was found for this account.',
-            ]);
-        }
-
-        return match ($provider->status) {
-            'approved' => redirect()->route('logistics.dashboard'),
-            'pending' => redirect()->route('logistics.pending'),
-            'rejected', 'suspended' => $this->denyStatusAccess(
-                $request,
-                "Your Logistics provider account is {$provider->status}."
-            ),
-            default => $this->denyStatusAccess(
-                $request,
-                'Your Logistics provider account is not authorized.'
-            ),
-        };
-    }
-
-    private function denyStatusAccess(Request $request, string $message)
-    {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return redirect()->route('login')->withErrors(['email' => $message]);
-    }
     public function logout(Request $request)
     {
         Auth::logout();
