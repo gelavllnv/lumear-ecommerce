@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../logistics_api.dart';
 import 'rider_detail_screen.dart' as detail;
 
 const Color darkMaroon = Color(0xFF671B1D);
@@ -190,6 +191,9 @@ class _RidersScreenState extends State<RidersScreen> {
   String selectedUpgradeStatus = 'Pending';
 
   final TextEditingController _searchController = TextEditingController();
+  bool _isLoadingRiders = true;
+  String? _riderLoadError;
+  bool _isUpdatingRider = false;
 
   // Demo upgrade requests (local only). Replace with API data later.
   final List<_UpgradeRequest> _upgradeRequests = [];
@@ -301,6 +305,8 @@ class _RidersScreenState extends State<RidersScreen> {
   @override
   void initState() {
     super.initState();
+    riders.clear();
+    _loadRiders();
 
     // Demo data so the Upgrades button has something to show.
     // The file paths below are fake, so images show a placeholder.
@@ -378,6 +384,67 @@ class _RidersScreenState extends State<RidersScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRiders() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingRiders = true;
+        _riderLoadError = null;
+      });
+    }
+
+    try {
+      final response = await LogisticsApi.request('GET', '/logistics/riders');
+      final applications = (response['applications'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map((application) {
+            final status = application['status']?.toString() ?? 'Pending';
+            final applicationId = int.tryParse(
+              application['id']?.toString().replaceAll(RegExp(r'\D'), '') ?? '',
+            );
+
+            return <String, dynamic>{
+              ...application,
+              'applicationId': applicationId,
+              'name': '${application['firstName'] ?? ''} ${application['lastName'] ?? ''}'.trim(),
+              'status': status == 'Pending'
+                  ? 'Pending Approval'
+                  : status == 'Rejected'
+                  ? 'Declined'
+                  : status,
+              'vehicle': application['vehicle'] ?? 'Vehicle not provided',
+              'plateNumber': application['plate'] ?? '',
+              'licenseNumber': application['license'] ?? '',
+              'joined': application['submitted'] ?? '',
+            };
+          });
+      final registeredRiders = (response['riders'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map((rider) => <String, dynamic>{
+            ...rider,
+            'status': rider['status'] == 'Offline' ? 'Inactive' : rider['status'],
+            'vehicle': rider['vehicle'] ?? 'Vehicle not provided',
+            'plateNumber': rider['plate'] ?? '',
+            'licenseNumber': rider['license'] ?? '',
+            'area': rider['municipality'] ?? rider['address'] ?? 'Not provided',
+          });
+
+      if (!mounted) return;
+      setState(() {
+        riders
+          ..clear()
+          ..addAll(applications)
+          ..addAll(registeredRiders);
+        _isLoadingRiders = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingRiders = false;
+        _riderLoadError = error.toString();
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -559,25 +626,71 @@ class _RidersScreenState extends State<RidersScreen> {
     required String title,
     required String message,
     required String confirmText,
+    String? remarks,
     Color confirmColor = darkMaroon,
+    bool alreadyConfirmed = false,
   }) async {
-    final confirmed = await _confirm(
-      title: title,
-      message: message,
-      confirmText: confirmText,
-      confirmColor: confirmColor,
-    );
+    if (_isUpdatingRider) return;
 
-    if (!confirmed || !mounted) return;
+    if (!alreadyConfirmed) {
+      final confirmed = await _confirm(
+        title: title,
+        message: message,
+        confirmText: confirmText,
+        confirmColor: confirmColor,
+      );
 
-    setState(() {
-      rider['status'] = newStatus;
-    });
+      if (!confirmed || !mounted) return;
+    } else if (!mounted) {
+      return;
+    }
 
-    _showMessage(
-      '${rider['name']} status updated to $newStatus.',
-      _statusColor(newStatus),
-    );
+    setState(() => _isUpdatingRider = true);
+    try {
+      final isApplication = rider['status'] == 'Pending Approval' ||
+          rider['status'] == 'Declined';
+      final numericId = int.tryParse(
+        rider['id']?.toString().replaceAll(RegExp(r'\D'), '') ?? '',
+      );
+      if (numericId == null) {
+        throw const FormatException('This rider record has an invalid ID.');
+      }
+
+      if (isApplication) {
+        final decision = newStatus == 'Declined' ? 'Rejected' : 'Approved';
+        await LogisticsApi.request(
+          'PATCH',
+          '/logistics/applications/$numericId',
+          {
+            'status': decision,
+            'remarks': remarks ?? '',
+          },
+        );
+      } else {
+        await LogisticsApi.request(
+          'PATCH',
+          '/logistics/riders/$numericId',
+          {
+            'status': newStatus == 'Inactive' ? 'Offline' : newStatus,
+            if (remarks != null) 'remarks': remarks,
+          },
+        );
+      }
+
+      await _loadRiders();
+      _showMessage(
+        '${rider['name']} status updated to $newStatus.',
+        _statusColor(newStatus),
+      );
+    } catch (error) {
+      _showMessage(
+        error.toString().replaceFirst('HttpException: ', ''),
+        dangerRed,
+      );
+      await _loadRiders();
+    } finally {
+      if (mounted) setState(() => _isUpdatingRider = false);
+    }
   }
 
   Future<void> _approveRider(Map<String, dynamic> rider) async {
@@ -606,7 +719,27 @@ class _RidersScreenState extends State<RidersScreen> {
           'Decline ${rider['name']}? The application will remain '
           'in the application history.',
       confirmText: 'Decline',
+      remarks: 'Application declined by the logistics provider.',
       confirmColor: dangerRed,
+    );
+  }
+
+  Future<String?> _confirmStatusReason({
+    required String riderName,
+    required String title,
+    required String message,
+    required String actionLabel,
+    required Color actionColor,
+  }) async {
+    return showDialog<String>(
+      context: context,
+      builder: (_) => _RiderStatusConfirmationDialog(
+        riderName: riderName,
+        title: title,
+        message: message,
+        actionLabel: actionLabel,
+        actionColor: actionColor,
+      ),
     );
   }
 
@@ -621,40 +754,53 @@ class _RidersScreenState extends State<RidersScreen> {
 
     if (!['Available', 'Inactive'].contains(rider['status'])) return;
 
+    final reason = await _confirmStatusReason(
+      riderName: '${rider['name']}',
+      title: 'Suspend rider?',
+      message:
+          'The rider will go offline and stop receiving assignments. They will receive an in-app notification.',
+      actionLabel: 'Suspend rider',
+      actionColor: warningOrange,
+    );
+    if (reason == null || !mounted) return;
+
     await _changeStatus(
       rider,
       newStatus: 'Suspended',
       title: 'Suspend rider?',
-      message:
-          'Suspend ${rider['name']}? They will not be eligible '
-          'for new delivery assignments.',
+      message: '',
       confirmText: 'Suspend',
+      remarks: reason,
       confirmColor: warningOrange,
+      alreadyConfirmed: true,
     );
   }
 
   Future<void> _terminateRider(Map<String, dynamic> rider) async {
-    if (rider['status'] == 'On Delivery') {
-      _showMessage(
-        'Resolve the ongoing delivery before terminating this rider.',
-        warningOrange,
-      );
+    if (['Terminated', 'Pending Approval', 'Declined', 'On Delivery']
+        .contains(rider['status'])) {
       return;
     }
 
-    if (!['Available', 'Inactive', 'Suspended'].contains(rider['status'])) {
-      return;
-    }
+    final reason = await _confirmStatusReason(
+      riderName: '${rider['name']}',
+      title: 'Terminate rider permanently?',
+      message:
+          'This closes the rider account, blocks app access and new assignments, and cannot be reactivated from this screen.',
+      actionLabel: 'Terminate permanently',
+      actionColor: dangerRed,
+    );
+    if (reason == null || !mounted) return;
 
     await _changeStatus(
       rider,
       newStatus: 'Terminated',
       title: 'Terminate rider?',
-      message:
-          'Terminate ${rider['name']}? The rider record will remain '
-          'visible, but the status will be Terminated.',
+      message: '',
       confirmText: 'Terminate',
+      remarks: reason,
       confirmColor: dangerRed,
+      alreadyConfirmed: true,
     );
   }
 
@@ -780,7 +926,7 @@ class _RidersScreenState extends State<RidersScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
         children: [
-          // ---------------- HEADER + UPGRADE BUTTON ----------------
+          // ---------------- HEADER ----------------
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -805,55 +951,83 @@ class _RidersScreenState extends State<RidersScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              _buildUpgradeButton(),
+              IconButton(
+                tooltip: 'Refresh riders',
+                onPressed: _isLoadingRiders ? null : _loadRiders,
+                icon: const Icon(Icons.refresh_rounded, color: darkMaroon),
+              ),
             ],
           ),
           const SizedBox(height: 18),
 
           if (selectedSection == 'Registered Riders' && pendingCount > 0)
             _buildAttentionBanner(),
-          if (!_isUpgrades && upgradePendingCount > 0) _buildUpgradeBanner(),
-
           _buildOverview(available, suspended),
           const SizedBox(height: 18),
 
-          if (_isUpgrades) ...[
-            _buildBackToRiders(),
-            const SizedBox(height: 14),
-            ..._buildUpgradeSection(),
-          ] else ...[
-            _buildSectionSelector(),
-            const SizedBox(height: 14),
-            _buildSearchField(),
-            const SizedBox(height: 12),
-            _buildStatusFilters(),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _isApplications
-                        ? 'Rider applications'
-                        : 'Registered riders',
-                    style: const TextStyle(
-                      color: darkMaroon,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
+          _buildSectionSelector(),
+          const SizedBox(height: 14),
+          _buildSearchField(),
+          const SizedBox(height: 12),
+          _buildStatusFilters(),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _isApplications ? 'Rider applications' : 'Registered riders',
+                  style: const TextStyle(
+                    color: darkMaroon,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                Text(
-                  '${list.length} ${list.length == 1 ? 'record' : 'records'}',
-                  style: const TextStyle(color: mutedColor, fontSize: 12),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (list.isEmpty)
-              _buildEmptyState()
-            else
-              ...list.map(_buildRiderCard),
-          ],
+              ),
+              Text(
+                '${list.length} ${list.length == 1 ? 'record' : 'records'}',
+                style: const TextStyle(color: mutedColor, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingRiders)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: CircularProgressIndicator(color: darkMaroon),
+              ),
+            )
+          else if (_riderLoadError != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: _cardDecoration(),
+              child: Column(
+                children: [
+                  Text(
+                    'Could not load riders from the logistics server.',
+                    style: const TextStyle(
+                      color: darkMaroon,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _riderLoadError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: mutedColor, fontSize: 12),
+                  ),
+                  TextButton.icon(
+                    onPressed: _loadRiders,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else if (list.isEmpty)
+            _buildEmptyState()
+          else
+            ...list.map(_buildRiderCard),
         ],
       ),
     );
@@ -1676,9 +1850,13 @@ class _RidersScreenState extends State<RidersScreen> {
     final color = _statusColor(status);
     final isPending = status == 'Pending Approval';
     final isRegistered = !_isApplications;
+    final uploadedDocumentCount = [
+      rider['licenseDocument'],
+      rider['orDocument'],
+      rider['crDocument'],
+    ].where((document) => document != null).length;
 
     final location = '${rider['area'] ?? rider['address'] ?? 'Not provided'}';
-    final upgrade = _pendingFor('${rider['id']}');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1747,7 +1925,8 @@ class _RidersScreenState extends State<RidersScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${rider['id']}  •  ${rider['vehicle'] ?? 'Vehicle not provided'}',
+                                    '${rider['id']}  •  ${rider['vehicle'] ?? 'Vehicle not provided'}'
+                                    '${rider['plateNumber']?.toString().isNotEmpty == true ? '  •  ${rider['plateNumber']}' : ''}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1761,8 +1940,6 @@ class _RidersScreenState extends State<RidersScreen> {
                                     runSpacing: 6,
                                     children: [
                                       _statusChip(status, color),
-                                      if (upgrade != null)
-                                        _statusChip('Upgrading', infoBlue),
                                     ],
                                   ),
                                 ],
@@ -1777,6 +1954,13 @@ class _RidersScreenState extends State<RidersScreen> {
                           Icons.warehouse_outlined,
                           '${rider['hub'] ?? 'Hub not assigned'}',
                         ),
+                        if ('${rider['plateNumber'] ?? ''}'.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _infoLine(
+                            Icons.confirmation_number_outlined,
+                            'Registered plate: ${rider['plateNumber']}',
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         _infoLine(Icons.location_on_outlined, location),
                         const SizedBox(height: 8),
@@ -1784,11 +1968,37 @@ class _RidersScreenState extends State<RidersScreen> {
                           Icons.phone_outlined,
                           '${rider['phone'] ?? 'Phone not provided'}',
                         ),
-                        if (upgrade != null) ...[
+                        if (uploadedDocumentCount > 0) ...[
                           const SizedBox(height: 8),
-                          _infoLine(
-                            Icons.upgrade_rounded,
-                            'Upgrading to ${upgrade.requestedVehicle}',
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.folder_open_outlined,
+                                color: brown,
+                                size: 17,
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  'Uploaded documents: $uploadedDocumentCount/3',
+                                  style: const TextStyle(
+                                    color: textColor,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _openProfile(rider),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: darkMaroon,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                ),
+                                child: const Text('View files'),
+                              ),
+                            ],
                           ),
                         ],
                         if (_isApplications && rider['joined'] != null) ...[
@@ -2014,16 +2224,11 @@ class _RidersScreenState extends State<RidersScreen> {
       );
     }
 
-    if (status == 'Available' ||
-        status == 'Inactive' ||
-        status == 'Suspended') {
+    if (['Available', 'Inactive', 'Suspended'].contains(status)) {
       options.add(
         const PopupMenuItem(
           value: 'terminate',
-          child: Text(
-            'Terminate rider',
-            style: TextStyle(color: dangerRed, fontWeight: FontWeight.w600),
-          ),
+          child: Text('Terminate permanently'),
         ),
       );
     }
@@ -2826,6 +3031,90 @@ class _ImageViewerScreenState extends State<_ImageViewerScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RiderStatusConfirmationDialog extends StatefulWidget {
+  const _RiderStatusConfirmationDialog({
+    required this.riderName,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.actionColor,
+  });
+
+  final String riderName;
+  final String title;
+  final String message;
+  final String actionLabel;
+  final Color actionColor;
+
+  @override
+  State<_RiderStatusConfirmationDialog> createState() =>
+      _RiderStatusConfirmationDialogState();
+}
+
+class _RiderStatusConfirmationDialogState
+    extends State<_RiderStatusConfirmationDialog> {
+  final TextEditingController _reasonController = TextEditingController();
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = _reasonController.text.trim();
+
+    return AlertDialog(
+      backgroundColor: paleCream,
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.riderName,
+            style: const TextStyle(
+              color: darkMaroon,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.message,
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _reasonController,
+            autofocus: true,
+            maxLength: 500,
+            maxLines: 3,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Reason for suspension',
+              hintText: 'Enter why this rider is being suspended',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: widget.actionColor),
+          onPressed: reason.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(reason),
+          child: Text(widget.actionLabel),
+        ),
+      ],
     );
   }
 }

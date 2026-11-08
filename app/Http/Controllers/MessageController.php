@@ -15,6 +15,8 @@ class MessageController extends Controller
         $query = Conversation::with([
             'buyer',
             'seller.owner',
+            'rider.user',
+            'shipment',
             'messages' => fn ($messages) => $messages->latest()->with('attachments'),
         ])->orderByDesc('last_message_at');
         $conversations = $user->isSeller()

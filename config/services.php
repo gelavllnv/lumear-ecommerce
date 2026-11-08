@@ -37,12 +37,21 @@ return [
 
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
+        'mobile_client_id' => env('GOOGLE_MOBILE_CLIENT_ID', env('GOOGLE_CLIENT_ID')),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
+        // Google and a local Windows clock can differ by a few seconds.
+        'clock_skew_seconds' => (int) env('GOOGLE_CLOCK_SKEW_SECONDS', 60),
         // Windows PHP installations do not always have a CA bundle configured.
         // Keep TLS verification enabled and point it at the project's trusted bundle.
         'ca_bundle' => env('GOOGLE_CA_BUNDLE', storage_path('certificates/windows-root-ca-bundle.pem')),
         'admin_domains' => array_filter(array_map('trim', explode(',', (string) env('ALLOWED_ADMIN_EMAIL_DOMAINS', '')))),
+    ],
+
+    'openrouter' => [
+        'key' => env('OPENROUTER_API_KEY'),
+        'model' => env('OPENROUTER_MODEL', 'openrouter/free'),
+        'ca_bundle' => env('OPENROUTER_CA_BUNDLE') ?: storage_path('certificates/windows-root-ca-bundle.pem'),
     ],
 
 ];

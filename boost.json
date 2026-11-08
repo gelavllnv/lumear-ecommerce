@@ -1,14 +1,5 @@
 {
-    "agents": [
-        "claude_code"
-    ],
     "cloud": true,
-    "guidelines": true,
     "mcp": true,
-    "nightwatch": false,
-    "sail": false,
-    "skills": [
-        "infer-conventions",
-        "deploying-to-cloud"
-    ]
+    "nightwatch": false
 }

@@ -12,10 +12,15 @@ class Conversation extends Model
 
     protected function casts(): array
     {
-        return ['last_message_at' => 'datetime'];
+        return [
+            'last_message_at' => 'datetime',
+            'rider_deleted_at' => 'datetime',
+        ];
     }
 
     public function buyer(): BelongsTo { return $this->belongsTo(User::class, 'buyer_id'); }
     public function seller(): BelongsTo { return $this->belongsTo(Seller::class); }
+    public function rider(): BelongsTo { return $this->belongsTo(Rider::class); }
+    public function shipment(): BelongsTo { return $this->belongsTo(Shipment::class); }
     public function messages(): HasMany { return $this->hasMany(Message::class); }
 }

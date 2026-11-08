@@ -3,7 +3,8 @@
 @section('title', 'Your bag — Lumear')
 
 @section('content')
-    @php($total = max(0, $subtotal - $bundlePricing['savings']))
+    @php($shipping = $cart->items->where('selected', true)->groupBy(fn ($item) => $item->productVariant->product->seller_id)->count() * 5000)
+    @php($total = max(0, $subtotal - $bundlePricing['savings']) + $shipping)
 
     <div class="mx-auto max-w-5xl rise">
         <div class="mb-7 flex items-end justify-between">
@@ -49,7 +50,7 @@
                     @if($bundlePricing['savings'] > 0)
                         <div class="mt-3 rounded-xl bg-emerald-50/10 p-3 text-xs text-emerald-100"><div class="flex justify-between gap-3 font-bold"><span>Bundle savings</span><span>−₱{{ number_format($bundlePricing['savings'] / 100, 2) }}</span></div>@foreach($bundlePricing['applied'] as $bundle)<p class="mt-1 text-emerald-100/75">{{ $bundle['name'] }} · {{ $bundle['detail'] }}</p>@endforeach</div>
                     @endif
-                    <div class="flex justify-between border-b border-cream-50/15 py-4 text-sm"><span>Shipping</span><span>Set by seller after checkout</span></div>
+                    <div class="flex justify-between border-b border-cream-50/15 py-4 text-sm"><span>Shipping · ₱50 per shop</span><span>₱{{ number_format($shipping / 100, 2) }}</span></div>
                     <div class="mt-4 flex justify-between font-display text-xl"><span>Total</span><span>₱{{ number_format($total / 100, 2) }}</span></div>
 
                     @if (! $deliveryAddress)

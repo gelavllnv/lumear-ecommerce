@@ -52,7 +52,7 @@ class CartController extends Controller
         $item->selected = true;
         $item->save();
 
-        return back()->with('status', 'Added to your bag.');
+        return $request->expectsJson() ? response()->json(['id' => $item->id]) : back()->with('status', 'Added to your bag.');
     }
 
     public function update(Request $request, CartItem $item)
@@ -61,7 +61,7 @@ class CartController extends Controller
         $item->load('productVariant');
         $data = $request->validate(['quantity' => ['required', 'integer', 'min:0', 'max:'.$item->productVariant->stock]]);
         $data['quantity'] === 0 ? $item->delete() : $item->update(['quantity' => $data['quantity']]);
-        return back()->with('status', 'Your bag was updated.');
+        return $request->expectsJson() ? response()->json(['success' => true]) : back()->with('status', 'Your bag was updated.');
     }
 
     public function destroy(Request $request, CartItem $item)
@@ -70,7 +70,7 @@ class CartController extends Controller
 
         $item->delete();
 
-        return redirect()->route('cart')->with('status', 'Item removed from your bag.');
+        return $request->expectsJson() ? response()->json(['success' => true]) : redirect()->route('cart')->with('status', 'Item removed from your bag.');
     }
 
     private function cart(Request $request): Cart

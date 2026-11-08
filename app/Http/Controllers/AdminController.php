@@ -13,6 +13,7 @@ use App\Models\SellerKycSubmission;
 use App\Models\SellerPayoutRequest;
 use App\Models\SellerOrder;
 use App\Models\User;
+use App\Notifications\MarketplaceAlert;
 use App\Services\AuditService;
 use App\Services\SecureDocumentStorage;
 use App\Services\WalletService;
@@ -68,6 +69,14 @@ class AdminController extends Controller
         $before = $provider->only(['status', 'rejection_reason']);
         $provider->update(['status' => $data['status'], 'rejection_reason' => $data['status'] === 'rejected' ? $data['rejection_reason'] : null]);
         $this->audit->record($request, 'admin.logistics_status_changed', $provider, $before, $provider->only(['status', 'rejection_reason']));
+        $provider->loadMissing('user');
+        $provider->user?->notify(new MarketplaceAlert(
+            'Logistics account update',
+            $data['status'] === 'approved'
+                ? 'Your logistics account is approved. You can now accept seller pickup requests.'
+                : "Your logistics account is {$data['status']}." . ($provider->rejection_reason ? " Reason: {$provider->rejection_reason}" : ''),
+            route('logistics.dashboard')
+        ));
 
         return back()->with('status', "{$provider->name} is now {$data['status']}.");
     }

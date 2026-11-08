@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../logistics_api.dart';
 import 'package:flutter_application_2/screen/login_screen.dart';
 import 'package:flutter_application_2/screen/rider_reports_screen.dart';
 import 'package:flutter_application_2/screen/riders_screen.dart';
@@ -37,8 +41,76 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+  Map<String, dynamic> _workspace = {};
+  List<Map<String, dynamic>> _applications = [];
+  List<Map<String, dynamic>> _deliveries = [];
+  bool _loading = true;
+  String? _loadError;
+  Timer? _refreshTimer;
 
   static const int _dailyTarget = 200;
+
+  int get _pendingRiders => _applications
+      .where((application) => application['status'] == 'Pending')
+      .length;
+
+  int get _activeRiders =>
+      ((_workspace['riders'] as List?) ?? const [])
+          .where(
+            (rider) =>
+                (rider['is_active'] == true || rider['is_active'] == 1) &&
+                rider['management_status'] != 'Suspended',
+          )
+          .length;
+
+  int get _deliveriesToday => _deliveries.where((delivery) {
+    final date = DateTime.tryParse(delivery['date']?.toString() ?? '');
+    final now = DateTime.now();
+    return delivery['status'] == 'Delivered' &&
+        date != null &&
+        date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }).length;
+
+  int get _inTransit => _deliveries
+      .where((delivery) =>
+          ['In Transit', 'Out for Delivery', 'Dispatched']
+              .contains(delivery['status']))
+      .length;
+
+  int get _totalApplications => _applications.length;
+
+  List<_LogisticsActivity> get _activities {
+    final items = <_LogisticsActivity>[];
+    for (final application in _applications.take(3)) {
+      items.add(
+        _LogisticsActivity(
+          title: 'Rider application ${application['status']}',
+          description:
+              '${application['firstName']} ${application['lastName']} · ${application['jobType']}',
+          time: application['submitted']?.toString() ?? 'Recent',
+          icon: Icons.person_add_alt_1_rounded,
+          color: _statusPurple,
+        ),
+      );
+    }
+    for (final delivery in _deliveries.take(4 - items.length)) {
+      final status = delivery['status']?.toString() ?? 'Updated';
+      items.add(
+        _LogisticsActivity(
+          title: 'Delivery $status',
+          description: '${delivery['tracking']} · ${delivery['destination']}',
+          time: delivery['date']?.toString() ?? 'Recent',
+          icon: status == 'Delivered'
+              ? Icons.check_circle_rounded
+              : Icons.local_shipping_rounded,
+          color: status == 'Delivered' ? _statusGreen : _statusBlue,
+        ),
+      );
+    }
+    return items;
+  }
 
   final List<String> _navigationLabels = const [
     'Dashboard',
@@ -61,44 +133,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Icons.settings_rounded,
   ];
 
-  final List<_LogisticsActivity> _activities = const [
-    _LogisticsActivity(
-      title: 'Rider application submitted',
-      description: 'A new rider is waiting for verification.',
-      time: 'Just now',
-      icon: Icons.person_add_alt_1_rounded,
-      color: _statusPurple,
-    ),
-    _LogisticsActivity(
-      title: 'Delivery completed',
-      description: 'A parcel delivery has been completed.',
-      time: '10 min ago',
-      icon: Icons.check_circle_rounded,
-      color: _statusGreen,
-    ),
-    _LogisticsActivity(
-      title: 'Pickup request received',
-      description: 'A seller pickup request needs attention.',
-      time: '25 min ago',
-      icon: Icons.inventory_2_rounded,
-      color: _statusAmber,
-    ),
-    _LogisticsActivity(
-      title: 'Rider status updated',
-      description: 'A rider availability status was updated.',
-      time: '1 hr ago',
-      icon: Icons.local_shipping_rounded,
-      color: _statusBlue,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _refreshDashboard();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !_loading) _refreshDashboard();
+    });
+  }
 
-  // Sample dashboard values.
-  // Replace these with database values when backend integration is ready.
-  final int _pendingRiders = 8;
-  final int _activeRiders = 24;
-  final int _deliveriesToday = 156;
-  final int _inTransit = 18;
-  final int _totalApplications = 32;
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshDashboard() async {
+    if (_loading && _workspace.isNotEmpty) return;
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final results = await Future.wait([
+        LogisticsApi.request('GET', '/logistics/workspace'),
+        LogisticsApi.request('GET', '/logistics/riders'),
+        LogisticsApi.request('GET', '/logistics/deliveries'),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _workspace = results[0];
+        _applications = (results[1]['applications'] as List? ?? [])
+            .whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+        _deliveries = (results[2]['deliveries'] as List? ?? [])
+            .whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+      });
+    } catch (error) {
+      if (mounted) setState(() => _loadError = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,34 +254,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ==========================================================
 
   Widget _buildDashboardPage() {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
-      children: [
-        _buildHeader(),
-        const SizedBox(height: 22),
-        if (_pendingRiders > 0) ...[
-          _buildAttentionCard(),
-          const SizedBox(height: 24),
-        ],
-        _buildSectionHeading('Today at a glance'),
-        const SizedBox(height: 12),
-        _buildStatisticsGrid(),
-        const SizedBox(height: 12),
-        _buildDeliveryProgressCard(),
-        const SizedBox(height: 24),
-        _buildSectionHeading('Shortcuts'),
-        const SizedBox(height: 12),
-        _buildShortcuts(),
-        const SizedBox(height: 24),
-        _buildSectionHeading(
-          'Recent activity',
-          actionLabel: 'View all',
-          onAction: _showNotifications,
+    return RefreshIndicator(
+      onRefresh: _refreshDashboard,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
         ),
-        const SizedBox(height: 12),
-        _buildRecentActivities(),
-      ],
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
+        children: [
+          _buildHeader(),
+          if (_loading) ...[
+            const SizedBox(height: 10),
+            const LinearProgressIndicator(color: logisticsMaroon),
+          ],
+          if (_loadError != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8E7E3),
+                borderRadius: BorderRadius.circular(_innerRadius),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Could not refresh live logistics data. Check the server connection and pull to retry.',
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _loading ? null : _refreshDashboard,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 22),
+          if (_pendingRiders > 0) ...[
+            _buildAttentionCard(),
+            const SizedBox(height: 24),
+          ],
+          _buildSectionHeading('Today at a glance'),
+          const SizedBox(height: 12),
+          _buildStatisticsGrid(),
+          const SizedBox(height: 12),
+          _buildDeliveryProgressCard(),
+          const SizedBox(height: 24),
+          _buildSectionHeading('Shortcuts'),
+          const SizedBox(height: 12),
+          _buildShortcuts(),
+          const SizedBox(height: 24),
+          _buildSectionHeading(
+            'Recent activity',
+            actionLabel: 'View all',
+            onAction: _showNotifications,
+          ),
+          const SizedBox(height: 12),
+          _buildRecentActivities(),
+        ],
+      ),
     );
   }
 
@@ -290,10 +401,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         _buildHeaderIconButton(
+          icon: Icons.refresh_rounded,
+          tooltip: 'Refresh live data',
+          onTap: _refreshDashboard,
+        ),
+        const SizedBox(width: 8),
+        _buildHeaderIconButton(
           icon: Icons.notifications_none_rounded,
           tooltip: 'Notifications',
           onTap: _showNotifications,
-          badgeCount: 3,
+          badgeCount: _pendingRiders,
         ),
         const SizedBox(width: 8),
         _buildHeaderIconButton(

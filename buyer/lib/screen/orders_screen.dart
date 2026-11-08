@@ -3,6 +3,8 @@ import '../design/lumear_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../order_manager.dart';
+import '../services/api_service.dart';
+import '../services/buyer_data.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -253,7 +255,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final placed = OrderManager.instance.orders.map(
       (order) => DemoOrder(
         id: order.orderId,
-        storeName: 'Lumear · This session',
+        storeName: order.storeName.isEmpty ? 'Lumear' : order.storeName,
         productName: order.items
             .map((item) => '${item.name} × ${item.quantity}')
             .join(' · '),
@@ -584,6 +586,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 onPressed: () => _showTrackingBottomSheet(order),
                 icon: const Icon(Icons.arrow_forward, size: 20),
               ),
+              if (OrderManager.instance.connected && order.status == 'Delivered')
+                TextButton(onPressed: () async {
+                  try {
+                    await ApiService.post('/orders/${order.id}/receive', body: {});
+                    await BuyerData.instance.refresh();
+                  } catch (error) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
+                }, child: const Text('Confirm receipt')),
             ],
           ),
         ],

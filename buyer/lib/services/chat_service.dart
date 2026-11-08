@@ -20,9 +20,22 @@ class ChatMessage {
 }
 
 class ChatThread {
-  const ChatThread({required this.id, required this.name});
+  const ChatThread({
+    required this.id,
+    required this.name,
+    this.type = 'seller',
+    this.trackingCode = '',
+    this.status = '',
+    this.lastMessage = '',
+    this.unreadCount = 0,
+  });
   final String id;
   final String name;
+  final String type;
+  final String trackingCode;
+  final String status;
+  final String lastMessage;
+  final int unreadCount;
 }
 
 /// Demo conversations are scoped to local preview accounts.
@@ -57,13 +70,22 @@ class ChatService {
               name: seller
                   ? '${entry.value.buyerName} · ${entry.value.shop}'
                   : entry.value.shop,
+              type: seller ? 'buyer' : 'seller',
             ),
       ];
     }
     final data = await ApiService.get('/chat/threads');
     return [
       for (final row in data['threads'] as List)
-        ChatThread(id: row['id'].toString(), name: row['name'] as String),
+        ChatThread(
+          id: row['id'].toString(),
+          name: row['name'] as String,
+          type: row['type']?.toString() ?? 'seller',
+          trackingCode: row['tracking_code']?.toString() ?? '',
+          status: row['status']?.toString() ?? '',
+          lastMessage: row['last_message']?.toString() ?? '',
+          unreadCount: int.tryParse(row['unread_count']?.toString() ?? '') ?? 0,
+        ),
     ];
   }
 

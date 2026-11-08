@@ -123,6 +123,22 @@
 .lac-order-detail { padding: 19px 20px; background: #fcf7f1; border-top: 1px solid var(--lac-line); }
 .lac-order-detail p { color: #77675e; font-size: 12px; line-height: 1.9; }
 .lac-order-detail strong { color: var(--lac-ink); }
+.lac-return-message { margin: 18px 0; padding: 14px 18px; border: 1px solid var(--lac-line); border-radius: 8px; background: #f4e9df; color: var(--lac-wine); font-size: 12px; font-weight: 700; }
+.lac-return-error { border-color: #d28d82; background: #fff0ed; color: #8e3028; }
+.lac-returns-heading { padding: 22px 24px; border-bottom: 1px solid var(--lac-line); }
+.lac-returns-heading h2 { margin-top: 5px; color: var(--lac-wine); font: 600 24px "Fraunces",Georgia,serif; }
+.lac-returns-heading p { margin-top: 6px; color: var(--lac-muted); font-size: 12px; line-height: 1.7; }
+.lac-return-item { margin: 16px 20px; padding: 18px; border: 1px solid var(--lac-line); border-radius: 9px; background: #fff; }
+.lac-return-item h3 { color: var(--lac-wine); font-size: 13px; font-weight: 800; }
+.lac-return-item > p { margin-top: 5px; color: var(--lac-muted); font-size: 11px; }
+.lac-return-item .lac-return-status { margin-top: 14px; color: var(--lac-wine); font-weight: 800; text-transform: capitalize; }
+.lac-return-item .lac-return-muted { margin-top: 12px; }
+.lac-return-form { display: grid; gap: 12px; margin-top: 15px; }
+.lac-return-form label { display: grid; gap: 6px; color: var(--lac-wine); font-size: 11px; font-weight: 800; }
+.lac-return-form input,.lac-return-form textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--lac-line); border-radius: 6px; background: #fcf7f1; color: var(--lac-ink); font: inherit; font-size: 12px; }
+.lac-return-form textarea { min-height: 85px; resize: vertical; }
+.lac-return-form button { justify-self: start; padding: 11px 16px; border: 0; border-radius: 6px; background: var(--lac-wine); color: #fff; font-size: 11px; font-weight: 800; }
+.lac-return-form button:hover { background: var(--lac-red); }
 
 /* SAVED PRODUCTS */
 .lac-saved-topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 22px; margin-bottom: 23px; border: 1px solid var(--lac-line); border-radius: 10px; background: white; font-size: 12px; }
