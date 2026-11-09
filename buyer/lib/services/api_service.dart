@@ -18,7 +18,10 @@ class ApiService {
   // Local/hosted API URL comes from the build config; DB credentials stay server-side.
   static String baseUrl = const String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000/api',
+    // Production builds share the Laravel marketplace database through the
+    // public HTTPS API. Local development can still override this with
+    // --dart-define=API_BASE_URL=http://<LAN-IP>:8000/api.
+    defaultValue: 'https://lumearofficial.com/api',
   );
   static const _requestTimeout = Duration(seconds: 20);
   // Memory only: no unencrypted token persistence. Demo login never issues a token.

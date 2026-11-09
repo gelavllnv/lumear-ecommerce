@@ -29,6 +29,7 @@ use App\Http\Controllers\Logistics\LogisticsSearchController;
 use App\Http\Controllers\Logistics\LogisticsWalletController;
 use App\Http\Controllers\Logistics\RiderPayrollController;
 use App\Http\Controllers\Logistics\RiderRemittanceController;
+use App\Http\Controllers\Logistics\LogisticsRiderTaskController;
 use App\Http\Controllers\RiderTaskController;
 
 // LOGISTICS HEAD ADMIN

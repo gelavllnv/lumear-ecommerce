@@ -10,7 +10,12 @@ return [
         'http://localhost:3000',
         'http://localhost:5173',
     ],
-    'allowed_origins_patterns' => [],
+    // Flutter web chooses a development port dynamically. Native Android and
+    // Windows builds do not use browser CORS, but this lets Chrome/Edge test
+    // builds use the same shared Laravel API without opening it to all sites.
+    'allowed_origins_patterns' => [
+        '#^https?://(localhost|127\\.0\\.0\\.1)(:\\d+)?$#',
+    ],
     'allowed_headers' => ['Content-Type', 'Authorization', 'Accept'],
     'exposed_headers' => [],
     'max_age' => 0,

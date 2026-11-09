@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\MobileCommerceController;
+use App\Http\Controllers\ChatApiController;
 use App\Http\Controllers\BuyerOrderController;
 use App\Http\Controllers\MobileLogisticsController;
 use App\Http\Controllers\RiderAdminApiController;
@@ -29,12 +30,38 @@ Route::prefix('auth')->group(function (): void {
 
 Route::middleware('mobile.api:any')->group(function (): void {
     Route::post('/auth/logout', [MobileAuthController::class, 'logout']);
+    Route::get('/me', [MobileCommerceController::class, 'me']);
+    Route::patch('/me', [MobileCommerceController::class, 'updateMe']);
+
+    // Shared buyer/seller app API. These are aliases used by the existing
+    // Flutter client and write to the exact tables used by the web portal.
+    Route::get('/addresses', [MobileCommerceController::class, 'addresses'])->middleware('mobile.api:buyer');
+    Route::post('/addresses', [MobileCommerceController::class, 'saveAddress'])->middleware('mobile.api:buyer');
+    Route::patch('/addresses/{id}', [MobileCommerceController::class, 'saveAddress'])->middleware('mobile.api:buyer')->whereNumber('id');
+    Route::delete('/addresses/{id}', [MobileCommerceController::class, 'destroyAddress'])->middleware('mobile.api:buyer')->whereNumber('id');
+    Route::post('/cart', [MobileCommerceController::class, 'cartAdd'])->middleware('mobile.api:buyer');
+    Route::patch('/cart/{item}', [MobileCommerceController::class, 'updateCart'])->middleware('mobile.api:buyer')->whereNumber('item');
+    Route::delete('/cart/{item}', [MobileCommerceController::class, 'destroyCart'])->middleware('mobile.api:buyer')->whereNumber('item');
+    Route::get('/wishlist', [MobileCommerceController::class, 'wishlist'])->middleware('mobile.api:buyer');
+    Route::post('/wishlist/{product}', [MobileCommerceController::class, 'saveProduct'])->middleware('mobile.api:buyer')->whereNumber('product');
+    Route::delete('/wishlist/{product}', [MobileCommerceController::class, 'removeSavedProduct'])->middleware('mobile.api:buyer')->whereNumber('product');
+    Route::get('/vouchers', [MobileCommerceController::class, 'vouchers'])->middleware('mobile.api:buyer');
+    Route::post('/vouchers/{voucher}/claim', [MobileCommerceController::class, 'claimVoucher'])->middleware('mobile.api:buyer')->whereNumber('voucher');
+
+    Route::get('/chat/threads', [ChatApiController::class, 'threads']);
+    Route::post('/chat/threads', [ChatApiController::class, 'openSeller'])->middleware('mobile.api:buyer');
+    Route::get('/chat/threads/{conversation}/messages', [ChatApiController::class, 'messages'])->whereNumber('conversation');
+    Route::post('/chat/threads/{conversation}/messages', [ChatApiController::class, 'send'])->whereNumber('conversation');
 });
 
 Route::prefix('seller')->middleware('mobile.api:seller')->group(function (): void {
     Route::get('/workspace', [MobileCommerceController::class, 'sellerWorkspace']);
     Route::post('/orders/{sellerOrder}/{action}', [MobileCommerceController::class, 'sellerAction'])
-        ->whereIn('action', ['pack', 'prepare', 'ship', 'cancel']);
+        ->whereIn('action', ['accept', 'pack', 'prepare', 'ship', 'pickup', 'cancel']);
+    Route::post('/products', [MobileCommerceController::class, 'sellerSaveProduct']);
+    Route::patch('/products/{product}', [MobileCommerceController::class, 'sellerSaveProduct'])->whereNumber('product');
+    Route::patch('/products/{product}/archive', [MobileCommerceController::class, 'archiveSellerProduct'])->whereNumber('product');
+    Route::patch('/shop', [MobileCommerceController::class, 'updateSellerShop']);
 });
 
 Route::prefix('buyer')->middleware('mobile.api:buyer')->group(function (): void {
