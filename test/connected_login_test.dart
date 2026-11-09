@@ -54,83 +54,81 @@ void main() {
       );
     },
   );
-  testWidgets('Explicit connected login opens persisted buyer data', (
-    tester,
-  ) async {
-    bool loggedIn = false;
-    await http.runWithClient(
-      () async {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: lumearTheme(),
-            home: const LoginPage(useBackend: true),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('Try a demo account'), findsNothing);
-        await tester.enterText(
-          find.byType(TextField).at(0),
-          'registered@example.invalid',
-        );
-        await tester.enterText(find.byType(TextField).at(1), 'TestPassword123');
-        await tester.ensureVisible(
-          find.widgetWithText(FilledButton, 'Sign in'),
-        );
-        await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-        await tester.pumpAndSettle();
-        expect(loggedIn, isTrue);
-        expect(find.byType(DashboardScreen), findsOneWidget);
-        expect(find.text('Home'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox.shrink());
-        BuyerData.instance.reset();
-      },
-      () => MockClient((request) async {
-        if (request.url.path == '/api/auth/login') {
-          expect(
-            jsonDecode(request.body)['email'],
+  testWidgets(
+    'Default login opens persisted buyer data without demo accounts',
+    (tester) async {
+      bool loggedIn = false;
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(
+            MaterialApp(theme: lumearTheme(), home: const LoginPage()),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Try a demo account'), findsNothing);
+          await tester.enterText(
+            find.byType(TextField).at(0),
             'registered@example.invalid',
           );
-          loggedIn = true;
-          return http.Response(
-            jsonEncode({'token': 'test-session', 'role': 'buyer'}),
-            200,
+          await tester.enterText(
+            find.byType(TextField).at(1),
+            'TestPassword123',
           );
-        }
-        expect(request.headers['Authorization'], 'Bearer test-session');
-        final body = switch (request.url.path) {
-          '/api/buyer/workspace' => {
-            'profile': {
-              'name': 'Database Buyer',
-              'email': 'registered@example.invalid',
-              'phone': '09171234567',
+          await tester.ensureVisible(
+            find.widgetWithText(FilledButton, 'Sign in'),
+          );
+          await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+          await tester.pumpAndSettle();
+          expect(loggedIn, isTrue);
+          expect(find.byType(DashboardScreen), findsOneWidget);
+          expect(find.text('Home'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          BuyerData.instance.reset();
+        },
+        () => MockClient((request) async {
+          if (request.url.path == '/api/auth/login') {
+            expect(
+              jsonDecode(request.body)['email'],
+              'registered@example.invalid',
+            );
+            loggedIn = true;
+            return http.Response(
+              jsonEncode({'token': 'test-session', 'role': 'buyer'}),
+              200,
+            );
+          }
+          expect(request.headers['Authorization'], 'Bearer test-session');
+          final body = switch (request.url.path) {
+            '/api/buyer/workspace' => {
+              'profile': {
+                'name': 'Database Buyer',
+                'email': 'registered@example.invalid',
+                'phone': '09171234567',
+              },
+              'products': [],
+              'cart': [],
+              'orders': [],
+              'addresses': [],
+              'wishlist': [],
+              'notifications': [],
+              'vouchers': [],
+              'capabilities': {'storage': 'mysql', 'checkout': false},
             },
-            'products': [],
-            'cart': [],
-            'orders': [],
-            'addresses': [],
-            'wishlist': [],
-            'notifications': [],
-            'vouchers': [],
-            'capabilities': {'storage': 'mysql', 'checkout': false},
-          },
-          '/api/capabilities' => {'storage': 'mysql', 'checkout': false},
-          _ => [],
-        };
-        return http.Response(jsonEncode(body), 200);
-      }),
-    );
-  });
+            '/api/capabilities' => {'storage': 'mysql', 'checkout': false},
+            _ => [],
+          };
+          return http.Response(jsonEncode(body), 200);
+        }),
+      );
+    },
+  );
 
   testWidgets('An unreachable backend never falls back to a demo login', (
     tester,
   ) async {
     await http.runWithClient(() async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: lumearTheme(),
-          home: const LoginPage(useBackend: true),
-        ),
+        MaterialApp(theme: lumearTheme(), home: const LoginPage()),
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).at(0), 'lumear@gmail.com');

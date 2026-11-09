@@ -27,9 +27,7 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  bool get backendEnabled =>
-      widget.useBackend ??
-      const bool.fromEnvironment('ENABLE_BUYER_BACKEND', defaultValue: false);
+  bool get backendEnabled => widget.useBackend ?? true;
   int currentStep = 0;
   bool isCreatingAccount = false;
   String? verificationToken, verifiedEmail;

@@ -16,7 +16,10 @@ class ApiException implements Exception {
 class ApiService {
   ApiService._();
   // Local/hosted API URL comes from the build config; DB credentials stay server-side.
-  static String baseUrl = const String.fromEnvironment('API_BASE_URL');
+  static String baseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000/api',
+  );
   static const _requestTimeout = Duration(seconds: 20);
   // Memory only: no unencrypted token persistence. Demo login never issues a token.
   static String? _token;
@@ -46,7 +49,7 @@ class ApiService {
         !apiUri.hasAuthority ||
         !const ['http', 'https'].contains(apiUri.scheme)) {
       throw const ApiException(
-        'The shared service is not configured yet. Please use a demo account.',
+        'The shared service is not configured. Set API_BASE_URL to your Lumear API address and rebuild the app.',
       );
     }
     final client = http.Client();

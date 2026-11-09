@@ -1,5 +1,11 @@
 # Shared backend integration
 
+Normal Flutter runs and builds use the backend by default, with
+`http://127.0.0.1:8000/api` as the local API address. Override `API_BASE_URL`
+at build time for a shared hosted API. The old `ENABLE_BUYER_BACKEND` build
+flag no longer selects demo mode. Demo behavior described below refers to
+explicit in-memory test fixtures. See the root [README](README.md) for groupmate setup.
+
 This repository contains the Flutter buyer/seller client. The combined project
 will own the backend and database used by buyer, seller, and rider apps.
 The local API adapter is in [`backend/`](backend/README.md). Credentials stay in

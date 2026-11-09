@@ -337,42 +337,54 @@ void main() {
             await tester.pumpAndSettle();
             expect(tester.widget<TextField>(input()).obscureText, isTrue);
           }
-          await fill('Recipient name', 'New Google user');
-          await fill('Delivery contact number', '09171234567');
-          await fill('Street, building, or unit', 'Test street');
-          Future<void> pick(String label, String value) async {
-            final dropdown = find.widgetWithText(
-              DropdownButtonFormField<String>,
-              label,
-            );
-            await tester.ensureVisible(dropdown);
-            await tester.pumpAndSettle();
-            await tester.tap(dropdown);
-            await tester.pumpAndSettle();
-            await tester.tap(find.text(value).last);
-            await tester.pumpAndSettle();
-          }
+          if (role == 'buyer') {
+            await fill('Recipient name', 'New Google user');
+            await fill('Delivery contact number', '09171234567');
+            await fill('Street, building, or unit', 'Test street');
+            Future<void> pick(String label, String value) async {
+              final dropdown = find.widgetWithText(
+                DropdownButtonFormField<String>,
+                label,
+              );
+              await tester.ensureVisible(dropdown);
+              await tester.pumpAndSettle();
+              await tester.tap(dropdown);
+              await tester.pumpAndSettle();
+              await tester.tap(find.text(value).last);
+              await tester.pumpAndSettle();
+            }
 
-          await pick('Province', 'Laguna');
-          await pick('City / Municipality', 'Pila');
-          await pick('Barangay', 'Test barangay');
-          final postal = tester.widget<TextFormField>(
-            find.widgetWithText(TextFormField, 'Postal code'),
-          );
-          expect(postal.controller!.text, '4010');
-          await pick('Province', 'Metro Manila');
-          expect(postal.controller!.text, isEmpty);
-          final cityDropdown = tester.widget<DropdownButtonFormField<String>>(
-            find.widgetWithText(
-              DropdownButtonFormField<String>,
-              'City / Municipality',
-            ),
-          );
-          expect(cityDropdown.initialValue, isNull);
-          await pick('Province', 'Laguna');
-          await pick('City / Municipality', 'Pila');
-          await pick('Barangay', 'Test barangay');
-          expect(postal.controller!.text, '4010');
+            await pick('Province', 'Laguna');
+            await pick('City / Municipality', 'Pila');
+            await pick('Barangay', 'Test barangay');
+            final postal = tester.widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Postal code'),
+            );
+            expect(postal.controller!.text, '4010');
+            await pick('Province', 'Metro Manila');
+            expect(postal.controller!.text, isEmpty);
+            final cityDropdown = tester.widget<DropdownButtonFormField<String>>(
+              find.widgetWithText(
+                DropdownButtonFormField<String>,
+                'City / Municipality',
+              ),
+            );
+            expect(cityDropdown.initialValue, isNull);
+            await pick('Province', 'Laguna');
+            await pick('City / Municipality', 'Pila');
+            await pick('Barangay', 'Test barangay');
+            expect(postal.controller!.text, '4010');
+          } else {
+            expect(find.text('Default delivery address'), findsNothing);
+            expect(
+              find.widgetWithText(TextFormField, 'Recipient name'),
+              findsNothing,
+            );
+            expect(
+              find.widgetWithText(TextFormField, 'Postal code'),
+              findsNothing,
+            );
+          }
           if (role == 'seller') {
             await fill('Shop name', 'Google test shop');
             await fill('Shop description', 'Handmade goods from our test shop');
@@ -416,7 +428,17 @@ void main() {
             find.widgetWithText(TextFormField, 'Full name'),
           );
           expect(nameField.controller!.text, 'New Google user');
-          expect(postal.controller!.text, '4010');
+          if (role == 'buyer') {
+            expect(
+              tester
+                  .widget<TextFormField>(
+                    find.widgetWithText(TextFormField, 'Postal code'),
+                  )
+                  .controller!
+                  .text,
+              '4010',
+            );
+          }
           await tester.ensureVisible(complete);
           await tester.pumpAndSettle();
           await tester.tap(complete);
@@ -465,7 +487,11 @@ void main() {
             expect(body['account_type'], role);
             expect(body['date_of_birth'], isNotEmpty);
             expect(body['phone'], '09171234567');
-            expect(body['address']['postal_code'], '4010');
+            if (role == 'buyer') {
+              expect(body['address']['postal_code'], '4010');
+            } else {
+              expect(body.containsKey('address'), isFalse);
+            }
             expect(body['password'], 'GooglePassword123');
             if (role == 'seller') {
               expect(body['shop_name'], 'Google test shop');

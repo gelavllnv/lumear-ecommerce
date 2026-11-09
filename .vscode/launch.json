@@ -14,12 +14,6 @@
         "TEMP": "${workspaceFolder}/build/java-tmp",
         "TMP": "${workspaceFolder}/build/java-tmp"
       }
-    },
-    {
-      "name": "Lumear · Buyer and seller preview",
-      "request": "launch",
-      "type": "dart",
-      "program": "lib/main.dart"
     }
   ]
 }

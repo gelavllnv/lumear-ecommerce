@@ -31,9 +31,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool get backendEnabled =>
-      widget.useBackend ??
-      const bool.fromEnvironment('ENABLE_BUYER_BACKEND', defaultValue: false);
+  bool get backendEnabled => widget.useBackend ?? true;
 
   final TextEditingController emailController = TextEditingController();
 
@@ -199,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
         title: const Text('Continue with Google?'),
         content: const Text(
           'Lumear will use your Google name and verified email to sign you in. '
-          'If you are new, you must complete your account details and delivery address before entering the app.',
+          'If you are new, you must complete your account details before entering the app. Buyers also provide a delivery address.',
         ),
         actions: [
           TextButton(

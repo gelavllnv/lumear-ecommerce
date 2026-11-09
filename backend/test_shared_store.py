@@ -401,12 +401,13 @@ class SharedIntegrationTests(unittest.TestCase):
             db.execute('SELECT date_of_birth FROM user_profiles WHERE user_id=%s',(self.ids['seller'],))
             self.assertEqual(str(db.fetchone()['date_of_birth']),'2000-01-15')
         with self.connection.cursor() as db:
-            self.assertEqual(len(self.store.addresses(db,self.ids['seller'])),1)
+            self.assertEqual(len(self.store.addresses(db,self.ids['seller'])),0)
             self.assertEqual(self.store.login(db,dict(email=self.emails['seller'],password=self.password))['role'],'seller')
         for role in ('buyer','seller'):
             claims=dict(sub='fixture-new-'+role,email='fixture-new-'+secrets.token_hex(8)+'@example.invalid',name='New Google user')
             details = self.registration_details('New Google user')
             if role == 'seller':
+                details.pop('address')
                 with self.assertRaises(Problem):
                     self.store.google_login(claims,dict(details,account_type=role))
                 with self.connection.cursor() as db:
@@ -426,6 +427,8 @@ class SharedIntegrationTests(unittest.TestCase):
                     **details))
                 again=self.google_request(dict(id_token='fixture-token',account_type='seller' if role=='buyer' else 'buyer'))
             self.assertEqual(result['role'],role);self.assertEqual(again['role'],role)
+            with self.connection.cursor() as db:
+                self.assertEqual(len(self.store.addresses(db,int(result['id']))), 0 if role == 'seller' else 1)
             if role=='seller':
                 snapshot=self.store.dispatch('GET','/api/seller/workspace',token=result['token'])
                 self.assertEqual(snapshot['shop']['status'],'pending')

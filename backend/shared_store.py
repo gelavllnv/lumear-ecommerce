@@ -96,13 +96,13 @@ class SharedStore(MySQLStore):
                     linked=self.one(db,"SELECT provider_user_id FROM auth_identities WHERE provider='google' AND user_id=%s",(user['id'],))
                     require(not linked or linked['provider_user_id']==claims['sub'],'This email belongs to a different linked Google account. Use your original sign-in.',409)
             is_new = user is None
+            seller=self.one(db,'SELECT id FROM sellers WHERE user_id=%s',(user['id'],)) if user else None
+            existing_role = ('seller' if seller else 'buyer') if user else None
             profile = self.one(db,'SELECT * FROM user_profiles WHERE user_id=%s',(user['id'],)) if user else None
             address = self.one(db,'SELECT id FROM addresses WHERE user_id=%s AND is_default=1',(user['id'],)) if user else None
-            needs_details = is_new or not profile or not profile['date_of_birth'] or not user['phone'] or not address
+            needs_details = is_new or not profile or not profile['date_of_birth'] or not user['phone'] or (existing_role == 'buyer' and not address)
             if needs_details:
-                seller=self.one(db,'SELECT id FROM sellers WHERE user_id=%s',(user['id'],)) if user else None
-                existing_role = ('seller' if seller else 'buyer') if user else None
-                if not all(key in body for key in ('name','phone','date_of_birth','address','account_type')):
+                if not all(key in body for key in ('name','phone','date_of_birth','account_type')):
                     return dict(requires_account_type=True,is_new_account=is_new,
                         name=user['name'] if user else claims['name'],email=claims['email'],existing_role=existing_role)
                 role_name=existing_role or body['account_type']
@@ -117,8 +117,9 @@ class SharedStore(MySQLStore):
                 today=datetime.now(timezone(timedelta(hours=8))).date()
                 age=today.year-dob.year-((today.month,today.day)<(dob.month,dob.day))
                 require(18<=age<=120,'You must be 18 or older (up to 120) to create an account.')
-                require(isinstance(body['address'],dict),'Enter your default delivery address.')
-                require(re.fullmatch(r'\d{4}',str(body['address'].get('postal_code',''))),'Enter a 4-digit postal code.')
+                if role_name == 'buyer':
+                    require(isinstance(body.get('address'),dict),'Enter your default delivery address.')
+                    require(re.fullmatch(r'\d{4}',str(body['address'].get('postal_code',''))),'Enter a 4-digit postal code.')
                 if is_new:
                     if role_name == 'seller':
                         shop_name = text(body.get('shop_name'), 'Shop name', 1, 150)
@@ -148,7 +149,8 @@ class SharedStore(MySQLStore):
                 require(user and not user['is_suspended'],'This account is unavailable.',403)
                 self.save_profile(db,user,dict(body,age=age,display_name=name),onboarding=True)
                 db.execute('UPDATE user_profiles SET date_of_birth=%s WHERE user_id=%s',(dob,user['id']))
-                self.save_address(db,user['id'],dict(body['address'],default=True),str(address['id']) if address else None)
+                if role_name == 'buyer':
+                    self.save_address(db,user['id'],dict(body['address'],default=True),str(address['id']) if address else None)
             require(user and not user['is_suspended'],'This account is unavailable.',403)
             if not user['email_verified_at']:
                 db.execute('UPDATE users SET email_verified_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=%s',(user['id'],))

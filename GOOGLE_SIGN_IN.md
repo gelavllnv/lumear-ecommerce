@@ -25,8 +25,10 @@ session is returned. Save errors remain on the form with all entered details
 preserved for retry; successful completion opens the server-assigned workspace.
 
 The completion request repeats the Google ID token and OTP proof and sends `account_type`,
-`name`, `phone`, `date_of_birth` (`YYYY-MM-DD`), and `address` with recipient
+`name`, `phone`, and `date_of_birth` (`YYYY-MM-DD`). Buyers also send `address` with recipient
 `name`, `phone`, `street`, `barangay`, `city`, `province`, and `postal_code`.
+Sellers do not provide a delivery address during Google registration. Existing seller
+addresses are preserved and an absent address does not trigger onboarding.
 New accounts also supply a password (8 characters minimum, 72 bytes maximum).
 The client confirms the password before sending. Google email is read-only;
 the server always uses the token's verified email. Optional profile photos remain
