@@ -32,6 +32,11 @@ Route::middleware('mobile.api:any')->group(function (): void {
     Route::post('/auth/logout', [MobileAuthController::class, 'logout']);
     Route::get('/me', [MobileCommerceController::class, 'me']);
     Route::patch('/me', [MobileCommerceController::class, 'updateMe']);
+    Route::get('/notification-preferences', [MobileCommerceController::class, 'notificationPreferences']);
+    Route::patch('/notification-preferences', [MobileCommerceController::class, 'updateNotificationPreferences']);
+    Route::get('/notifications', [MobileCommerceController::class, 'notifications']);
+    Route::post('/notifications', [MobileCommerceController::class, 'markAllNotificationsRead']);
+    Route::post('/notifications/{notification}', [MobileCommerceController::class, 'markNotificationRead']);
 
     // Shared buyer/seller app API. These are aliases used by the existing
     // Flutter client and write to the exact tables used by the web portal.
@@ -56,8 +61,17 @@ Route::middleware('mobile.api:any')->group(function (): void {
 
 Route::prefix('seller')->middleware('mobile.api:seller')->group(function (): void {
     Route::get('/workspace', [MobileCommerceController::class, 'sellerWorkspace']);
+    Route::get('/analytics', [MobileCommerceController::class, 'sellerAnalytics']);
+    Route::patch('/promotions/{promotion}', [MobileCommerceController::class, 'updateSellerPromotion']);
+    Route::patch('/notifications/{notification}', [MobileCommerceController::class, 'updateSellerNotification']);
+    Route::get('/returns', [MobileCommerceController::class, 'sellerReturns']);
+    Route::post('/returns/{returnRequest}/{action}', [MobileCommerceController::class, 'sellerReturnAction'])
+        ->whereIn('action', ['approve', 'reject', 'refund']);
+    Route::get('/tasks', [MobileCommerceController::class, 'sellerTasks']);
+    Route::patch('/tasks/{task}', [MobileCommerceController::class, 'updateSellerTask'])->whereNumber('task');
+    Route::post('/payouts', [MobileCommerceController::class, 'requestSellerPayout']);
     Route::post('/orders/{sellerOrder}/{action}', [MobileCommerceController::class, 'sellerAction'])
-        ->whereIn('action', ['accept', 'pack', 'prepare', 'ship', 'pickup', 'cancel']);
+        ->whereIn('action', ['accept', 'pack', 'prepare', 'ship', 'pickup', 'cancel', 'settle']);
     Route::post('/products', [MobileCommerceController::class, 'sellerSaveProduct']);
     Route::patch('/products/{product}', [MobileCommerceController::class, 'sellerSaveProduct'])->whereNumber('product');
     Route::patch('/products/{product}/archive', [MobileCommerceController::class, 'archiveSellerProduct'])->whereNumber('product');
@@ -66,6 +80,8 @@ Route::prefix('seller')->middleware('mobile.api:seller')->group(function (): voi
 
 Route::prefix('buyer')->middleware('mobile.api:buyer')->group(function (): void {
     Route::get('/workspace', [MobileCommerceController::class, 'workspace']);
+    Route::get('/wallet', [MobileCommerceController::class, 'buyerWallet']);
+    Route::post('/returns', [MobileCommerceController::class, 'createBuyerReturn']);
     Route::post('/cart', [MobileCommerceController::class, 'cartAdd']);
     Route::post('/checkout/quote', [MobileCommerceController::class, 'quote']);
     Route::post('/checkout', [MobileCommerceController::class, 'checkout']);
@@ -73,6 +89,15 @@ Route::prefix('buyer')->middleware('mobile.api:buyer')->group(function (): void 
     Route::patch('/addresses/{id}', [MobileCommerceController::class, 'saveAddress'])
         ->whereNumber('id');
     Route::post('/orders/{sellerOrder}/cancel', [BuyerOrderController::class, 'cancel']);
+});
+
+/* Backward-compatible paths used by the current buyer Flutter build. */
+Route::middleware('mobile.api:buyer')->group(function (): void {
+    Route::get('/orders', [MobileCommerceController::class, 'buyerOrders']);
+    Route::post('/orders/{sellerOrder}/received', [BuyerOrderController::class, 'confirmReceipt']);
+    Route::post('/orders/{sellerOrder}/cancel', [BuyerOrderController::class, 'cancel']);
+    Route::get('/products', [MobileCommerceController::class, 'products']);
+    Route::get('/products/{product}', [MobileCommerceController::class, 'showProduct'])->whereNumber('product');
 });
 
 Route::prefix('logistics')->middleware('mobile.api:logistics')->group(function (): void {
