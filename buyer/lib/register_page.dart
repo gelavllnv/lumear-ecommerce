@@ -27,9 +27,7 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  bool get backendEnabled =>
-      widget.useBackend ??
-      const bool.fromEnvironment('ENABLE_BUYER_BACKEND', defaultValue: false);
+  bool get backendEnabled => widget.useBackend ?? true;
   int currentStep = 0;
   bool isCreatingAccount = false;
   String? verificationToken, verifiedEmail;
@@ -50,9 +48,8 @@ class _RegisterPageState extends State<RegisterPage> {
   // Seller-only details and private document uploads.
   final shopNameController = TextEditingController();
   final shopDescriptionController = TextEditingController();
+  final taxNumberController = TextEditingController();
   String? governmentIdFileName;
-  String? selfieWithIdFileName;
-  String? businessDocumentFileName;
 
   // ============================================================
 
@@ -203,6 +200,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    taxNumberController.dispose();
     emailController.removeListener(emailChanged);
     firstNameController.dispose();
 
@@ -893,9 +891,10 @@ class _RegisterPageState extends State<RegisterPage> {
       }
       if (backendEnabled &&
           (governmentIdFileName == null ||
-              selfieWithIdFileName == null ||
-              businessDocumentFileName == null)) {
-        showMessage('Please select all required seller documents.');
+              taxNumberController.text.trim().isEmpty)) {
+        showMessage(
+          'Please select your government-issued ID and enter your TIN number.',
+        );
         return;
       }
     }
@@ -947,6 +946,7 @@ class _RegisterPageState extends State<RegisterPage> {
             'shop_name': shopNameController.text.trim(),
             'shop_description': shopDescriptionController.text.trim(),
             'documents': sellerDocuments,
+            'tax_number': taxNumberController.text.trim(),
           },
           'phone': phoneController.text.trim(),
           'address': {
@@ -1876,12 +1876,6 @@ class _RegisterPageState extends State<RegisterPage> {
           case 'id':
             governmentIdFileName = fileName;
             break;
-          case 'selfie':
-            selfieWithIdFileName = fileName;
-            break;
-          case 'business':
-            businessDocumentFileName = fileName;
-            break;
         }
       });
 
@@ -1974,7 +1968,7 @@ class _RegisterPageState extends State<RegisterPage> {
         const SizedBox(height: 6),
         Text(
           backendEnabled
-              ? 'Complete your shop details and select the required documents. Accepted files: JPG, PNG, or PDF.'
+              ? 'Complete your shop details, enter your TIN number, and upload your government-issued ID. Accepted files: JPG, PNG, or PDF (up to 5 MB).'
               : 'Add your shop name and description to try the seller workspace.',
           style: TextStyle(color: lightText, fontSize: 12, height: 1.5),
         ),
@@ -2006,20 +2000,14 @@ class _RegisterPageState extends State<RegisterPage> {
             documentType: 'id',
             fileName: governmentIdFileName,
           ),
-          sellerDocumentField(
-            title: 'Selfie with ID *',
-            description: 'Select a clear selfie showing you holding your ID.',
-            documentType: 'selfie',
-            fileName: selfieWithIdFileName,
-          ),
-          sellerDocumentField(
-            title: 'Business registration document *',
-            description: 'Required for seller verification. Select your business registration document as an image or PDF.',
-            documentType: 'business',
-            fileName: businessDocumentFileName,
+          const SizedBox(height: 12),
+          TextField(
+            controller: taxNumberController,
+            maxLength: 255,
+            decoration: inputDecoration('TIN number *'),
           ),
           Text(
-            'Your documents are uploaded privately for seller approval when you create the account.',
+            'Your ID and TIN number are submitted privately for seller approval when you create the account.',
             style: TextStyle(color: lightText, fontSize: 11, height: 1.4),
           ),
         ] else

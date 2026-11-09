@@ -27,7 +27,10 @@ void main() {
         await http.runWithClient(
           () async {
             await tester.pumpWidget(
-              MaterialApp(theme: lumearTheme(), home: const LoginPage()),
+              MaterialApp(
+                theme: lumearTheme(),
+                home: const LoginPage(useBackend: false),
+              ),
             );
             await tester.pumpAndSettle();
             expect(

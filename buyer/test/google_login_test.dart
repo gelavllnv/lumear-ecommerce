@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +14,33 @@ import 'package:flutter_application_1/seller/seller_dashboard_screen.dart';
 import 'package:flutter_application_1/services/api_service.dart';
 import 'package:flutter_application_1/services/buyer_data.dart';
 import 'package:flutter_application_1/services/postal_code_service.dart';
+
+final class _VerificationFile extends PlatformFile {
+  @override
+  String get name => 'verification.pdf';
+  @override
+  Future<Uint8List> readAsBytes() async =>
+      Uint8List.fromList(utf8.encode('%PDF-1.4 test'));
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _VerificationPicker extends FilePickerPlatform {
+  @override
+  Future<List<PlatformFile>> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => [_VerificationFile()];
+}
 
 void main() {
   setUp(() => ApiService.baseUrl = 'https://integration.example.invalid/api');
@@ -240,6 +270,9 @@ void main() {
     testWidgets('New Google user chooses $role before account creation', (
       tester,
     ) async {
+      final originalPicker = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = _VerificationPicker();
+      addTearDown(() => FilePickerPlatform.instance = originalPicker);
       var exchanges = 0;
       await tester.runAsync(() async {
         await PostalCodeService.load();
@@ -304,42 +337,80 @@ void main() {
             await tester.pumpAndSettle();
             expect(tester.widget<TextField>(input()).obscureText, isTrue);
           }
-          await fill('Recipient name', 'New Google user');
-          await fill('Delivery contact number', '09171234567');
-          await fill('Street, building, or unit', 'Test street');
-          Future<void> pick(String label, String value) async {
-            final dropdown = find.widgetWithText(
-              DropdownButtonFormField<String>,
-              label,
-            );
-            await tester.ensureVisible(dropdown);
-            await tester.pumpAndSettle();
-            await tester.tap(dropdown);
-            await tester.pumpAndSettle();
-            await tester.tap(find.text(value).last);
-            await tester.pumpAndSettle();
-          }
+          if (role == 'buyer') {
+            await fill('Recipient name', 'New Google user');
+            await fill('Delivery contact number', '09171234567');
+            await fill('Street, building, or unit', 'Test street');
+            Future<void> pick(String label, String value) async {
+              final dropdown = find.widgetWithText(
+                DropdownButtonFormField<String>,
+                label,
+              );
+              await tester.ensureVisible(dropdown);
+              await tester.pumpAndSettle();
+              await tester.tap(dropdown);
+              await tester.pumpAndSettle();
+              await tester.tap(find.text(value).last);
+              await tester.pumpAndSettle();
+            }
 
-          await pick('Province', 'Laguna');
-          await pick('City / Municipality', 'Pila');
-          await pick('Barangay', 'Test barangay');
-          final postal = tester.widget<TextFormField>(
-            find.widgetWithText(TextFormField, 'Postal code'),
-          );
-          expect(postal.controller!.text, '4010');
-          await pick('Province', 'Metro Manila');
-          expect(postal.controller!.text, isEmpty);
-          final cityDropdown = tester.widget<DropdownButtonFormField<String>>(
-            find.widgetWithText(
-              DropdownButtonFormField<String>,
-              'City / Municipality',
-            ),
-          );
-          expect(cityDropdown.initialValue, isNull);
-          await pick('Province', 'Laguna');
-          await pick('City / Municipality', 'Pila');
-          await pick('Barangay', 'Test barangay');
-          expect(postal.controller!.text, '4010');
+            await pick('Province', 'Laguna');
+            await pick('City / Municipality', 'Pila');
+            await pick('Barangay', 'Test barangay');
+            final postal = tester.widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Postal code'),
+            );
+            expect(postal.controller!.text, '4010');
+            await pick('Province', 'Metro Manila');
+            expect(postal.controller!.text, isEmpty);
+            final cityDropdown = tester.widget<DropdownButtonFormField<String>>(
+              find.widgetWithText(
+                DropdownButtonFormField<String>,
+                'City / Municipality',
+              ),
+            );
+            expect(cityDropdown.initialValue, isNull);
+            await pick('Province', 'Laguna');
+            await pick('City / Municipality', 'Pila');
+            await pick('Barangay', 'Test barangay');
+            expect(postal.controller!.text, '4010');
+          } else {
+            expect(find.text('Default delivery address'), findsNothing);
+            expect(
+              find.widgetWithText(TextFormField, 'Recipient name'),
+              findsNothing,
+            );
+            expect(
+              find.widgetWithText(TextFormField, 'Postal code'),
+              findsNothing,
+            );
+          }
+          if (role == 'seller') {
+            await fill('Shop name', 'Google test shop');
+            await fill('Shop description', 'Handmade goods from our test shop');
+            await fill('TIN number', '123-456-789');
+            expect(find.text('Selfie with ID'), findsNothing);
+            expect(find.text('Business registration document'), findsNothing);
+            FocusManager.instance.primaryFocus?.unfocus();
+            await tester.pumpAndSettle();
+            await tester.ensureVisible(complete);
+            await tester.tap(complete);
+            await tester.pumpAndSettle();
+            expect(exchanges, 1);
+            expect(
+              find.text('Select your government-issued id.'),
+              findsOneWidget,
+            );
+            for (var i = 0; i < 1; i++) {
+              final select = find
+                  .widgetWithText(TextButton, 'Select file')
+                  .first;
+              await tester.ensureVisible(select);
+              await tester.pumpAndSettle();
+              await tester.tap(select);
+              await tester.pumpAndSettle();
+            }
+          }
           FocusManager.instance.primaryFocus?.unfocus();
           await tester.pumpAndSettle();
           await tester.ensureVisible(complete);
@@ -357,7 +428,17 @@ void main() {
             find.widgetWithText(TextFormField, 'Full name'),
           );
           expect(nameField.controller!.text, 'New Google user');
-          expect(postal.controller!.text, '4010');
+          if (role == 'buyer') {
+            expect(
+              tester
+                  .widget<TextFormField>(
+                    find.widgetWithText(TextFormField, 'Postal code'),
+                  )
+                  .controller!
+                  .text,
+              '4010',
+            );
+          }
           await tester.ensureVisible(complete);
           await tester.pumpAndSettle();
           await tester.tap(complete);
@@ -406,8 +487,19 @@ void main() {
             expect(body['account_type'], role);
             expect(body['date_of_birth'], isNotEmpty);
             expect(body['phone'], '09171234567');
-            expect(body['address']['postal_code'], '4010');
+            if (role == 'buyer') {
+              expect(body['address']['postal_code'], '4010');
+            } else {
+              expect(body.containsKey('address'), isFalse);
+            }
             expect(body['password'], 'GooglePassword123');
+            if (role == 'seller') {
+              expect(body['shop_name'], 'Google test shop');
+              expect((body['documents'] as Map).keys, equals(['id']));
+              expect(body['tax_number'], '123-456-789');
+            } else {
+              expect(body.containsKey('documents'), isFalse);
+            }
             if (exchanges == 2) {
               return http.Response(
                 jsonEncode({
