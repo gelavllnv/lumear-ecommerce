@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/bug_report.dart';
+import '../models/rider_profile.dart';
 import '../services/bug_report_service.dart';
 
 class BugReportScreen extends StatefulWidget {
@@ -36,14 +37,6 @@ class _BugReportScreenState extends State<BugReportScreen> {
   final List<String> _evidencePaths = [];
 
   bool _isSubmitting = false;
-
-  // ============================================================
-  // PROTOTYPE RIDER INFORMATION
-  // Later kunin natin ito sa logged-in rider/session.
-  // ============================================================
-  final String _riderId = 'RDR-001';
-  final String _riderName = 'Lumear Rider';
-  final String _riderEmail = 'rider@lumear.test';
 
   final String _appVersion = '1.0.0';
   final String _deviceInfo = 'Android Device';
@@ -273,29 +266,23 @@ class _BugReportScreenState extends State<BugReportScreen> {
       _isSubmitting = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 650));
-
-    if (!mounted) {
-      return;
+    try {
+      final BugReport report = await BugReportService.instance.submitReport(
+        affectedScreen: widget.affectedScreen,
+        appVersion: _appVersion,
+        deviceInfo: _deviceInfo,
+        description: _descriptionController.text.trim(),
+        expectedResult: _expectedResultController.text.trim(),
+        evidencePaths: _evidencePaths,
+      );
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      await _showSuccessDialog(report);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _showSnackBar(error.toString());
     }
-
-    final BugReport report = BugReportService.instance.submitReport(
-      riderId: _riderId,
-      riderName: _riderName,
-      riderEmail: _riderEmail,
-      affectedScreen: widget.affectedScreen,
-      appVersion: _appVersion,
-      deviceInfo: _deviceInfo,
-      description: _descriptionController.text.trim(),
-      expectedResult: _expectedResultController.text.trim(),
-      evidencePaths: _evidencePaths,
-    );
-
-    setState(() {
-      _isSubmitting = false;
-    });
-
-    await _showSuccessDialog(report);
   }
 
   // ============================================================
@@ -566,11 +553,11 @@ class _BugReportScreenState extends State<BugReportScreen> {
 
             _infoCard(
               children: [
-                _infoRow('Rider ID', _riderId),
+                _infoRow('Rider ID', RiderProfile.riderId),
                 _divider(),
-                _infoRow('Name', _riderName),
+                _infoRow('Name', RiderProfile.name),
                 _divider(),
-                _infoRow('Email', _riderEmail),
+                _infoRow('Email', RiderProfile.email),
               ],
             ),
 
@@ -715,7 +702,7 @@ class _BugReportScreenState extends State<BugReportScreen> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _evidencePaths.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     return Stack(
                       clipBehavior: Clip.none,

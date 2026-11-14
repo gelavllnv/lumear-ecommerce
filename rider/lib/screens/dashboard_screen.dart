@@ -1,4 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../services/rider_delivery_sync.dart';
+import '../services/rider_api_service.dart';
+
 import 'package:audioplayers/audioplayers.dart';
 
 import 'qr_scanner_screen.dart';
@@ -13,6 +19,9 @@ import 'package:flutter_application_1/screens/earnings_screen.dart';
 import 'package:flutter_application_1/screens/help_support_screen.dart';
 import 'package:flutter_application_1/screens/buyer_chat_list_screen.dart';
 import 'package:flutter_application_1/screens/rider_daily_report_screen.dart';
+import 'package:flutter_application_1/screens/cod_remittance_screen.dart';
+
+import 'return_pickups_screen.dart';
 
 import 'profile_screen.dart';
 
@@ -158,7 +167,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ============================================================
 
   static const double radiusSm = 14;
-  static const double radiusMd = 18;
   static const double radiusLg = 24;
   static const double radiusXl = 28;
 
@@ -204,9 +212,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _isStartingDelivery = false;
   bool _isRefreshingHome = false;
-  bool _isAvailable = true;
+  bool _isAvailable = RiderProfile.isAvailable ?? false;
+  bool _isUpdatingAvailability = false;
 
   int _unreadNotifications = 0;
+  int _outstandingCodMinor = 0;
+  int _pendingCodMinor = 0;
+  bool _isPollingRiderUpdates = false;
+  Timer? _riderUpdatesTimer;
+  List<Map<String, dynamic>> _returnPickupTasks = [];
 
   final List<RiderNotification> _notifications = [];
 
@@ -257,25 +271,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       .where((p) => p.status == 'Delivered' && _isToday(p.deliveredAt))
       .length;
 
-  int get _todayFailedCount => ParcelStore.parcels.value
-      .where(
-        (p) => p.status == 'Delivery Failed' && _isToday(p.statusUpdatedAt),
-      )
-      .length;
-
   int get _pickupCount => ParcelStore.parcels.value
       .where((p) => p.status == 'To Pick Up' || p.status == 'Pending')
       .length;
 
-  double get _todayCodCollected => ParcelStore.parcels.value
-      .where((p) => p.status == 'Delivered' && _isToday(p.deliveredAt))
-      .fold<double>(0, (sum, p) => sum + p.codAmount);
+  double get _dashboardCodAmountMinor =>
+      (_pendingCodMinor > 0 ? _pendingCodMinor : _outstandingCodMinor) / 100;
 
-  double get _todayRiderEarnings =>
-      ParcelStore.earnedParcels.value
-          .where((p) => _isToday(p.deliveredAt))
-          .length *
-      ParcelStore.earningPerDelivery;
+  String get _dashboardCodLabel =>
+      _pendingCodMinor > 0 ? 'COD Pending Hub' : 'COD to Remit';
+
+  double get _todayRiderEarnings => ParcelStore.parcels.value
+      .where((p) => _isToday(p.deliveredAt))
+      .fold<double>(0, (total, parcel) => total + parcel.riderFee);
 
   // ============================================================
   // INIT
@@ -286,6 +294,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
 
     ParcelStore.currentParcel.addListener(_onParcelChanged);
+    _pollRiderUpdates();
+    _riderUpdatesTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _pollRiderUpdates(),
+    );
   }
 
   // ============================================================
@@ -294,6 +307,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _riderUpdatesTimer?.cancel();
     ParcelStore.currentParcel.removeListener(_onParcelChanged);
 
     _topNotificationEntry?.remove();
@@ -304,10 +318,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  Future<void> _pollRiderUpdates() async {
+    if (_isPollingRiderUpdates) return;
+    _isPollingRiderUpdates = true;
+
+    try {
+      final tasks = await RiderApiService.tasks();
+      if (mounted) {
+        setState(() {
+          _returnPickupTasks = tasks
+              .where((task) => task['return_request_id'] != null)
+              .toList();
+        });
+      }
+    } catch (error) {
+      debugPrint('Return pickup refresh failed: $error');
+    }
+
+    try {
+      await RiderDeliverySync.refresh();
+    } catch (error) {
+      debugPrint('Rider shipment refresh failed: $error');
+    }
+
+    try {
+      final summary = await RiderApiService.codRemittances();
+      final balance = summary['balance'];
+      if (mounted) {
+        setState(() {
+          _outstandingCodMinor =
+              balance is Map && balance['outstanding_minor'] is num
+              ? (balance['outstanding_minor'] as num).toInt()
+              : 0;
+          _pendingCodMinor = summary['pending_minor'] is num
+              ? (summary['pending_minor'] as num).toInt()
+              : 0;
+        });
+      }
+    } catch (error) {
+      debugPrint('COD balance refresh failed: $error');
+    }
+
+    try {
+      final notifications = await RiderApiService.riderNotifications();
+      for (final notification in notifications.reversed) {
+        final title = notification['title']?.toString() ?? 'Lumear update';
+        final message = notification['message']?.toString() ?? '';
+        final createdAt = DateTime.tryParse(
+          notification['created_at']?.toString() ?? '',
+        );
+        await _addNotification(
+          title: title,
+          message: message,
+          icon: Icons.account_balance_wallet_rounded,
+          playSound: true,
+          createdAt: createdAt,
+        );
+      }
+    } catch (error) {
+      debugPrint('Rider notification refresh failed: $error');
+    } finally {
+      _isPollingRiderUpdates = false;
+    }
+  }
+
+  Future<void> _openReturnPickups() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const ReturnPickupsScreen()),
+    );
+    await _pollRiderUpdates();
+  }
+
   void _onParcelChanged() {
     if (!mounted) return;
 
     setState(() {});
+  }
+
+  Future<void> _toggleAvailability() async {
+    if (_isUpdatingAvailability) return;
+    final next = !_isAvailable;
+    setState(() => _isUpdatingAvailability = true);
+    try {
+      await RiderApiService.updateAvailability(next);
+      if (mounted) setState(() => _isAvailable = next);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update availability: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdatingAvailability = false);
+    }
   }
 
   // ============================================================
@@ -361,9 +464,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
 
       case 1:
-        return const KeyedSubtree(
+        return KeyedSubtree(
           key: ValueKey('parcels'),
-          child: DeliveryScreen(),
+          child: DeliveryScreen(onScanRequested: () => _goToPage(2)),
         );
 
       case 2:
@@ -419,6 +522,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String message,
     IconData icon = Icons.notifications,
     bool playSound = true,
+    DateTime? createdAt,
   }) async {
     if (!mounted) return;
 
@@ -429,7 +533,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           title: title,
           message: message,
           icon: icon,
-          createdAt: DateTime.now(),
+          createdAt: createdAt ?? DateTime.now(),
         ),
       );
 
@@ -607,7 +711,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: ListView.separated(
                         shrinkWrap: true,
                         itemCount: _notifications.length,
-                        separatorBuilder: (_, __) {
+                        separatorBuilder: (_, _) {
                           return const SizedBox(height: 10);
                         },
                         itemBuilder: (context, index) {
@@ -799,7 +903,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    ParcelStore.createParcelFromQr(scannedQr);
+    final scannedParcel = ParcelStore.createParcelFromQr(scannedQr);
+
+    if (scannedParcel.status != 'Pending') {
+      _showTopNotification(
+        'This parcel has already been scanned or is no longer waiting for pickup.',
+        color: danger,
+        icon: Icons.info_outline,
+      );
+      return;
+    }
+
+    await ParcelStore.confirmPickupFromWaybill(scannedQr);
 
     if (!mounted) return;
 
@@ -818,7 +933,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _addNotification(
       title: 'Parcel Scan Successful',
       message:
-          'Parcel ${parcel.parcelNumber} was scanned successfully and added to My Parcels.',
+          'Parcel ${parcel.parcelNumber} was scanned at the hub. It is now with you, and the buyer was notified.',
       icon: Icons.check_circle,
     );
 
@@ -829,7 +944,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
 
     _showTopNotification(
-      'Scan successful! ${parcel.parcelNumber} added to My Parcels.',
+      'Pickup confirmed. ${parcel.parcelNumber} is now in your care; the buyer was notified.',
       color: success,
       icon: Icons.check_circle,
     );
@@ -855,7 +970,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // QR scan already assigns the parcel to the rider.
     // Pressing Start Delivery begins the actual rider workflow.
-    ParcelStore.updateStatus('Heading to Pickup');
+    if (!await _saveDeliveryStatus(
+      'Heading to Pickup',
+      parcel.trackingNumber,
+    )) {
+      if (mounted) setState(() => _isStartingDelivery = false);
+      return;
+    }
+    if (!mounted) return;
 
     setState(() {
       _isStartingDelivery = false;
@@ -877,6 +999,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
 
     await _openDeliveryDetails();
+  }
+
+  Future<bool> _saveDeliveryStatus(String status, String trackingNumber) async {
+    try {
+      await ParcelStore.updateStatus(status, trackingNumber: trackingNumber);
+      return true;
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Update was not saved: $error')));
+      return false;
+    }
   }
 
   // ============================================================
@@ -906,6 +1041,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
             distance: parcel.distance,
             fee: '₱${parcel.riderFee.toStringAsFixed(0)}',
             customerPhone: parcel.phone,
+            paymentMethod: parcel.paymentMethod,
+            codAmount: parcel.codAmount,
+            shippingFee: parcel.shippingFee,
+            riderFee: parcel.riderFee,
+            customerLatitude: parcel.customerLatitude,
+            customerLongitude: parcel.customerLongitude,
+            initialStatus: parcel.status,
+            pickedUpAt: parcel.pickedUpAt,
+            initialFailedAttempts: parcel.failedAttempts,
+            onStatusChange: (status) =>
+                _saveDeliveryStatus(status, parcel.trackingNumber),
+            onFailedAttempt: (reason, note) async {
+              try {
+                return await ParcelStore.reportFailedAttempt(
+                  reason,
+                  note,
+                  trackingNumber: parcel.trackingNumber,
+                );
+              } catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Attempt was not saved: $error')),
+                  );
+                }
+                return null;
+              }
+            },
+            onDelayReport: (reason, proposedFor) async {
+              try {
+                await ParcelStore.reportDeliveryDelay(
+                  reason,
+                  proposedFor,
+                  trackingNumber: parcel.trackingNumber,
+                );
+                return true;
+              } catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Delay report was not sent: $error'),
+                    ),
+                  );
+                }
+                return false;
+              }
+            },
           );
         },
       ),
@@ -924,19 +1105,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // DELIVERY COMPLETED
     // ==========================================================
     if (status == 'completed') {
-      ParcelStore.updateStatus('Delivered');
-
-      // Credit earnings once for each successful delivery.
-      final completedParcel = ParcelStore.parcels.value.firstWhere(
-        (p) => p.trackingNumber == parcel.trackingNumber,
-        orElse: () => ParcelStore.currentParcel.value ?? parcel,
-      );
-      ParcelStore.awardSuccessfulDelivery(completedParcel);
+      if (!await _saveDeliveryStatus(
+        'Awaiting Buyer Confirmation',
+        parcel.trackingNumber,
+      ))
+        return;
 
       await _addNotification(
-        title: 'Delivery Completed',
+        title: 'Proof of Delivery Submitted',
         message:
-            '${parcel.parcelNumber} was successfully delivered to ${parcel.recipient}.',
+            '${parcel.parcelNumber} was handed to ${parcel.recipient}. Waiting for the buyer to confirm receipt.',
         icon: Icons.check_circle_outline,
         playSound: false,
       );
@@ -944,7 +1122,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!mounted) return;
 
       _showTopNotification(
-        '${parcel.parcelNumber} successfully delivered!',
+        'Proof saved. Waiting for the buyer to confirm receipt.',
         color: darkMaroon,
         icon: Icons.check_circle_outline,
       );
@@ -956,7 +1134,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // DELIVERY FAILED / RETURNED
     // ==========================================================
     if (status == 'failed' || status == 'returned') {
-      ParcelStore.updateStatus('Delivery Failed');
+      if (!await _saveDeliveryStatus('Delivery Failed', parcel.trackingNumber))
+        return;
 
       await _addNotification(
         title: 'Delivery Attempt Failed',
@@ -997,11 +1176,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<void> _openCodRemittance() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const CodRemittanceScreen()),
+    );
+  }
+
   // ============================================================
   // REFRESH HOME
   // ============================================================
 
   Future<void> _refreshHome() async {
+    try {
+      await RiderDeliverySync.refresh();
+      await _pollRiderUpdates();
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+    if (!mounted) return;
     if (_isRefreshingHome) return;
 
     setState(() {
@@ -1263,6 +1458,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 RiderProfile.name,
                                 style: const TextStyle(
+                                  fontFamily: 'Georgia',
                                   color: darkMaroon,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
@@ -1280,11 +1476,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _isAvailable = !_isAvailable;
-                                    });
-                                  },
+                                  onTap: _isUpdatingAvailability
+                                      ? null
+                                      : _toggleAvailability,
                                   borderRadius: BorderRadius.circular(14),
                                   child: Container(
                                     height: 44,
@@ -1414,6 +1608,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 _heroTitle,
                                 style: const TextStyle(
+                                  fontFamily: 'Georgia',
                                   color: Colors.white,
                                   fontSize: 25,
                                   fontWeight: FontWeight.w800,
@@ -1506,8 +1701,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 icon: Icons.payments_rounded,
                                 iconColor: darkMaroon,
                                 value:
-                                    '₱${_todayCodCollected.toStringAsFixed(0)}',
-                                label: 'COD Collected Today',
+                                    '₱${_dashboardCodAmountMinor.toStringAsFixed(2)}',
+                                label: _dashboardCodLabel,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1523,30 +1718,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _openDailyReport,
-                            icon: const Icon(Icons.picture_as_pdf_rounded),
-                            label: const Text(
-                              'Generate Daily PDF Report',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: darkMaroon,
-                              side: const BorderSide(color: darkMaroon),
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(radiusSm),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _openDailyReport,
+                                icon: const Icon(Icons.picture_as_pdf_rounded),
+                                label: const Text(
+                                  'Daily Report',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: darkMaroon,
+                                  side: const BorderSide(color: darkMaroon),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      radiusSm,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _openCodRemittance,
+                                icon: const Icon(Icons.payments_rounded),
+                                label: const Text(
+                                  'COD Remittance',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: maroon,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      radiusSm,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 28),
+
+                  // Return collection tasks have their own details and status flow.
+                  _EntranceAnimation(
+                    delay: 240,
+                    child: InkWell(
+                      onTap: _openReturnPickups,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: cardDecoration,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: lightBeige.withValues(alpha: 0.35),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: const Icon(
+                                Icons.assignment_return_rounded,
+                                color: darkMaroon,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Return pickups${_returnPickupTasks.isEmpty ? '' : ' (${_returnPickupTasks.length})'}',
+                                    style: const TextStyle(
+                                      color: darkMaroon,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Buyer returns have their own pickup details and progress.',
+                                    style: TextStyle(
+                                      color: textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: darkMaroon,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                   // ==========================================
                   // CURRENT DELIVERY
@@ -1675,6 +1957,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text(
           title,
           style: const TextStyle(
+            fontFamily: 'Georgia',
             color: darkMaroon,
             fontWeight: FontWeight.w800,
             fontSize: 18.5,

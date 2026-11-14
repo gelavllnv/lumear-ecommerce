@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/parcel_store.dart';
+import '../models/rider_profile.dart';
+
 class AssignmentScreen extends StatelessWidget {
   const AssignmentScreen({super.key});
 
@@ -49,16 +52,44 @@ class AssignmentScreen extends StatelessWidget {
     boxShadow: shadowSoft,
   );
 
-  // ============================================================
-  // DEMO ASSIGNMENT DATA
-  // Later: replace these with Laravel API data.
-  // ============================================================
+  static String get assignedHub => RiderProfile.logisticsProvider.isEmpty
+      ? 'Not available'
+      : RiderProfile.logisticsProvider;
+  static String get assignedArea => [
+    RiderProfile.barangay,
+    RiderProfile.municipality,
+    RiderProfile.province,
+  ].where((part) => part.trim().isNotEmpty).join(', ');
+  static String get assignedShift {
+    final start = RiderProfile.shiftStartTime;
+    final end = RiderProfile.shiftEndTime;
 
-  static const String assignedHub = 'Victoria Hub';
-  static const String assignedArea = 'Brgy. Masapang';
-  static const String assignedShift = '8:00 AM - 5:00 PM';
-  static const int assignedParcels = 12;
-  static const int deliveredParcels = 0;
+    if (start.isEmpty || end.isEmpty) return 'Not set by Logistics';
+
+    return '${_formatShiftTime(start)}–${_formatShiftTime(end)}';
+  }
+
+  static String _formatShiftTime(String value) {
+    final parts = value.split(':');
+    final hour = int.tryParse(parts.first);
+    if (hour == null) return value;
+
+    final minute = parts.length > 1 ? parts[1] : '00';
+    final period = hour >= 12 ? 'PM' : 'AM';
+    return '${hour % 12 == 0 ? 12 : hour % 12}:$minute $period';
+  }
+  static int get assignedParcels => ParcelStore.parcels.value
+      .where(
+        (parcel) => !{
+          'Delivered',
+          'Returned',
+          'Delivery Failed',
+        }.contains(parcel.status),
+      )
+      .length;
+  static int get deliveredParcels => ParcelStore.parcels.value
+      .where((parcel) => parcel.status == 'Delivered')
+      .length;
 
   // ============================================================
   // BUILD
@@ -143,7 +174,7 @@ class AssignmentScreen extends StatelessWidget {
               // ==================================================
               // ASSIGNED PARCELS HEADER
               // ==================================================
-              const _EntranceAnimation(
+              _EntranceAnimation(
                 delay: 150,
                 child: Row(
                   children: [
@@ -158,7 +189,7 @@ class AssignmentScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    _ParcelCountBadge(count: assignedParcels),
+                    _ParcelCountBadge(count: AssignmentScreen.assignedParcels),
                   ],
                 ),
               ),
@@ -237,7 +268,7 @@ class _CurrentAssignmentCard extends StatelessWidget {
 
                   const SizedBox(width: 13),
 
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -279,23 +310,31 @@ class _CurrentAssignmentCard extends StatelessWidget {
               color: AssignmentScreen.surface,
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
               child: Column(
-                children: const [
+                children: [
                   _AssignmentInfoRow(
                     icon: Icons.warehouse_rounded,
                     label: 'Hub',
                     value: AssignmentScreen.assignedHub,
                   ),
-                  SizedBox(height: 14),
-                  Divider(height: 1, thickness: 1, color: Color(0x0F62191C)),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0x0F62191C),
+                  ),
+                  const SizedBox(height: 14),
                   _AssignmentInfoRow(
                     icon: Icons.route_rounded,
                     label: 'Delivery Area',
                     value: AssignmentScreen.assignedArea,
                   ),
-                  SizedBox(height: 14),
-                  Divider(height: 1, thickness: 1, color: Color(0x0F62191C)),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0x0F62191C),
+                  ),
+                  const SizedBox(height: 14),
                   _AssignmentInfoRow(
                     icon: Icons.schedule_rounded,
                     label: 'Shift',
@@ -561,65 +600,36 @@ class _AssignedParcelsPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 34),
-      decoration: BoxDecoration(
-        color: AssignmentScreen.surface,
-        borderRadius: BorderRadius.circular(AssignmentScreen.radiusLg),
-        border: Border.all(
-          color: AssignmentScreen.darkMaroon.withValues(alpha: 0.10),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AssignmentScreen.lightBeige.withValues(alpha: 0.55),
-                  AssignmentScreen.lightBeige.withValues(alpha: 0.25),
-                ],
+    return ValueListenableBuilder<List<ParcelData>>(
+      valueListenable: ParcelStore.parcels,
+      builder: (context, parcels, _) {
+        if (parcels.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No customer delivery shipments are assigned to your account yet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AssignmentScreen.textMuted),
               ),
-              shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: AssignmentScreen.darkMaroon,
-              size: 28,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          const Text(
-            'Assigned parcels will appear here',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AssignmentScreen.darkMaroon,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          const Text(
-            'Parcels assigned by Logistics for Brgy. Masapang will be shown in this section.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AssignmentScreen.textMuted,
-              fontSize: 11.5,
-              height: 1.45,
-            ),
-          ),
-        ],
-      ),
+          );
+        }
+        return Column(
+          children: parcels
+              .map(
+                (parcel) => Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: Text(parcel.parcelNumber),
+                    subtitle: Text('${parcel.recipient} · ${parcel.address}'),
+                    trailing: Text(parcel.status),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
     );
   }
 }

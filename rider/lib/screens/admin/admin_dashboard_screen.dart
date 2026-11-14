@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/bug_report.dart';
 import '../../services/bug_report_service.dart';
+import '../../services/rider_api_service.dart';
 import '../login_screen.dart';
 import 'admin_home_screen.dart';
 import 'admin_bug_reports_screen.dart';
@@ -77,6 +78,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       const AdminBugReportsScreen(),
       const AdminRidersScreen(),
     ];
+    _bugReportService.refresh().catchError((_) {});
   }
 
   // Fade out -> switch page -> fade in.
@@ -148,7 +150,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: reports.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final report = reports[index];
                         return ListTile(
@@ -547,6 +549,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (logout != true || !mounted) {
       return;
     }
+
+    await RiderApiService.logoutAdmin();
 
     Navigator.pushAndRemoveUntil(
       context,

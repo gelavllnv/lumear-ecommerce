@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_1/models/parcel_store.dart';
 
 import 'package:flutter_application_1/services/rider_earnings_service.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 
 import 'package:flutter_application_1/screens/delivery_details_screen.dart';
 
@@ -19,9 +20,12 @@ class Parcel {
   final String paymentMethod;
   final double codAmount;
   final double riderFee;
+  final double shippingFee;
   final String distance;
   final double customerLatitude;
   final double customerLongitude;
+  final DateTime? pickedUpAt;
+  final int failedAttempts;
 
   String status;
   DateTime? deliveredAt;
@@ -44,6 +48,7 @@ class Parcel {
     required this.paymentMethod,
     required this.codAmount,
     required this.riderFee,
+    this.shippingFee = 0,
     required this.distance,
     required this.customerLatitude,
     required this.customerLongitude,
@@ -56,11 +61,15 @@ class Parcel {
     this.returnNote,
     this.rescheduledAt,
     this.rescheduleNote,
+    this.pickedUpAt,
+    this.failedAttempts = 0,
   });
 }
 
 class DeliveryScreen extends StatefulWidget {
-  const DeliveryScreen({super.key});
+  final VoidCallback? onScanRequested;
+
+  const DeliveryScreen({super.key, this.onScanRequested});
 
   @override
   State<DeliveryScreen> createState() => _DeliveryScreenState();
@@ -73,7 +82,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   // ============================================================
 
   static const Color darkMaroon = Color(0xFF62191C);
-  static const Color maroon = Color(0xFF873632);
   static const Color brownBeige = Color(0xFF9E7161);
   static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFF3E9E1);
@@ -122,189 +130,73 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   DateTime _selectedPodDate = DateTime.now();
 
-  // ============================================================
-  // PICKUPS
-  // Newly scanned parcels go DIRECTLY here. No Pending section.
-  // ============================================================
+  List<Parcel> get _allParcels =>
+      ParcelStore.parcels.value.map(_fromRemoteParcel).toList(growable: false);
 
-  final List<Parcel> _pickupParcels = [
-    Parcel(
-      parcelNumber: '#SPX10234',
-      trackingNumber: 'SPXPH102345678',
-      hub: 'San Pablo Delivery Hub',
-      recipient: 'Juan Santos',
-      phone: '0912 345 6789',
-      address: 'Brgy. Maligaya, San Pablo City',
-      parcelType: 'Small Parcel',
-      paymentMethod: 'Cash on Delivery',
-      codAmount: 1250,
-      riderFee: 45,
-      distance: '2.4 km',
-      customerLatitude: 14.0648,
-      customerLongitude: 121.3310,
-      status: 'To Pick Up',
-    ),
-    Parcel(
-      parcelNumber: '#SPX10235',
-      trackingNumber: 'SPXPH102345679',
-      hub: 'San Pablo Delivery Hub',
-      recipient: 'Maria Reyes',
-      phone: '0917 456 1234',
-      address: 'Brgy. San Roque, San Pablo City',
-      parcelType: 'Medium Parcel',
-      paymentMethod: 'Paid',
-      codAmount: 0,
-      riderFee: 55,
-      distance: '3.1 km',
-      customerLatitude: 14.0720,
-      customerLongitude: 121.3205,
-      status: 'To Pick Up',
-    ),
-  ];
+  List<Parcel> get _pickupParcels =>
+      _allParcels.where((parcel) => parcel.status == 'Pending').toList();
 
-  final List<Parcel> _ongoingParcels = [
-    Parcel(
-      parcelNumber: '#SPX10230',
-      trackingNumber: 'SPXPH102345670',
-      hub: 'San Pablo Delivery Hub',
-      recipient: 'Pedro Cruz',
-      phone: '0998 234 5678',
-      address: 'Brgy. San Antonio, San Pablo City',
-      parcelType: 'Small Parcel',
-      paymentMethod: 'Cash on Delivery',
-      codAmount: 850,
-      riderFee: 40,
-      distance: '1.8 km',
-      customerLatitude: 14.0615,
-      customerLongitude: 121.3285,
-      status: 'Out for Delivery',
-    ),
-  ];
+  List<Parcel> get _ongoingParcels => _allParcels
+      .where(
+        (parcel) => {
+          'Heading to Pickup',
+          'Arrived at Pickup',
+          'Parcel Picked Up',
+          'In Transit',
+          'Out for Delivery',
+          'Arrived at Destination',
+          'Awaiting Buyer Confirmation',
+        }.contains(parcel.status),
+      )
+      .toList();
 
-  // Demo delivered records. New completed deliveries are inserted here.
-  final List<Parcel> _deliveredParcels = [
-    Parcel(
-      parcelNumber: '#SPX10220',
-      trackingNumber: 'SPXPH102345660',
-      hub: 'San Pablo Delivery Hub',
-      recipient: 'Ana Reyes',
-      phone: '0918 765 4321',
-      address: 'Brgy. San Rafael, San Pablo City',
-      parcelType: 'Medium Parcel',
-      paymentMethod: 'Paid',
-      codAmount: 0,
-      riderFee: 65,
-      distance: '4.2 km',
-      customerLatitude: 14.0600,
-      customerLongitude: 121.3200,
-      status: 'Delivered',
-      deliveredAt: DateTime(2026, 9, 16, 10, 35),
-      receivedBy: 'Ana Reyes',
-    ),
-    Parcel(
-      parcelNumber: '#SPX10219',
-      trackingNumber: 'SPXPH102345659',
-      hub: 'San Pablo Delivery Hub',
-      recipient: 'Mark Santos',
-      phone: '0920 111 2233',
-      address: 'Brgy. Del Remedio, San Pablo City',
-      parcelType: 'Small Parcel',
-      paymentMethod: 'Cash on Delivery',
-      codAmount: 650,
-      riderFee: 55,
-      distance: '3.5 km',
-      customerLatitude: 14.0660,
-      customerLongitude: 121.3150,
-      status: 'Delivered',
-      deliveredAt: DateTime(2026, 9, 15, 15, 21),
-      receivedBy: 'Mark Santos',
-    ),
-  ];
+  List<Parcel> get _deliveredParcels =>
+      _allParcels.where((parcel) => parcel.status == 'Delivered').toList();
 
-  final List<Parcel> _returnedParcels = [
-    Parcel(
-      parcelNumber: '#SPX10218',
-      trackingNumber: 'SPXPH102345658',
-      hub: 'San Pablo Delivery Hub',
-      recipient: 'Rene Cruz',
-      phone: '0911 555 0188',
-      address: 'Brgy. San Isidro, San Pablo City',
-      parcelType: 'Small Parcel',
-      paymentMethod: 'Cash on Delivery',
-      codAmount: 520,
-      riderFee: 45,
-      distance: '2.9 km',
-      customerLatitude: 14.0630,
-      customerLongitude: 121.3180,
-      status: 'Returned',
-      returnedAt: DateTime(2026, 9, 15, 9, 15),
-      returnReason: 'Parcel Damaged',
-      returnNote: 'Parcel packaging was visibly damaged.',
-    ),
-  ];
+  List<Parcel> get _returnedParcels => _allParcels
+      .where(
+        (parcel) => {'Returned', 'Delivery Failed'}.contains(parcel.status),
+      )
+      .toList();
+
+  Parcel _fromRemoteParcel(ParcelData parcel) => Parcel(
+    parcelNumber: parcel.parcelNumber,
+    trackingNumber: parcel.trackingNumber,
+    hub: parcel.hub,
+    recipient: parcel.recipient,
+    phone: parcel.phone,
+    address: parcel.address,
+    parcelType: parcel.parcelType,
+    paymentMethod: parcel.paymentMethod,
+    codAmount: parcel.codAmount,
+    riderFee: parcel.riderFee,
+    shippingFee: parcel.shippingFee,
+    distance: parcel.distance,
+    customerLatitude: parcel.customerLatitude,
+    customerLongitude: parcel.customerLongitude,
+    status: parcel.status,
+    deliveredAt: parcel.deliveredAt,
+    pickedUpAt: parcel.pickedUpAt,
+    failedAttempts: parcel.failedAttempts,
+    proofImagePath: parcel.proofImagePath,
+    receivedBy: parcel.receivedBy,
+  );
 
   @override
   void initState() {
     super.initState();
-
-    _syncScannedParcel();
-
-    ParcelStore.currentParcel.addListener(_onParcelStoreChanged);
+    ParcelStore.parcels.addListener(_onParcelStoreChanged);
   }
 
   @override
   void dispose() {
-    ParcelStore.currentParcel.removeListener(_onParcelStoreChanged);
+    ParcelStore.parcels.removeListener(_onParcelStoreChanged);
 
     super.dispose();
   }
 
   void _onParcelStoreChanged() {
-    if (!mounted) return;
-
-    _syncScannedParcel();
-  }
-
-  // ============================================================
-  // QR SCAN -> PICKUPS
-  // ============================================================
-
-  void _syncScannedParcel() {
-    final ParcelData? scannedParcel = ParcelStore.currentParcel.value;
-
-    if (scannedParcel == null) return;
-
-    final bool alreadyExists = [
-      ..._pickupParcels,
-      ..._ongoingParcels,
-      ..._deliveredParcels,
-      ..._returnedParcels,
-    ].any((parcel) => parcel.trackingNumber == scannedParcel.trackingNumber);
-
-    if (alreadyExists) return;
-
-    final Parcel newParcel = Parcel(
-      parcelNumber: scannedParcel.parcelNumber,
-      trackingNumber: scannedParcel.trackingNumber,
-      hub: scannedParcel.hub,
-      recipient: scannedParcel.recipient,
-      phone: scannedParcel.phone,
-      address: scannedParcel.address,
-      parcelType: scannedParcel.parcelType,
-      paymentMethod: scannedParcel.paymentMethod,
-      codAmount: scannedParcel.codAmount,
-      riderFee: scannedParcel.riderFee,
-      distance: scannedParcel.distance,
-      customerLatitude: scannedParcel.customerLatitude,
-      customerLongitude: scannedParcel.customerLongitude,
-      status: 'To Pick Up',
-    );
-
-    setState(() {
-      _pickupParcels.insert(0, newParcel);
-
-      _selectedTab = 0;
-    });
+    if (mounted) setState(() {});
   }
 
   @override
@@ -385,7 +277,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 6),
         itemCount: _tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           final bool selected = _selectedTab == index;
 
@@ -467,7 +359,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       physics: const BouncingScrollPhysics(),
       padding: _listPadding,
       itemCount: parcels.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
         return _parcelCard(parcel: parcels[index], type: type);
       },
@@ -481,8 +373,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
     switch (type) {
       case 'pickup':
-        title = 'No Pickups';
-        message = 'Scan a parcel QR code and it will appear here.';
+        title = 'No Assigned Pickups';
+        message = 'Parcels assigned by Logistics will appear here. Scan the seller waybill QR to confirm pickup and take responsibility.';
         icon = Icons.inventory_2_outlined;
         break;
 
@@ -732,16 +624,49 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
           if (type == 'pickup') ...[
             const SizedBox(height: 16),
+            if (parcel.status == 'Pending') ...[
+              Row(
+                children: [
+                  const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 16,
+                    color: warning,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Locked until you scan the seller waybill QR at the hub.',
+                      style: TextStyle(
+                        color: warning,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
 
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
                 onPressed: () => _startPickup(parcel),
-                icon: const Icon(Icons.inventory_2_rounded, size: 19),
-                label: const Text(
-                  'Start Pickup',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+                icon: Icon(
+                  parcel.status == 'Pending'
+                      ? Icons.qr_code_scanner_rounded
+                      : Icons.inventory_2_rounded,
+                  size: 19,
+                ),
+                label: Text(
+                  parcel.status == 'Pending'
+                      ? 'Scan Waybill QR'
+                      : 'Start Pickup',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
                 ),
                 style: _primaryButtonStyle(),
               ),
@@ -944,16 +869,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     );
   }
 
+  Widget _proofImage(
+    String path, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+  }) {
+    final Widget image = path.startsWith('http')
+        ? Image.network(
+            path,
+            headers: RiderApiService.authenticatedHeaders,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image_outlined),
+          )
+        : Image.file(File(path), width: width, height: height, fit: fit);
+    return image;
+  }
+
   Widget _proofThumbnail(String? path, {double size = 58}) {
-    if (path != null && File(path).existsSync()) {
+    final bool isRemote = path?.startsWith('http') == true;
+    if (path != null && (isRemote || File(path).existsSync())) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.file(
-          File(path),
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-        ),
+        child: _proofImage(path, width: size, height: size, fit: BoxFit.cover),
       );
     }
 
@@ -1107,7 +1047,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 : ListView.separated(
                     physics: const BouncingScrollPhysics(),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       return _podHistoryCard(filtered[index]);
                     },
@@ -1228,8 +1168,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   void _showProofImage(Parcel parcel) {
     final String? path = parcel.proofImagePath;
+    final bool isRemote = path?.startsWith('http') == true;
 
-    if (path == null || !File(path).existsSync()) {
+    if (path == null || (!isRemote && !File(path).existsSync())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Proof of Delivery image is not available.'),
@@ -1287,7 +1228,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
                 ClipRRect(
                   borderRadius: BorderRadius.circular(18),
-                  child: Image.file(File(path), fit: BoxFit.cover),
+                  child: _proofImage(path, fit: BoxFit.cover),
                 ),
 
                 const SizedBox(height: 14),
@@ -1369,7 +1310,47 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   // goes straight to 'Out for Delivery'.
   // ============================================================
 
-  void _startPickup(Parcel parcel) {
+  Future<void> _startPickup(Parcel parcel) async {
+    if (parcel.status == 'Awaiting Buyer Confirmation') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'POD is saved. This parcel stays active until the buyer confirms receipt.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (parcel.status == 'Pending') {
+      final scanRequested = widget.onScanRequested;
+      if (scanRequested != null) {
+        scanRequested();
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Scan this parcel’s waybill QR at the hub before starting delivery.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await ParcelStore.updateStatus(
+        'Out for Delivery',
+        trackingNumber: parcel.trackingNumber,
+      );
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Update was not saved: $error')));
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       _pickupParcels.remove(parcel);
 
@@ -1379,13 +1360,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
       _selectedTab = 1;
     });
-
-    final scannedParcel = ParcelStore.currentParcel.value;
-
-    if (scannedParcel != null &&
-        scannedParcel.trackingNumber == parcel.trackingNumber) {
-      ParcelStore.updateStatus('Out for Delivery');
-    }
 
     _openDeliveryDetails(parcel);
   }
@@ -1407,6 +1381,66 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             distance: parcel.distance,
             fee: '₱${parcel.riderFee.toStringAsFixed(0)}',
             customerPhone: parcel.phone,
+            paymentMethod: parcel.paymentMethod,
+            codAmount: parcel.codAmount,
+            shippingFee: parcel.shippingFee,
+            riderFee: parcel.riderFee,
+            customerLatitude: parcel.customerLatitude,
+            customerLongitude: parcel.customerLongitude,
+            initialStatus: parcel.status,
+            pickedUpAt: parcel.pickedUpAt,
+            initialFailedAttempts: parcel.failedAttempts,
+            onStatusChange: (status) async {
+              try {
+                await ParcelStore.updateStatus(
+                  status,
+                  trackingNumber: parcel.trackingNumber,
+                );
+                return true;
+              } catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Update was not saved: $error')),
+                  );
+                }
+                return false;
+              }
+            },
+            onFailedAttempt: (reason, note) async {
+              try {
+                return await ParcelStore.reportFailedAttempt(
+                  reason,
+                  note,
+                  trackingNumber: parcel.trackingNumber,
+                );
+              } catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Attempt was not saved: $error')),
+                  );
+                }
+                return null;
+              }
+            },
+            onDelayReport: (reason, proposedFor) async {
+              try {
+                await ParcelStore.reportDeliveryDelay(
+                  reason,
+                  proposedFor,
+                  trackingNumber: parcel.trackingNumber,
+                );
+                return true;
+              } catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Delay report was not sent: $error'),
+                    ),
+                  );
+                }
+                return false;
+              }
+            },
           );
         },
       ),
@@ -1414,15 +1448,39 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
     if (!mounted || result == null) return;
 
+    final resultStatus = result is Map ? result['status'] : result;
+    final savedStatus = resultStatus == 'completed'
+        ? 'Awaiting Buyer Confirmation'
+        : ['returned', 'failed'].contains(resultStatus)
+        ? 'Delivery Failed'
+        : null;
+    if (savedStatus != null) {
+      try {
+        await ParcelStore.updateStatus(
+          savedStatus,
+          trackingNumber: parcel.trackingNumber,
+          proofImagePath: result is Map
+              ? result['proofImagePath'] as String?
+              : null,
+          receivedBy: result is Map ? result['receivedBy'] as String? : null,
+        );
+      } catch (error) {
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Update was not saved: $error')),
+          );
+        return;
+      }
+      if (!mounted) return;
+    }
+
     // New result format from delivery_details_screen.dart.
     if (result is Map) {
       final String? status = result['status'] as String?;
 
       if (status == 'completed') {
         setState(() {
-          _ongoingParcels.remove(parcel);
-
-          parcel.status = 'Delivered';
+          parcel.status = 'Awaiting Buyer Confirmation';
 
           parcel.deliveredAt =
               result['deliveredAt'] as DateTime? ?? DateTime.now();
@@ -1431,19 +1489,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
           parcel.proofImagePath = result['proofImagePath'] as String?;
 
-          _deliveredParcels.insert(0, parcel);
-
-          _selectedPodDate = parcel.deliveredAt!;
-
-          _selectedTab = 2;
+          _selectedTab = 1;
         });
 
-        _updateStoreStatus(parcel, 'Delivered');
+        _updateStoreStatus(parcel, 'Awaiting Buyer Confirmation');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${parcel.parcelNumber} saved to Delivered with date, time, and POD.',
+              '${parcel.parcelNumber} has POD recorded. Waiting for the buyer to confirm receipt.',
             ),
           ),
         );
@@ -1651,13 +1705,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   void _updateStoreStatus(Parcel parcel, String status) {
-    final scannedParcel = ParcelStore.currentParcel.value;
-
-    if (scannedParcel != null &&
-        scannedParcel.trackingNumber == parcel.trackingNumber) {
-      ParcelStore.updateStatus(status);
-    }
-
     if (status == 'Delivered') {
       final ParcelData completedParcel = ParcelData(
         parcelNumber: parcel.parcelNumber,
@@ -1670,11 +1717,17 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         paymentMethod: parcel.paymentMethod,
         codAmount: parcel.codAmount,
         riderFee: parcel.riderFee,
+        shippingFee: parcel.shippingFee,
         distance: parcel.distance,
         customerLatitude: parcel.customerLatitude,
         customerLongitude: parcel.customerLongitude,
         qrValue: parcel.trackingNumber,
         status: 'Delivered',
+        remoteShipmentId: ParcelStore.parcels.value
+            .where((p) => p.trackingNumber == parcel.trackingNumber)
+            .firstOrNull
+            ?.remoteShipmentId,
+        deliveredAt: parcel.deliveredAt,
       );
 
       ParcelStore.awardSuccessfulDelivery(completedParcel);

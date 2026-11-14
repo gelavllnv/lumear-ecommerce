@@ -18,6 +18,28 @@
                     @foreach ($order->sellerOrders as $sellerOrder)
                         <section class="px-5 py-4">
                             <div class="mb-3 flex items-center justify-between gap-3 text-sm"><p class="font-semibold">{{ $sellerOrder->seller->name }}</p><span class="rounded-full bg-maroon-900/5 px-3 py-1 text-xs font-bold capitalize">{{ str_replace('_', ' ', $sellerOrder->status) }}</span></div>
+                            @if ($sellerOrder->shipment)
+                                <div class="mb-4 rounded-xl border border-sand-400/25 bg-cream-100/65 p-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <p class="text-xs font-bold uppercase tracking-[.14em] text-maroon-700">Delivery tracking</p>
+                                            <p class="mt-1 text-sm font-semibold">{{ $sellerOrder->shipment->provider?->name ?? 'Assigned courier' }} · {{ $sellerOrder->shipment->tracking_code }}</p>
+                                        </div>
+                                        <span class="rounded-full bg-maroon-900/5 px-3 py-1 text-xs font-bold capitalize">{{ str_replace('_', ' ', $sellerOrder->shipment->status) }}</span>
+                                    </div>
+                                    <ol class="mt-3 space-y-2 border-l border-sand-400/40 pl-4">
+                                        @forelse ($sellerOrder->shipment->events->sortByDesc('occurred_at')->take(4) as $event)
+                                            <li class="text-xs text-maroon-900/70">
+                                                <span class="font-bold text-maroon-900">{{ ucwords(str_replace('_', ' ', $event->status)) }}</span>
+                                                <span class="ml-1">· {{ $event->occurred_at?->format('M j, g:i A') }}</span>
+                                                @if ($event->note)<p class="mt-0.5">{{ $event->note }}</p>@endif
+                                            </li>
+                                        @empty
+                                            <li class="text-xs text-maroon-900/60">Your tracking milestones will appear here once the courier receives the parcel.</li>
+                                        @endforelse
+                                    </ol>
+                                </div>
+                            @endif
                             @if ($sellerOrder->status === 'delivered')
                                 <div class="mb-4 rounded-xl border border-emerald-700/20 bg-emerald-50 p-4"><p class="font-bold text-emerald-950">Have you received this parcel?</p><p class="mt-1 text-sm text-emerald-900/80">Confirming receipt completes this COD order and lets you leave product ratings. It does not charge you again or send money online.</p><form class="mt-3" method="post" action="{{ route('buyer.orders.confirm-receipt', $sellerOrder) }}">@csrf<button class="rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-950">Confirm receipt &amp; release COD confirmation</button></form></div>
                             @elseif ($sellerOrder->status === 'completed')
@@ -27,6 +49,27 @@
                                 @foreach ($sellerOrder->items as $item)
                                     <div class="rounded-xl bg-cream-100/65 p-3">
                                         <div class="flex flex-wrap items-center gap-3"><span class="grid h-9 w-9 place-items-center rounded-xl bg-cream-100">✦</span><div class="min-w-40 flex-1"><p class="font-semibold">{{ $item->product_name }}</p><p class="mt-1 text-xs text-maroon-900/55">{{ $item->variant_name }} · Qty {{ $item->quantity }}</p></div><p class="font-display text-lg text-maroon-700">₱{{ number_format($item->lineTotalMinor() / 100, 2) }}</p></div>
+                                        @php($returnRequest = $sellerOrder->returnRequests->where('order_item_id', $item->id)->sortByDesc('id')->first())
+                                        @if ($returnRequest && $returnRequest->status !== 'rejected')
+                                            <div class="mt-4 rounded-xl border border-amber-700/20 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+                                                <p class="font-bold">Return request: {{ str_replace('_', ' ', $returnRequest->status) }}</p>
+                                                <p class="mt-1">Pickup: {{ str_replace('_', ' ', $returnRequest->pickup_status) }}</p>
+                                                @if ($returnRequest->seller_response)<p class="mt-1">Seller response: {{ $returnRequest->seller_response }}</p>@endif
+                                            </div>
+                                        @elseif (in_array($sellerOrder->status, ['delivered', 'completed'], true))
+                                            <form class="mt-4 grid gap-3 border-t border-sand-400/20 pt-4" method="post" action="{{ route('buyer.returns.store', $item) }}">
+                                                @csrf
+                                                <p class="text-sm font-bold text-maroon-900">Need to return this item?</p>
+                                                <label class="grid gap-1 text-sm font-semibold text-maroon-900" for="return-reason-{{ $item->id }}">Reason
+                                                    <input class="rounded-lg border border-sand-400/60 bg-cream-50 px-3 py-2 font-normal" id="return-reason-{{ $item->id }}" name="reason" maxlength="100" required placeholder="e.g. Item arrived damaged">
+                                                </label>
+                                                <label class="grid gap-1 text-sm font-semibold text-maroon-900" for="return-details-{{ $item->id }}">Details
+                                                    <textarea class="w-full rounded-lg border border-sand-400/60 bg-cream-50 p-3 font-normal" id="return-details-{{ $item->id }}" name="description" minlength="10" maxlength="2000" rows="3" required placeholder="Tell the seller what is wrong with the item."></textarea>
+                                                </label>
+                                                <button class="justify-self-start rounded-xl bg-maroon-700 px-4 py-2.5 text-sm font-bold text-cream-50 transition hover:bg-maroon-900" type="submit">Request return</button>
+                                                <p class="text-xs text-maroon-900/60">The seller reviews your request first. If approved, Logistics will arrange a pickup.</p>
+                                            </form>
+                                        @endif
                                         @if ($sellerOrder->status === 'completed')
                                             <form class="mt-4 border-t border-sand-400/20 pt-4" method="post" action="{{ route('buyer.reviews.store', $item) }}">
                                                 @csrf

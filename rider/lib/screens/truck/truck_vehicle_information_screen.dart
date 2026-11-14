@@ -9,6 +9,8 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../services/rider_api_service.dart';
+
 class TruckVehicleInformationScreen extends StatefulWidget {
   final TruckRiderProfile profile;
   final ValueChanged<TruckRiderProfile>? onSaved;
@@ -58,6 +60,7 @@ class _TruckVehicleInformationScreenState
     // Use the latest shared profile if one exists for this rider.
     _profile = TruckProfileStore.resolve(widget.profile);
     _loadProfile();
+    _loadUploadedDocuments();
   }
 
   @override
@@ -74,6 +77,32 @@ class _TruckVehicleInformationScreenState
     _licensePath = _profile.licenseImagePath;
     _orPath = _profile.orImagePath;
     _crPath = _profile.crImagePath;
+  }
+
+  Future<void> _loadUploadedDocuments() async {
+    try {
+      final files = await Future.wait([
+        RiderApiService.downloadDocument('driver_license'),
+        RiderApiService.downloadDocument('or_document'),
+        RiderApiService.downloadDocument('cr_document'),
+      ]);
+      if (!mounted) return;
+
+      final updated = _profile.copyWith(
+        licenseImagePath: files[0]?.path ?? _profile.licenseImagePath,
+        orImagePath: files[1]?.path ?? _profile.orImagePath,
+        crImagePath: files[2]?.path ?? _profile.crImagePath,
+      );
+      TruckProfileStore.update(updated);
+      setState(() {
+        _profile = updated;
+        _licensePath = updated.licenseImagePath;
+        _orPath = updated.orImagePath;
+        _crPath = updated.crImagePath;
+      });
+    } catch (_) {
+      // Keep any device-local files already recorded in the truck profile.
+    }
   }
 
   void _showMessage(String message, {bool success = false}) {
@@ -251,7 +280,7 @@ class _TruckVehicleInformationScreenState
                     child: Image.file(
                       file,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Padding(
+                      errorBuilder: (_, _, _) => const Padding(
                         padding: EdgeInsets.all(24),
                         child: Text('Unable to display this image.'),
                       ),
@@ -282,7 +311,7 @@ class _TruckVehicleInformationScreenState
   // SAVE CHANGES
   // ------------------------------------------------------------
 
-  void _saveChanges() {
+  Future<void> _saveChanges() async {
     FocusScope.of(context).unfocus();
 
     final String license = _licenseController.text.trim();
@@ -301,6 +330,30 @@ class _TruckVehicleInformationScreenState
     // Start from the latest shared profile so personal-information edits
     // made elsewhere are never overwritten, then apply the vehicle changes.
     final TruckRiderProfile base = TruckProfileStore.resolve(_profile);
+
+    final bool hasDocumentChanges =
+        _licensePath != base.licenseImagePath ||
+        _orPath != base.orImagePath ||
+        _crPath != base.crImagePath;
+    if (hasDocumentChanges) {
+      try {
+        await RiderApiService.updateDocuments(
+          driverLicense:
+              _licensePath != base.licenseImagePath && _licensePath != null
+              ? File(_licensePath!)
+              : null,
+          orDocument: _orPath != base.orImagePath && _orPath != null
+              ? File(_orPath!)
+              : null,
+          crDocument: _crPath != base.crImagePath && _crPath != null
+              ? File(_crPath!)
+              : null,
+        );
+      } catch (error) {
+        _showMessage('Could not upload documents: $error');
+        return;
+      }
+    }
 
     final updated = base.copyWith(
       licenseNumber: license,

@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
 
 import '../../models/bug_report.dart';
 import '../../services/bug_report_service.dart';
+import '../../services/rider_api_service.dart';
 
 class AdminBugReportsScreen extends StatefulWidget {
   const AdminBugReportsScreen({super.key});
@@ -48,6 +48,12 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
   final BugReportService _service = BugReportService.instance;
 
   String _filter = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    _service.refresh().catchError((_) {});
+  }
 
   // ============================================================
   // HELPERS
@@ -157,7 +163,7 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
                                   bottom: _navClearance,
                                 ),
                                 itemCount: reports.length,
-                                separatorBuilder: (_, __) =>
+                                separatorBuilder: (_, _) =>
                                     const SizedBox(height: 12),
                                 itemBuilder: (context, index) {
                                   return _reportCard(reports[index]);
@@ -704,6 +710,17 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
 
                           const SizedBox(height: 18),
 
+                          _detailsSection('Reported by rider', [
+                            _detailRow('Rider', report.riderName),
+                            _detailRow('Rider ID', report.riderId),
+                            _detailRow('Email', report.riderEmail),
+                            _detailRow('Phone', report.riderPhone),
+                            _detailRow('Vehicle / job', '${report.vehicle} / ${report.jobType}'),
+                            _detailRow('Municipality', report.municipality),
+                          ]),
+
+                          const SizedBox(height: 18),
+
                           _detailsSection('System Information', [
                             _detailRow('Screen', report.affectedScreen),
                             _detailRow('App Version', report.appVersion),
@@ -798,20 +815,16 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            _service.updateStatus(
-                              reportId: report.id,
-                              status: selectedStatus,
-                            );
-
-                            _service.updateAdminResponse(
-                              reportId: report.id,
-                              response: responseController.text,
-                            );
-
-                            Navigator.pop(sheetContext);
-
-                            messenger.showSnackBar(
+                            onPressed: () async {
+                              try {
+                                await _service.updateStatus(
+                                  reportId: report.id,
+                                  status: selectedStatus,
+                                  response: responseController.text,
+                                );
+                                if (!sheetContext.mounted) return;
+                                Navigator.pop(sheetContext);
+                                messenger.showSnackBar(
                               SnackBar(
                                 behavior: SnackBarBehavior.floating,
                                 margin: const EdgeInsets.fromLTRB(
@@ -824,7 +837,10 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
                                   '${report.id} updated successfully.',
                                 ),
                               ),
-                            );
+                                );
+                              } catch (error) {
+                                messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+                              }
                           },
                           icon: const Icon(Icons.check_rounded, size: 20),
                           label: const Text(
@@ -956,14 +972,15 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: paths.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () => _viewEvidence(paths[index]),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Image.file(
-                File(paths[index]),
+              child: Image.network(
+                paths[index],
+                headers: RiderApiService.authenticatedHeaders,
                 width: 180,
                 height: 150,
                 fit: BoxFit.cover,
@@ -998,8 +1015,9 @@ class _AdminBugReportsScreenState extends State<AdminBugReportsScreen> {
                   minScale: 1,
                   maxScale: 5,
                   child: Center(
-                    child: Image.file(
-                      File(path),
+                    child: Image.network(
+                      path,
+                      headers: RiderApiService.authenticatedHeaders,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => const Icon(
                         Icons.broken_image_outlined,

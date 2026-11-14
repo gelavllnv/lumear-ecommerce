@@ -1,14 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 
 import 'bug_report_screen.dart';
-
-import '../ai/lumear_ai_knowledge.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -43,21 +40,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   static const Color mutedText = Color(0xFFAE9790);
 
   // ============================================================
-  // OPENROUTER
-  // ============================================================
-
-  // Paste your OpenRouter key locally for testing.
-  // Do NOT commit your real key to GitHub.
-  // For production, move this request to your Laravel backend.
-  static const String _openRouterApiKey = '';
-
-  // Free router: automatically selects an available free model.
-  static const String _openRouterModel = 'openrouter/free';
-
-  static const String _openRouterUrl =
-      'https://openrouter.ai/api/v1/chat/completions';
-
-  // ============================================================
   // CONTROLLERS
   // ============================================================
 
@@ -66,8 +48,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   final ScrollController _scrollController = ScrollController();
 
   final ImagePicker _imagePicker = ImagePicker();
-
-  final http.Client _httpClient = http.Client();
 
   // ============================================================
   // STATE
@@ -82,7 +62,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   String? _pendingAttachmentPath;
   String? _pendingAttachmentType;
   String? _pendingAttachmentName;
-  String? _pendingMimeType;
 
   final List<Map<String, dynamic>> _messages = [];
 
@@ -116,7 +95,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _httpClient.close();
 
     super.dispose();
   }
@@ -146,8 +124,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
     final String? attachmentName = _pendingAttachmentName;
 
-    final String? mimeType = _pendingMimeType;
-
     _messageController.clear();
 
     // Remove preview after Send is pressed.
@@ -155,15 +131,13 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       _pendingAttachmentPath = null;
       _pendingAttachmentType = null;
       _pendingAttachmentName = null;
-      _pendingMimeType = null;
     });
 
-    await _sendToOpenRouter(
+    await _sendToLaravelAi(
       riderMessage: text,
       attachmentPath: attachmentPath,
       attachmentType: attachmentType,
       attachmentName: attachmentName,
-      mimeType: mimeType,
     );
   }
 
@@ -236,22 +210,15 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   }
 
   // ============================================================
-  // OPENROUTER
+  // LUMEAR AI BACKEND
   // ============================================================
 
-  Future<void> _sendToOpenRouter({
+  Future<void> _sendToLaravelAi({
     required String riderMessage,
     String? attachmentPath,
     String? attachmentType,
     String? attachmentName,
-    String? mimeType,
   }) async {
-    if (_openRouterApiKey.trim().isEmpty ||
-        _openRouterApiKey == 'YOUR_OPENROUTER_API_KEY_HERE') {
-      _showSnackBar('Add your OpenRouter API key first.');
-      return;
-    }
-
     final String displayMessage = riderMessage.isNotEmpty
         ? riderMessage
         : _defaultAttachmentPrompt(attachmentType);
@@ -263,244 +230,76 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       attachmentType: attachmentType,
       fileName: attachmentName,
     );
+    if (!mounted) return;
 
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isBotTyping = true;
-    });
-
+    setState(() => _isBotTyping = true);
     _scrollToBottom();
 
     try {
-      final List<Map<String, dynamic>> messages = [
-        {
-          'role': 'system',
-          'content':
-              '''
-${LumearAiKnowledge.systemInstruction}
+      if (attachmentPath != null) {
+        final File attachment = File(attachmentPath);
+        if (!await attachment.exists()) {
+          throw Exception('The selected attachment could not be found.');
+        }
+        if (await attachment.length() > 20 * 1024 * 1024) {
+          throw Exception('The selected attachment is larger than 20 MB.');
+        }
+      }
 
-You are Lumear AI Support for the Lumear Rider App.
-
-Rules:
-- Respond specifically to the rider's latest request.
-- Keep answers concise, practical, and easy to follow.
-- If the rider reports a possible app bug, suggest simple safe troubleshooting first.
-- If the issue still appears to be a possible app bug, tell the rider they can use the Bug Report feature to submit evidence for admin review.
-- Do not promise a guaranteed fix or an immediate admin response.
-- Do not invent Lumear features, account data, delivery data, or policies.
-- If an attachment is provided, actually examine it.
-- Do not invent text or details that are unreadable.
-''',
-        },
-      ];
-
-      // ========================================================
-      // RECENT CHAT HISTORY
-      // ========================================================
-
-      final List<Map<String, dynamic>> history = _messages
+      final List<Map<String, dynamic>> historyMessages = _messages
           .where(
             (message) =>
                 message['sendToGemini'] == true &&
                 message['attachmentPath'] == null,
           )
           .toList();
-
-      // Current rider message was already inserted into _messages above.
-      // Remove it from history so it is not sent twice.
-      if (history.isNotEmpty &&
-          history.last['isRider'] == true &&
-          history.last['message']?.toString() == displayMessage) {
-        history.removeLast();
+      if (historyMessages.isNotEmpty &&
+          historyMessages.last['isRider'] == true &&
+          historyMessages.last['message']?.toString() == displayMessage) {
+        historyMessages.removeLast();
       }
-
-      final int startIndex = history.length > 6 ? history.length - 6 : 0;
-
-      final List<Map<String, dynamic>> recentHistory = history.sublist(
-        startIndex,
-      );
-
-      for (final Map<String, dynamic> message in recentHistory) {
-        messages.add({
-          'role': message['isRider'] == true ? 'user' : 'assistant',
-          'content': message['message']?.toString() ?? '',
-        });
-      }
-
-      // ========================================================
-      // CURRENT USER REQUEST + ATTACHMENT
-      // ========================================================
-
-      dynamic currentContent = displayMessage;
-
-      if (attachmentPath != null) {
-        final File file = File(attachmentPath);
-
-        if (!await file.exists()) {
-          throw Exception('Attachment does not exist.');
-        }
-
-        final int fileSize = await file.length();
-
-        const int maxBytes = 20 * 1024 * 1024;
-
-        if (fileSize > maxBytes) {
-          throw Exception('The selected file is larger than 20 MB.');
-        }
-
-        final List<Map<String, dynamic>> contentParts = [];
-
-        // Text prompt FIRST.
-        contentParts.add({'type': 'text', 'text': displayMessage});
-
-        // IMAGE / SCREENSHOT
-        if (attachmentType == 'image') {
-          final List<int> bytes = await file.readAsBytes();
-          final String base64Data = base64Encode(bytes);
-          final String imageMime = mimeType ?? 'image/jpeg';
-
-          contentParts.add({
-            'type': 'image_url',
-            'image_url': {'url': 'data:$imageMime;base64,$base64Data'},
-          });
-        }
-        // PDF
-        else if (attachmentType == 'pdf') {
-          final List<int> bytes = await file.readAsBytes();
-          final String base64Data = base64Encode(bytes);
-
-          contentParts.add({
-            'type': 'file',
-            'file': {
-              'filename': attachmentName ?? 'document.pdf',
-              'file_data': 'data:application/pdf;base64,$base64Data',
+      final int historyStart = historyMessages.length > 6
+          ? historyMessages.length - 6
+          : 0;
+      final List<Map<String, String>> history = historyMessages
+          .skip(historyStart)
+          .map(
+            (message) => <String, String>{
+              'role': message['isRider'] == true ? 'user' : 'assistant',
+              'content': message['message']?.toString() ?? '',
             },
-          });
-        }
-        // TXT
-        else if (attachmentType == 'text') {
-          final String documentText = await file.readAsString();
-
-          contentParts.add({
-            'type': 'text',
-            'text':
-                'Attached text document (${attachmentName ?? 'document.txt'}):\n'
-                '$documentText',
-          });
-        }
-
-        currentContent = contentParts;
-      }
-
-      messages.add({'role': 'user', 'content': currentContent});
-
-      final Map<String, dynamic> requestBody = {
-        'model': _openRouterModel,
-        'messages': messages,
-        'temperature': 0.3,
-        'max_tokens': 500,
-      };
-
-      // Free PDF parsing through OpenRouter.
-      if (attachmentType == 'pdf') {
-        requestBody['plugins'] = [
-          {
-            'id': 'file-parser',
-            'pdf': {'engine': 'cloudflare-ai'},
-          },
-        ];
-      }
-
-      final http.Response response = await _httpClient
-          .post(
-            Uri.parse(_openRouterUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $_openRouterApiKey',
-              'X-Title': 'Lumear Rider App',
-            },
-            body: jsonEncode(requestBody),
           )
-          .timeout(const Duration(seconds: 45));
+          .toList();
 
-      if (!mounted) {
-        return;
-      }
+      final String answer = await RiderApiService.lumearAiChat(
+        question: displayMessage,
+        history: history,
+        attachmentPath: attachmentPath,
+      );
+      if (!mounted) return;
 
-      debugPrint('========== OPENROUTER ==========');
-      debugPrint('STATUS: ${response.statusCode}');
-      debugPrint('BODY: ${response.body}');
-      debugPrint('================================');
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final Map<String, dynamic> responseData =
-            jsonDecode(response.body) as Map<String, dynamic>;
-
-        final String aiText = _extractOpenRouterText(responseData).trim();
-
-        setState(() {
-          _messages.add({
-            'message': aiText.isEmpty
-                ? 'This concern may need further assistance from Lumear Admin Support.'
-                : aiText,
-            'isRider': false,
-            'time': DateTime.now(),
-            'sendToGemini': true,
-            'attachmentPath': null,
-            'attachmentType': null,
-            'fileName': null,
-          });
-
-          _isBotTyping = false;
-          _currentMenu = 'answer';
+      setState(() {
+        _messages.add({
+          'message': answer,
+          'isRider': false,
+          'time': DateTime.now(),
+          'sendToGemini': true,
+          'attachmentPath': null,
+          'attachmentType': null,
+          'fileName': null,
         });
-
-        _scrollToBottom();
-        return;
-      }
-
-      String errorMessage =
-          'Lumear AI is temporarily unavailable. Please try again.';
-
-      if (response.statusCode == 400) {
-        errorMessage =
-            'Lumear AI could not process that request. Please try again.';
-      } else if (response.statusCode == 401) {
-        errorMessage = 'The OpenRouter API key could not be authenticated.';
-      } else if (response.statusCode == 402) {
-        errorMessage = 'This request needs credits or a different free model.';
-      } else if (response.statusCode == 403) {
-        errorMessage = 'OpenRouter blocked this request because of account or model permissions.';
-      } else if (response.statusCode == 404) {
-        errorMessage =
-            'The selected OpenRouter model or endpoint could not be found.';
-      } else if (response.statusCode == 408) {
-        errorMessage = 'Lumear AI took too long to respond. Please try again.';
-      } else if (response.statusCode == 429) {
-        errorMessage = 'The free AI request limit has been reached. Please try again later.';
-      } else if (response.statusCode >= 500) {
-        errorMessage = 'The AI provider is temporarily unavailable. Please try again shortly.';
-      }
-
-      _addApiErrorMessage(errorMessage);
-    } catch (error, stackTrace) {
-      debugPrint('OpenRouter error: $error');
-      debugPrint(stackTrace.toString());
-
-      if (!mounted) {
-        return;
-      }
-
+        _currentMenu = 'answer';
+      });
+      _scrollToBottom();
+    } catch (error) {
+      if (!mounted) return;
       _addApiErrorMessage(
         error.toString().contains('larger than 20 MB')
-            ? 'The selected attachment is too large. '
-                  'Please choose a file smaller than 20 MB.'
-            : 'Unable to connect to Lumear AI. '
-                  'Please check your internet connection and try again.',
+            ? 'The selected attachment is too large. Please choose a file smaller than 20 MB.'
+            : error.toString(),
       );
+    } finally {
+      if (mounted) setState(() => _isBotTyping = false);
     }
   }
 
@@ -525,98 +324,6 @@ Rules:
     }
 
     return 'Please analyze this attachment.';
-  }
-
-  // ============================================================
-  // EXTRACT OPENROUTER RESPONSE
-  // ============================================================
-
-  String _extractOpenRouterText(Map<String, dynamic> data) {
-    try {
-      final dynamic choicesRaw = data['choices'];
-
-      if (choicesRaw is! List || choicesRaw.isEmpty) {
-        debugPrint('OpenRouter: choices missing.');
-        return 'Lumear AI returned no answer. Please try again.';
-      }
-
-      final dynamic firstChoice = choicesRaw.first;
-
-      if (firstChoice is! Map) {
-        debugPrint('OpenRouter: invalid first choice.');
-        return 'I could not read the AI response.';
-      }
-
-      final dynamic message = firstChoice['message'];
-
-      if (message is Map) {
-        final dynamic content = message['content'];
-
-        // Normal OpenRouter response.
-        if (content is String) {
-          final String answer = content.trim();
-
-          if (answer.isNotEmpty) {
-            return answer;
-          }
-        }
-
-        // Some multimodal providers may return content parts.
-        if (content is List) {
-          final StringBuffer buffer = StringBuffer();
-
-          for (final dynamic part in content) {
-            if (part is String) {
-              buffer.write(part);
-              continue;
-            }
-
-            if (part is Map) {
-              final dynamic text = part['text'];
-
-              if (text != null) {
-                buffer.write(text.toString());
-              }
-
-              final dynamic partContent = part['content'];
-
-              if (partContent is String) {
-                buffer.write(partContent);
-              }
-            }
-          }
-
-          final String answer = buffer.toString().trim();
-
-          if (answer.isNotEmpty) {
-            return answer;
-          }
-        }
-
-        // Some providers may place useful text in reasoning.
-        final dynamic reasoning = message['reasoning'];
-
-        if (reasoning is String && reasoning.trim().isNotEmpty) {
-          return reasoning.trim();
-        }
-      }
-
-      // Legacy-compatible fallback.
-      final dynamic choiceText = firstChoice['text'];
-
-      if (choiceText is String && choiceText.trim().isNotEmpty) {
-        return choiceText.trim();
-      }
-
-      debugPrint('OpenRouter response could not be extracted: $firstChoice');
-
-      return 'Lumear AI returned an empty response. Please try again.';
-    } catch (error, stackTrace) {
-      debugPrint('OpenRouter parsing error: $error');
-      debugPrint(stackTrace.toString());
-
-      return 'I had trouble reading the AI response. Please try again.';
-    }
   }
 
   // ============================================================
@@ -843,7 +550,7 @@ Rules:
       return;
     }
 
-    await _sendToOpenRouter(riderMessage: option);
+    await _sendToLaravelAi(riderMessage: option);
   }
 
   // ============================================================
@@ -998,16 +705,12 @@ Rules:
         return;
       }
 
-      final String extension = _extensionOf(image.name);
-
       setState(() {
         _pendingAttachmentPath = image.path;
 
         _pendingAttachmentType = 'image';
 
         _pendingAttachmentName = image.name;
-
-        _pendingMimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
       });
     } catch (error) {
       debugPrint('Image picker: $error');
@@ -1037,16 +740,13 @@ Rules:
         return;
       }
 
-      final String extension = _extensionOf(file.name);
+      final String extension = file.name.split('.').last.toLowerCase();
 
-      String mimeType;
       String attachmentType;
 
       if (extension == 'pdf') {
-        mimeType = 'application/pdf';
         attachmentType = 'pdf';
       } else {
-        mimeType = 'text/plain';
         attachmentType = 'text';
       }
 
@@ -1056,24 +756,12 @@ Rules:
         _pendingAttachmentType = attachmentType;
 
         _pendingAttachmentName = file.name;
-
-        _pendingMimeType = mimeType;
       });
     } catch (error) {
       debugPrint('File picker: $error');
 
       _showSnackBar('Unable to open the file picker.');
     }
-  }
-
-  String _extensionOf(String fileName) {
-    final int dot = fileName.lastIndexOf('.');
-
-    if (dot < 0 || dot == fileName.length - 1) {
-      return '';
-    }
-
-    return fileName.substring(dot + 1).toLowerCase();
   }
 
   // ============================================================
@@ -1085,7 +773,6 @@ Rules:
       _pendingAttachmentPath = null;
       _pendingAttachmentType = null;
       _pendingAttachmentName = null;
-      _pendingMimeType = null;
     });
   }
 
@@ -1106,7 +793,6 @@ Rules:
       _pendingAttachmentPath = null;
       _pendingAttachmentType = null;
       _pendingAttachmentName = null;
-      _pendingMimeType = null;
 
       _messages.add({
         'message':

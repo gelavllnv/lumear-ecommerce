@@ -1,5 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/models/parcel_store.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 
 import 'buyer_chat_screen.dart';
 
@@ -9,19 +11,11 @@ import 'buyer_chat_screen.dart';
 /// status, the last message, the time, and an unread badge. Tapping a row
 /// opens [BuyerChatScreen] for that buyer.
 ///
-/// By default it lists the rider's current parcel (from [ParcelStore]) plus
-/// a few sample buyers ([includeDemoBuyers]). When you have a real list of
-/// assigned parcels, pass it through [contacts] and set
-/// [includeDemoBuyers] to false.
+/// Lists conversations created when Logistics assigns parcels to this rider.
 class BuyerChatListScreen extends StatefulWidget {
   final List<BuyerChatContact>? contacts;
-  final bool includeDemoBuyers;
 
-  const BuyerChatListScreen({
-    super.key,
-    this.contacts,
-    this.includeDemoBuyers = true,
-  });
+  const BuyerChatListScreen({super.key, this.contacts});
 
   @override
   State<BuyerChatListScreen> createState() => _BuyerChatListScreenState();
@@ -41,23 +35,65 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
   static const Color danger = Color(0xFFB3261E);
 
   final TextEditingController _searchController = TextEditingController();
+  Timer? _refreshTimer;
+  List<BuyerChatContact> _contacts = [];
+  Map<String, dynamic> _hubChat = {};
+  bool _loading = true;
+  String? _error;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-
-    if (widget.includeDemoBuyers) {
-      BuyerChatStore.seedDemo();
+    if (widget.contacts != null) {
+      _contacts = widget.contacts!;
+      _loading = false;
+    } else {
+      _refreshContacts();
     }
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted && !_loading) _refreshContacts();
+    });
 
     _searchController.addListener(() {
       setState(() => _query = _searchController.text.trim().toLowerCase());
     });
   }
 
+  Future<void> _refreshContacts() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    Map<String, dynamic> hubChat = _hubChat;
+    try {
+      hubChat = await RiderApiService.logisticsChat();
+    } catch (_) {
+      // Keep buyer chats available if the hub chat endpoint is temporarily unavailable.
+    }
+
+    try {
+      final rows = await RiderApiService.riderChats();
+      if (!mounted) return;
+      setState(() {
+        _hubChat = hubChat;
+        _contacts = rows.map(BuyerChatContact.fromJson).toList();
+        _loading = false;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _hubChat = hubChat;
+          _loading = false;
+          _error = error.toString();
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -67,40 +103,11 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
   // ============================================
 
   List<BuyerChatContact> _buildContacts() {
-    final List<BuyerChatContact> result = [];
-    final Set<String> seen = {};
-
-    void add(BuyerChatContact contact) {
-      if (seen.add(contact.trackingNumber)) result.add(contact);
-    }
-
-    if (widget.contacts != null) {
-      widget.contacts!.forEach(add);
-    } else {
-      final ParcelData? current = ParcelStore.currentParcel.value;
-
-      if (current != null) {
-        add(
-          BuyerChatContact(
-            buyerName: current.recipient,
-            trackingNumber: current.parcelNumber,
-            parcelStatus: current.status,
-          ),
-        );
-      }
-    }
-
-    if (widget.includeDemoBuyers) {
-      BuyerChatStore.demoContacts.forEach(add);
-    }
-
-    return result;
+    return _contacts;
   }
 
   DateTime? _lastTime(BuyerChatContact contact) {
-    final thread = BuyerChatStore.threadFor(contact.trackingNumber);
-
-    return thread.isEmpty ? null : thread.last.sentAt;
+    return contact.lastMessageAt;
   }
 
   List<BuyerChatContact> _visibleContacts() {
@@ -132,6 +139,7 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => BuyerChatScreen(
+          conversationId: contact.conversationId,
           buyerName: contact.buyerName,
           trackingNumber: contact.trackingNumber,
           parcelStatus: contact.parcelStatus,
@@ -142,6 +150,71 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
     // Refresh previews / unread badges after coming back.
     if (mounted) setState(() {});
   }
+
+  Future<void> _confirmDeleteChat(BuyerChatContact contact) async {
+    final int? conversationId = contact.conversationId;
+    if (conversationId == null) return;
+
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Delete conversation?'),
+            content: Text(
+              'Remove all chats with ${contact.buyerName} from your Rider inbox? '
+              'The buyer’s chat history will not be deleted.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: TextButton.styleFrom(foregroundColor: danger),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    try {
+      await RiderApiService.deleteRiderChat(conversationId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation removed from your inbox.')),
+      );
+      await _refreshContacts();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to delete conversation: $error')),
+      );
+    }
+  }
+
+  Future<void> _openLogisticsChat() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BuyerChatScreen(
+          buyerName: _hubName,
+          trackingNumber: '',
+          parcelStatus: 'Logistics',
+          isLogisticsChat: true,
+        ),
+      ),
+    );
+
+    if (mounted) _refreshContacts();
+  }
+
+  String get _hubName =>
+      _hubChat['hub_name']?.toString().trim().isNotEmpty == true
+      ? _hubChat['hub_name'].toString()
+      : 'Victoria Hub';
 
   // ============================================
   // HELPERS
@@ -176,12 +249,14 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
   }
 
   Color _statusColor(String status) {
-    switch (status) {
-      case 'Pending':
+    switch (status.toLowerCase().replaceAll('_', ' ').trim()) {
+      case 'pending':
+      case 'assigned':
         return warning;
-      case 'Delivered':
+      case 'delivered':
         return success;
-      case 'Delivery Failed':
+      case 'delivery failed':
+      case 'failed':
         return danger;
       default:
         return maroon;
@@ -203,26 +278,161 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text(
-          'Buyer Chat',
+          'Chats',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
+        actions: [
+          IconButton(
+            onPressed: _loading ? null : _refreshContacts,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
       body: Column(
         children: [
           _buildSearchBar(),
           Expanded(
-            child: contacts.isEmpty
-                ? _buildEmptyState()
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: contacts.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      return _buildBuyerTile(contacts[index]);
-                    },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                _buildSectionHeader('Logistics'),
+                _buildLogisticsTile(),
+                _buildSectionHeader('Buyer Chats'),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.all(28),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Column(
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        TextButton(
+                          onPressed: _refreshContacts,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (contacts.isEmpty)
+                  _buildEmptyState()
+                else
+                  ...contacts.map(
+                    (contact) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _buildBuyerTile(contact),
+                    ),
                   ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 10, 2, 10),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: darkMaroon,
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogisticsTile() {
+    final unread =
+        int.tryParse(_hubChat['unread_count']?.toString() ?? '') ?? 0;
+    final lastMessage = _hubChat['last_message']?.toString() ?? '';
+    final lastMessageAt = DateTime.tryParse(
+      _hubChat['last_message_at']?.toString() ?? '',
+    );
+    final matchesSearch =
+        _query.isEmpty ||
+        'logistics $_hubName victoria hub'.toLowerCase().contains(_query);
+    if (!matchesSearch) return const SizedBox.shrink();
+
+    return Material(
+      color: surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: _openLogisticsChat,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: darkMaroon.withValues(alpha: 0.06)),
+          ),
+          child: Row(
+            children: [
+              const CircleAvatar(
+                radius: 26,
+                backgroundColor: lightBeige,
+                child: Icon(Icons.local_shipping_outlined, color: darkMaroon),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _hubName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: darkMaroon,
+                              fontSize: 14.5,
+                              fontWeight: unread > 0
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (lastMessageAt != null)
+                          Text(
+                            _formatListTime(lastMessageAt),
+                            style: const TextStyle(
+                              color: textMuted,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      lastMessage.isEmpty ? 'Logistics chat' : lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: textMuted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (unread > 0) ...[
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 11,
+                  backgroundColor: maroon,
+                  child: Text(
+                    unread > 9 ? '9+' : '$unread',
+                    style: const TextStyle(color: Colors.white, fontSize: 10),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -269,14 +479,11 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
   }
 
   Widget _buildBuyerTile(BuyerChatContact contact) {
-    final thread = BuyerChatStore.threadFor(contact.trackingNumber);
-    final RiderChatMessage? last = thread.isEmpty ? null : thread.last;
-    final int unread = BuyerChatStore.unreadFor(contact.trackingNumber);
+    final int unread = contact.unreadCount;
     final bool hasUnread = unread > 0;
-
-    final String preview = last == null
-        ? 'No messages yet. Tap to start chatting.'
-        : (last.isRider ? 'You: ${last.text}' : last.text);
+    final String preview = contact.lastMessage.isEmpty
+        ? 'Start your delivery conversation.'
+        : contact.lastMessage;
 
     final Color statusColor = _statusColor(contact.parcelStatus);
 
@@ -340,9 +547,9 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
                             ),
                           ),
                         ),
-                        if (last != null)
+                        if (contact.lastMessageAt != null)
                           Text(
-                            _formatListTime(last.sentAt),
+                            _formatListTime(contact.lastMessageAt!),
                             style: TextStyle(
                               color: hasUnread ? maroon : textMuted,
                               fontSize: 10.5,
@@ -446,6 +653,12 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: 'Delete conversation',
+                onPressed: () => _confirmDeleteChat(contact),
+                icon: const Icon(Icons.delete_outline_rounded),
+                color: danger,
+              ),
             ],
           ),
         ),
@@ -488,9 +701,7 @@ class _BuyerChatListScreenState extends State<BuyerChatListScreen> {
             ),
             const SizedBox(height: 5),
             Text(
-              searching
-                  ? 'Try a different name or tracking number.'
-                  : 'Scan a parcel and its buyer will show up here.',
+              searching ? 'Try a different name or tracking number.' : 'Assigned deliveries will appear here so you can message the buyer.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: textMuted,

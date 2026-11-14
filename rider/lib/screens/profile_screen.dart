@@ -1,8 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_application_1/models/rider_profile.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'personal_information_screen.dart';
 import 'vehicle_information_screen.dart';
@@ -13,7 +17,6 @@ import 'rider_performance_screen.dart';
 import 'login_screen.dart';
 import 'assignment_screen.dart';
 import 'buyer_chat_list_screen.dart';
-import 'upgrade_screen.dart';
 
 // ============================================================
 // ACCOUNT DELETION (GRACE PERIOD)
@@ -57,46 +60,25 @@ class AccountDeletion {
 
 // ============================================================
 // PASSWORD CHANGE SERVICE
-// Placeholder logic only. Palitan mo ng totoong API call
-// (e.g. POST /rider/change-password) kapag may backend na.
-// Dapat ang SERVER ang magve-verify ng current password.
 // ============================================================
 
 enum PasswordChangeResult { success, wrongCurrentPassword, error }
 
 class PasswordService {
-  // TODO: remove this mock. Never store or compare passwords on the device.
-  static String _mockCurrentPassword = 'rider123';
-
   static Future<PasswordChangeResult> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
     try {
-      // TODO: replace with real API call, e.g.
-      // final res = await http.post(
-      //   Uri.parse('$baseUrl/rider/change-password'),
-      //   headers: {'Authorization': 'Bearer $token'},
-      //   body: {
-      //     'current_password': currentPassword,
-      //     'new_password': newPassword,
-      //   },
-      // );
-      // if (res.statusCode == 200) return PasswordChangeResult.success;
-      // if (res.statusCode == 401 || res.statusCode == 403) {
-      //   return PasswordChangeResult.wrongCurrentPassword;
-      // }
-      // return PasswordChangeResult.error;
-
-      await Future.delayed(const Duration(milliseconds: 900));
-
-      if (currentPassword != _mockCurrentPassword) {
+      await RiderApiService.updatePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      return PasswordChangeResult.success;
+    } catch (error) {
+      if (error.toString().contains('current password is incorrect')) {
         return PasswordChangeResult.wrongCurrentPassword;
       }
-
-      _mockCurrentPassword = newPassword;
-      return PasswordChangeResult.success;
-    } catch (_) {
       return PasswordChangeResult.error;
     }
   }
@@ -149,7 +131,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isUpdatingPhoto = false;
 
+  String get _profileImagePreferenceKey {
+    final String riderIdentifier =
+        RiderProfile.id?.toString() ?? RiderProfile.riderId;
+    return 'rider_profile_image_$riderIdentifier';
+  }
+
   OverlayEntry? _topNotificationEntry;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedProfileImage();
+    _refreshProfile();
+  }
+
+  Future<void> _loadSavedProfileImage() async {
+    try {
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      final String? savedPath = preferences.getString(
+        _profileImagePreferenceKey,
+      );
+      if (savedPath == null) return;
+
+      final File savedImage = File(savedPath);
+      if (await savedImage.exists() && mounted) {
+        RiderProfile.profileImage = savedImage;
+        setState(() {});
+      }
+    } catch (_) {
+      // Keep the default avatar when local storage is unavailable.
+    }
+  }
+
+  Future<void> _refreshProfile() async {
+    try {
+      await RiderApiService.refreshProfile();
+      if (mounted) setState(() {});
+    } catch (_) {
+      // Keep the last profile response visible while offline.
+    }
+  }
 
   @override
   void dispose() {
@@ -167,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       RiderProfile.name.isEmpty ? 'Rider' : RiderProfile.name;
 
   String get _displayRiderId =>
-      RiderProfile.riderId.isEmpty ? '-' : RiderProfile.riderId;
+      RiderProfile.displayId.isEmpty ? '-' : RiderProfile.displayId;
 
   String get _vehicleSubtitle {
     final String vehicle = RiderProfile.vehicleType.trim();
@@ -193,20 +216,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       default:
         return Icons.two_wheeler_rounded;
     }
-  }
-
-  // ============================================
-  // UPGRADE
-  // ============================================
-
-  Future<void> _openUpgrade() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const UpgradeScreen()),
-    );
-
-    // Refresh so the button reflects a pending request.
-    if (mounted) setState(() {});
   }
 
   // ============================================
@@ -338,9 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (action == 'remove') {
-      setState(() {
-        RiderProfile.profileImage = null;
-      });
+      await _removeSavedProfileImage();
 
       _showTopNotification(
         'Profile picture removed.',
@@ -355,6 +362,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : ImageSource.gallery;
 
     await _pickProfileImage(source);
+  }
+
+  Future<void> _removeSavedProfileImage() async {
+    final File? oldImage = RiderProfile.profileImage;
+    try {
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      await preferences.remove(_profileImagePreferenceKey);
+      if (oldImage != null && await _isStoredProfileImage(oldImage.path)) {
+        if (await oldImage.exists()) {
+          await oldImage.delete();
+        }
+      }
+    } catch (_) {
+      // The in-memory avatar can still be cleared if local cleanup fails.
+    }
+
+    if (mounted) {
+      setState(() => RiderProfile.profileImage = null);
+    }
+  }
+
+  Future<bool> _isStoredProfileImage(String imagePath) async {
+    final Directory documentsDirectory =
+        await getApplicationDocumentsDirectory();
+    final String profilePicturesPath = p.join(
+      documentsDirectory.path,
+      'profile_pictures',
+    );
+    return p.isWithin(profilePicturesPath, imagePath);
   }
 
   Widget _sheetOption({
@@ -423,15 +460,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      if (!mounted) {
-        return;
+      final Directory documentsDirectory =
+          await getApplicationDocumentsDirectory();
+      final Directory profilePicturesDirectory = Directory(
+        p.join(documentsDirectory.path, 'profile_pictures'),
+      );
+      if (!await profilePicturesDirectory.exists()) {
+        await profilePicturesDirectory.create(recursive: true);
       }
 
-      setState(() {
-        RiderProfile.profileImage = File(pickedImage.path);
+      String extension = p.extension(pickedImage.path);
+      if (extension.isEmpty) extension = '.jpg';
+      final String savedPath = p.join(
+        profilePicturesDirectory.path,
+        '${RiderProfile.id ?? RiderProfile.riderId}_'
+        '${DateTime.now().millisecondsSinceEpoch}$extension',
+      );
+      final File savedImage = await File(pickedImage.path).copy(savedPath);
 
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      await preferences.setString(_profileImagePreferenceKey, savedPath);
+
+      final File? oldImage = RiderProfile.profileImage;
+      if (!mounted) return;
+      setState(() {
+        RiderProfile.profileImage = savedImage;
         _isUpdatingPhoto = false;
       });
+
+      if (oldImage != null &&
+          oldImage.path != savedImage.path &&
+          await _isStoredProfileImage(oldImage.path)) {
+        try {
+          if (await oldImage.exists()) await oldImage.delete();
+        } catch (_) {
+          // Keep the newly selected image even if old-file cleanup fails.
+        }
+      }
 
       _showTopNotification(
         'Profile picture updated.',
@@ -794,11 +860,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // UPGRADE BUTTON
-                        _upgradeButton(),
-
-                        const SizedBox(width: 10),
-
                         // SETTINGS BUTTON
                         Container(
                           decoration: BoxDecoration(
@@ -1015,6 +1076,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
 
+                      if (RiderProfile.licenseNumber.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Driver license: ${RiderProfile.licenseNumber}',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.white.withValues(alpha: 0.75),
+                          ),
+                        ),
+                      ],
+
                       const SizedBox(height: 14),
 
                       Container(
@@ -1066,7 +1138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: _statCard(
                         icon: Icons.star_rounded,
                         iconColor: const Color(0xFFC77700),
-                        value: '4.8',
+                        value: RiderProfile.rating?.toStringAsFixed(1) ?? '—',
                         label: 'Rating',
                       ),
                     ),
@@ -1077,7 +1149,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: _statCard(
                         icon: Icons.delivery_dining_rounded,
                         iconColor: darkMaroon,
-                        value: '256',
+                        value: '${RiderProfile.deliveredCount}',
                         label: 'Deliveries',
                       ),
                     ),
@@ -1088,7 +1160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: _statCard(
                         icon: Icons.calendar_month_rounded,
                         iconColor: maroon,
-                        value: '3 Mos.',
+                        value: '${RiderProfile.memberDays} days',
                         label: 'Member',
                       ),
                     ),
@@ -1498,48 +1570,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
 
               const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================
-  // UPGRADE BUTTON
-  // Shows "Pending" while an upgrade request is under review.
-  // ============================================
-
-  Widget _upgradeButton() {
-    final bool pending = UpgradeScreen.isPending;
-
-    return Material(
-      color: pending ? lightBeige : darkMaroon,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: _openUpgrade,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                pending
-                    ? Icons.hourglass_top_rounded
-                    : Icons.workspace_premium_rounded,
-                color: pending ? darkMaroon : Colors.white,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                pending ? 'Pending' : 'Upgrade',
-                style: TextStyle(
-                  color: pending ? darkMaroon : Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.5,
-                ),
-              ),
             ],
           ),
         ),

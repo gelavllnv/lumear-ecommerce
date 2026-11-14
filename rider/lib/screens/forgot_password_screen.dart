@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/rider_api_service.dart';
 import 'login_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -45,6 +46,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _otpChecking = false;
   bool _otpVerified = false;
   bool _otpError = false;
+  String? _resetToken;
 
   double _verifyButtonOffset = 0;
 
@@ -183,12 +185,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // VALIDATION
   // ============================================================
 
-  bool _isValidEmail(String email) {
-    final regex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-
-    return regex.hasMatch(email);
-  }
-
   // ============================================================
   // RESET OTP
   // ============================================================
@@ -212,52 +208,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _sendVerificationCode() async {
     FocusScope.of(context).unfocus();
-
     final email = _emailController.text.trim();
-
-    if (email.isEmpty) {
-      _showTopNotification(
-        'Please enter your registered email.',
-        icon: Icons.email_outlined,
-      );
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      _showTopNotification('Enter a valid email address.', icon: Icons.error_outline);
       return;
     }
-
-    if (!_isValidEmail(email)) {
-      _showTopNotification(
-        'Please enter a valid email address.',
-        icon: Icons.warning_amber_rounded,
-      );
-      return;
+    setState(() => _isLoading = true);
+    try {
+      await RiderApiService.sendRiderPasswordResetCode(email);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _step = 1;
+        _resetOtpState();
+        _clearOtp();
+      });
+      _showTopNotification('If a rider account exists for this email, a code was sent.', icon: Icons.mark_email_read_outlined);
+    } on RiderApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification(error.message, icon: Icons.error_outline);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification('Could not send the code. Check your connection and try again.', icon: Icons.error_outline);
     }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    // DEMO ONLY
-    // Replace this with your real backend later.
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-      _resetOtpState();
-      _clearOtp();
-      _step = 1;
-    });
-
-    _showTopNotification(
-      'Verification code sent to your email.',
-      icon: Icons.mark_email_read_outlined,
-    );
-
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        _otpFocusNodes[0].requestFocus();
-      }
-    });
   }
 
   // ============================================================
@@ -265,50 +240,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // ============================================================
 
   Future<void> _resendCode() async {
-    if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-      _resetOtpState();
-    });
-
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-      _clearOtp();
-    });
-
-    _showTopNotification(
-      'A new code was sent to your email.',
-      icon: Icons.email_outlined,
-    );
-
-    Future.delayed(const Duration(milliseconds: 250), () {
-      if (mounted) {
-        _otpFocusNodes[0].requestFocus();
-      }
-    });
-  }
-
-  // ============================================================
-  // SHAKE BUTTON
-  // ============================================================
-
-  Future<void> _shakeVerifyButton() async {
-    const positions = <double>[-12, 12, -10, 10, -7, 7, -4, 4, 0];
-
-    for (final position in positions) {
-      if (!mounted) return;
-
-      setState(() {
-        _verifyButtonOffset = position;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 45));
-    }
+    await _sendVerificationCode();
   }
 
   // ============================================================
@@ -316,95 +248,43 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // ============================================================
 
   Future<void> _verifyOtp() async {
-    FocusScope.of(context).unfocus();
-
-    final otp = _otpControllers.map((controller) => controller.text).join();
-
-    if (otp.length != 4) {
-      setState(() {
-        _otpError = true;
-      });
-
-      await _shakeVerifyButton();
-
-      if (!mounted) return;
-
-      _showTopNotification(
-        'Please enter the complete 4-digit code.',
-        icon: Icons.warning_amber_rounded,
-        backgroundColor: errorColor,
-      );
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (!mounted) return;
-
-      setState(() {
-        _otpError = false;
-      });
-
+    final code = _otpControllers.map((controller) => controller.text).join();
+    if (code.length != 4) {
+      _showTopNotification('Enter the 4-digit code.', icon: Icons.error_outline);
       return;
     }
-
-    // Start verification animation
     setState(() {
       _otpChecking = true;
       _otpError = false;
-      _otpVerified = false;
     });
-
-    await Future.delayed(const Duration(milliseconds: 1400));
-
-    if (!mounted) return;
-
-    // DEMO OTP ONLY
-    // Replace with backend verification later.
-    if (otp != '1234') {
+    try {
+      final token = await RiderApiService.verifyRiderPasswordResetCode(
+        email: _emailController.text,
+        code: code,
+      );
+      if (!mounted) return;
+      setState(() {
+        _resetToken = token;
+        _otpChecking = false;
+        _otpVerified = true;
+      });
+      await Future.delayed(const Duration(milliseconds: 450));
+      if (mounted) setState(() => _step = 2);
+    } on RiderApiException catch (error) {
+      if (!mounted) return;
       setState(() {
         _otpChecking = false;
         _otpError = true;
       });
-
-      await _shakeVerifyButton();
-
+      _showTopNotification(error.message, icon: Icons.error_outline);
+    } catch (_) {
       if (!mounted) return;
-
-      _showTopNotification(
-        'Incorrect verification code.',
-        icon: Icons.close_rounded,
-        backgroundColor: errorColor,
-      );
-
-      await Future.delayed(const Duration(milliseconds: 700));
-
-      if (!mounted) return;
-
       setState(() {
-        _otpError = false;
+        _otpChecking = false;
+        _otpError = true;
       });
-
-      return;
+      _showTopNotification('Could not verify the code. Try again.', icon: Icons.error_outline);
     }
-
-    // Correct OTP
-    setState(() {
-      _otpChecking = false;
-      _otpVerified = true;
-    });
-
-    _showTopNotification(
-      'Code verified successfully.',
-      icon: Icons.check_circle_outline_rounded,
-      backgroundColor: successColor,
-    );
-
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    if (!mounted) return;
-
-    setState(() {
-      _step = 2;
-    });
   }
 
   // ============================================================
@@ -412,58 +292,41 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // ============================================================
 
   Future<void> _resetPassword() async {
-    FocusScope.of(context).unfocus();
-
-    final password = _newPasswordController.text.trim();
-
-    final confirmPassword = _confirmPasswordController.text.trim();
-
-    if (password.isEmpty) {
-      _showTopNotification(
-        'Please enter your new password.',
-        icon: Icons.lock_outline,
-      );
+    final password = _newPasswordController.text;
+    if (password.length < 8) {
+      _showTopNotification('Use a password with at least 8 characters.', icon: Icons.error_outline);
       return;
     }
-
-    if (password.length < 6) {
-      _showTopNotification(
-        'Password must contain at least 6 characters.',
-        icon: Icons.warning_amber_rounded,
-      );
+    if (password != _confirmPasswordController.text) {
+      _showTopNotification('The passwords do not match.', icon: Icons.error_outline);
       return;
     }
-
-    if (confirmPassword.isEmpty) {
-      _showTopNotification(
-        'Please confirm your new password.',
-        icon: Icons.lock_reset_outlined,
-      );
+    final token = _resetToken;
+    if (token == null) {
+      _showTopNotification('Verify your email code first.', icon: Icons.error_outline);
       return;
     }
-
-    if (password != confirmPassword) {
-      _showTopNotification(
-        'Passwords do not match.',
-        icon: Icons.warning_amber_rounded,
-        backgroundColor: errorColor,
+    setState(() => _isLoading = true);
+    try {
+      await RiderApiService.resetRiderPassword(
+        email: _emailController.text,
+        resetToken: token,
+        password: password,
       );
-      return;
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _step = 3;
+      });
+    } on RiderApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification(error.message, icon: Icons.error_outline);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification('Could not reset your password. Try again.', icon: Icons.error_outline);
     }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    // DEMO ONLY
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-      _step = 3;
-    });
   }
 
   // ============================================================
@@ -663,7 +526,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         const Text(
           'Email Address',
-          style: const TextStyle(
+          style: TextStyle(
             color: darkMaroon,
             fontWeight: FontWeight.w600,
             fontSize: 15,
@@ -685,7 +548,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         const Text(
           'We will send a 4-digit verification code to your registered email.',
-          style: const TextStyle(color: brownBeige, fontSize: 11, height: 1.4),
+          style: TextStyle(color: brownBeige, fontSize: 11, height: 1.4),
         ),
 
         const SizedBox(height: 28),
@@ -761,12 +624,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         const SizedBox(height: 20),
 
-        if (!_otpVerified)
-          const Text(
-            'For testing, use code: 1234',
-            style: TextStyle(color: brownBeige, fontSize: 11),
-          ),
-
         const SizedBox(height: 8),
 
         if (!_otpChecking && !_otpVerified)
@@ -774,10 +631,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             onPressed: _isLoading ? null : _resendCode,
             child: const Text(
               "Didn't receive the email code? Resend",
-              style: const TextStyle(
-                color: darkMaroon,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: darkMaroon, fontWeight: FontWeight.bold),
             ),
           ),
 

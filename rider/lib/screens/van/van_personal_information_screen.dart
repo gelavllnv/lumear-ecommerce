@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/models/rider_profile.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 
 const Color vanDarkMaroon = Color(0xFF62191C);
 const Color vanMaroon = Color(0xFF873632);
@@ -53,9 +54,6 @@ String _isoDate(DateTime d) =>
     '${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
-String _longDate(DateTime d) =>
-    '${_monthNames[d.month - 1]} ${d.day}, ${d.year}';
-
 class VanPersonalInformationScreen extends StatefulWidget {
   /// Path of the rider's uploaded profile photo, if any.
   final String? photoPath;
@@ -75,6 +73,7 @@ class _VanPersonalInformationScreenState
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
   late final TextEditingController _emailController;
+  late final TextEditingController _sexController;
   late final TextEditingController _birthdayController;
   late final TextEditingController _ageController;
   late final TextEditingController _regionController;
@@ -91,32 +90,27 @@ class _VanPersonalInformationScreenState
     super.initState();
 
     // Values come from the signup form, saved in RiderProfile.
-    final String rawBirthday = RiderProfile.birthday ?? '';
+    final String rawBirthday = RiderProfile.birthday;
     final DateTime? parsedBirthday = _parseBirthday(rawBirthday);
 
-    _nameController = TextEditingController(text: RiderProfile.name ?? '');
-    _phoneController = TextEditingController(text: RiderProfile.phone ?? '');
-    _emailController = TextEditingController(text: RiderProfile.email ?? '');
+    _nameController = TextEditingController(text: RiderProfile.name);
+    _phoneController = TextEditingController(text: RiderProfile.phone);
+    _emailController = TextEditingController(text: RiderProfile.email);
+    _sexController = TextEditingController(text: RiderProfile.sex);
     _birthdayController = TextEditingController(
       text: parsedBirthday == null ? rawBirthday : _isoDate(parsedBirthday),
     );
     _ageController = TextEditingController(
       text: RiderProfile.age?.toString() ?? '',
     );
-    _regionController = TextEditingController(text: RiderProfile.region ?? '');
-    _provinceController = TextEditingController(
-      text: RiderProfile.province ?? '',
-    );
+    _regionController = TextEditingController(text: RiderProfile.region);
+    _provinceController = TextEditingController(text: RiderProfile.province);
     _municipalityController = TextEditingController(
-      text: RiderProfile.municipality ?? '',
+      text: RiderProfile.municipality,
     );
-    _barangayController = TextEditingController(
-      text: RiderProfile.barangay ?? '',
-    );
-    _streetController = TextEditingController(text: RiderProfile.street ?? '');
-    _houseUnitController = TextEditingController(
-      text: RiderProfile.houseUnit ?? '',
-    );
+    _barangayController = TextEditingController(text: RiderProfile.barangay);
+    _streetController = TextEditingController(text: RiderProfile.street);
+    _houseUnitController = TextEditingController(text: RiderProfile.houseUnit);
 
     _originalValues = _readValues();
   }
@@ -156,6 +150,7 @@ class _VanPersonalInformationScreenState
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _sexController.dispose();
     _birthdayController.dispose();
     _ageController.dispose();
     _regionController.dispose();
@@ -182,29 +177,35 @@ class _VanPersonalInformationScreenState
 
     setState(() => _isSaving = true);
 
-    // Demo-only save: writes back to the in-memory RiderProfile.
-    // Connect to your Node.js API to persist across sessions.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-
-    if (!mounted) return;
-
     final String birthdayText = _birthdayController.text.trim();
     final DateTime? parsedBirthday = _parseBirthday(birthdayText);
+    if (parsedBirthday == null) {
+      _showMessage('Please enter a valid birthday.');
+      setState(() => _isSaving = false);
+      return;
+    }
+    try {
+      await RiderApiService.updateProfile({
+        'name': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'email': _emailController.text.trim(),
+        'birthday': _isoDate(parsedBirthday),
+        'region': _regionController.text.trim(),
+        'province': _provinceController.text.trim(),
+        'municipality': _municipalityController.text.trim(),
+        'barangay': _barangayController.text.trim(),
+        'street': _streetController.text.trim(),
+        'house_unit': _houseUnitController.text.trim(),
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      _showMessage('Could not save profile to Laravel: $error');
+      return;
+    }
 
-    RiderProfile.name = _nameController.text.trim();
-    RiderProfile.phone = _phoneController.text.trim();
-    RiderProfile.email = _emailController.text.trim();
-    // Same format the signup screen uses ("March 5, 2000").
-    RiderProfile.birthday = parsedBirthday == null
-        ? birthdayText
-        : _longDate(parsedBirthday);
+    if (!mounted) return;
     RiderProfile.age = int.tryParse(_ageController.text.trim());
-    RiderProfile.region = _regionController.text.trim();
-    RiderProfile.province = _provinceController.text.trim();
-    RiderProfile.municipality = _municipalityController.text.trim();
-    RiderProfile.barangay = _barangayController.text.trim();
-    RiderProfile.street = _streetController.text.trim();
-    RiderProfile.houseUnit = _houseUnitController.text.trim();
 
     setState(() {
       _originalValues = _readValues();
@@ -212,10 +213,7 @@ class _VanPersonalInformationScreenState
       _isSaving = false;
     });
 
-    _showMessage(
-      'Information updated in this demo. API saving is not connected yet.',
-      success: true,
-    );
+    _showMessage('Information saved to your rider account.', success: true);
   }
 
   void _cancelEditing() {
@@ -344,6 +342,13 @@ class _VanPersonalInformationScreenState
                 Icons.email_outlined,
                 _emailController,
                 keyboardType: TextInputType.emailAddress,
+              ),
+              _gap(),
+              _infoField(
+                'Sex',
+                Icons.wc_outlined,
+                _sexController,
+                readOnly: true,
               ),
               _gap(),
               Row(

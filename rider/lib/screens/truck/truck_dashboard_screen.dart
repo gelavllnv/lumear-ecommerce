@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/models/rider_profile.dart';
 import 'package:flutter_application_1/models/truck_rider_profile.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 
-import 'trip_details_screen.dart';
-import 'alerts_screen.dart';
+import 'pre_trip_inspection_screen.dart';
 import 'truck_info_screen.dart';
+import 'trip_details_screen.dart';
 import 'profile_screen.dart';
 import 'truck_handover_preview_screen.dart';
 
@@ -51,32 +52,55 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
       'Truck Info',
     ),
     _NavItem(
-      Icons.notifications_active_outlined,
-      Icons.notifications_active_rounded,
-      'Alerts',
+      Icons.fact_check_outlined,
+      Icons.fact_check_rounded,
+      'Inspection',
     ),
     _NavItem(Icons.person_outline, Icons.person_rounded, 'Profile'),
   ];
 
-  bool isAvailable = true;
-  final String tripId = 'TRP-2301';
-  final String origin = 'Victoria Hub';
-  final String destination = 'Calamba Logistics Hub';
-  final String eta = '3:15 PM';
-  final String cargo = 'Electronics';
-  final int parcelCount = 24;
+  bool isAvailable = RiderProfile.isAvailable ?? false;
+  List<Map<String, dynamic>> _tasks = [];
+  bool _loadingTasks = true;
+  bool _updatingAvailability = false;
+  String? _taskError;
 
-  final int _activeTrips = 1;
-  final int _pendingHandovers = 3;
+  Map<String, dynamic>? get _activeTask {
+    for (final task in _tasks) {
+      if (!['completed', 'failed', 'cancelled'].contains(task['status'])) {
+        return task;
+      }
+    }
+    return null;
+  }
 
-  final List<Map<String, dynamic>> recentTrips = [
-    {'id': 'TRP-2298', 'route': 'Victoria → Los Baños', 'status': 'Completed'},
-    {'id': 'TRP-2294', 'route': 'Victoria → San Pablo', 'status': 'Pending'},
-    {'id': 'TRP-2289', 'route': 'Calamba → Batangas', 'status': 'Completed'},
-  ];
-
+  String get tripId => (_activeTask?['tracking_code'] ?? '').toString();
+  String get origin => (_activeTask?['origin'] ?? 'Origin hub').toString();
+  String get destination =>
+      (_activeTask?['destination'] ?? 'Destination hub').toString();
+  String get eta => 'Not provided';
+  String get cargo => (_activeTask?['note'] ?? 'Parcel handover').toString();
+  int get parcelCount => _activeTask == null ? 0 : 1;
+  int get _activeTrips => _tasks
+      .where(
+        (task) =>
+            !['completed', 'failed', 'cancelled'].contains(task['status']),
+      )
+      .length;
+  int get _pendingHandovers =>
+      _tasks.where((task) => task['status'] == 'arrived').length;
   int get _completedTrips =>
-      recentTrips.where((t) => t['status'] == 'Completed').length;
+      _tasks.where((task) => task['status'] == 'completed').length;
+  List<Map<String, dynamic>> get recentTrips => _tasks
+      .map(
+        (task) => <String, dynamic>{
+          'id': (task['tracking_code'] ?? 'Parcel').toString(),
+          'route':
+              '${task['origin'] ?? 'Origin hub'} → ${task['destination'] ?? 'Destination hub'}',
+          'status': _displayTaskStatus(task['status']),
+        },
+      )
+      .toList();
 
   int _selectedIndex = 0;
   bool _pageVisible = true;
@@ -87,6 +111,70 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
   void initState() {
     super.initState();
     _profile = _buildProfileFromRider();
+    _refreshTasks();
+  }
+
+  Future<void> _refreshTasks() async {
+    if (mounted) {
+      setState(() {
+        _loadingTasks = true;
+        _taskError = null;
+      });
+    }
+
+    try {
+      final tasks = await RiderApiService.tasks();
+      if (!mounted) return;
+      setState(() {
+        _tasks = tasks
+            .where((task) => task['job_type'] == 'Long-distance Handover')
+            .toList();
+        _loadingTasks = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _taskError = error.toString();
+        _loadingTasks = false;
+      });
+    }
+  }
+
+  String _displayTaskStatus(Object? status) => switch (status) {
+    'assigned' => 'Assigned',
+    'heading' => 'Heading to Hub',
+    'in_transit' => 'In Transit',
+    'arrived' => 'Arrived',
+    'completed' => 'Completed',
+    'failed' => 'Failed',
+    _ => 'Pending',
+  };
+
+  Future<void> _setAvailability(bool available) async {
+    if (_updatingAvailability) return;
+    final previous = isAvailable;
+    setState(() {
+      _updatingAvailability = true;
+      isAvailable = available;
+    });
+
+    try {
+      await RiderApiService.updateAvailability(available);
+      if (mounted) {
+        _showMessage(
+          available
+              ? 'You are available for truck assignments.'
+              : 'You are unavailable for new assignments.',
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => isAvailable = previous);
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) setState(() => _updatingAvailability = false);
+    }
   }
 
   TruckRiderProfile _buildProfileFromRider() {
@@ -159,29 +247,47 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
   }
 
   void _openTripDetails() {
+    final task = _activeTask;
+    if (task == null || tripId.isEmpty) {
+      _showMessage('No hub-to-hub trip has been assigned yet.');
+      return;
+    }
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const TripDetailsScreen()),
-    );
+      MaterialPageRoute(builder: (_) => TripDetailsScreen(task: task)),
+    ).then((_) => _refreshTasks());
   }
 
   Future<void> _openHandoverReport() async {
+    final task = _activeTask ?? (_tasks.isNotEmpty ? _tasks.first : null);
+    if (task == null) {
+      _showMessage('No hub-to-hub trip is available to generate a report.');
+      return;
+    }
+    final status = task['status']?.toString();
+    final isCompleted = status == 'completed';
+    final isFailed = status == 'failed';
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => TruckHandoverPreviewScreen(
-          tripId: tripId,
-          origin: origin,
-          destination: destination,
-          eta: eta,
-          cargo: cargo,
-          totalParcels: parcelCount,
-          handedOverParcels: 22,
-          failedParcels: 1,
-          remainingParcels: 1,
-          receiverName: 'Not yet recorded',
-          remarks: 'Two parcels require verification.',
-          handoverConfirmed: false,
+          tripId: (task['tracking_code'] ?? 'Trip ${task['id'] ?? ''}')
+              .toString(),
+          origin: (task['origin'] ?? 'Origin hub').toString(),
+          destination: (task['destination'] ?? 'Destination hub').toString(),
+          eta: 'Not provided',
+          cargo: (task['note'] ?? 'Parcel handover').toString(),
+          totalParcels: 1,
+          handedOverParcels: isCompleted ? 1 : 0,
+          failedParcels: isFailed ? 1 : 0,
+          remainingParcels: isCompleted || isFailed ? 0 : 1,
+          receiverName: isCompleted
+              ? 'Receiving hub'
+              : isFailed
+              ? 'Handover failed'
+              : 'Awaiting hub confirmation',
+          remarks: (task['note'] ?? '').toString(),
+          handoverConfirmed: isCompleted || isFailed,
         ),
       ),
     );
@@ -200,9 +306,11 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
     final pages = <Widget>[
       _buildHomeScreen(),
       const TruckInfoScreen(),
-      const AlertsScreen(),
+      const PreTripInspectionScreen(),
       ProfileScreen(
         profile: _profile,
+        totalTrips: _tasks.length,
+        completedTrips: _completedTrips,
         onProfileChanged: (updated) => setState(() => _profile = updated),
       ),
     ];
@@ -335,12 +443,22 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
   Widget _buildHomeScreen() {
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () async {
-          if (mounted) setState(() {});
-        },
+        onRefresh: _refreshTasks,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 130),
           children: [
+            if (_loadingTasks) const LinearProgressIndicator(color: _maroon),
+            if (_taskError != null) ...[
+              _emptyMessage(_taskError!),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _refreshTasks,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try again'),
+                ),
+              ),
+            ],
             Row(
               children: [
                 Expanded(
@@ -418,7 +536,7 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Truck Delivery',
+                    'Long-distance Handover',
                     style: TextStyle(
                       fontSize: 25,
                       color: Colors.white,
@@ -513,9 +631,7 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Demo mode: sample trip information is stored in memory. '
-                      'Real trip assignments and handover reports require '
-                      'backend integration.',
+                      'Hub-to-hub assignments from Logistics will appear here after the parcel is waybill-verified and sorted.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.black54,
@@ -533,6 +649,12 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
   }
 
   Widget _buildAssignedTripCard() {
+    if (_activeTask == null) {
+      return _emptyMessage(
+        'No active trip yet. Logistics will assign a sorted parcel and destination hub here.',
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -579,7 +701,7 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
                   ],
                 ),
               ),
-              _statusBadge('Assigned'),
+              _statusBadge(_displayTaskStatus(_activeTask?['status'])),
             ],
           ),
           const Padding(
@@ -635,7 +757,11 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
             child: ElevatedButton.icon(
               onPressed: _openTripDetails,
               icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Start Trip'),
+              label: Text(
+                _activeTask?['status'] == 'assigned'
+                    ? 'Open Trip'
+                    : 'Continue Trip',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _darkMaroon,
                 foregroundColor: Colors.white,
@@ -784,14 +910,7 @@ class _TruckDashboardScreenState extends State<TruckDashboardScreen> {
             value: isAvailable,
             activeThumbColor: Colors.white,
             activeTrackColor: _maroon,
-            onChanged: (value) {
-              setState(() => isAvailable = value);
-              _showMessage(
-                value
-                    ? 'Availability set to Available (local only).'
-                    : 'Availability set to Unavailable (local only).',
-              );
-            },
+            onChanged: _updatingAvailability ? null : _setAvailability,
           ),
         ],
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/bug_report.dart';
 import '../../services/bug_report_service.dart';
+import '../../services/rider_api_service.dart';
 
 class AdminHomeScreen extends StatelessWidget {
   const AdminHomeScreen({super.key, this.onViewAllReports});
@@ -73,25 +74,23 @@ class AdminHomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.35,
-            children: const [
-              _SummaryCard(
-                icon: Icons.groups_rounded,
-                value: '24',
-                title: 'Total Riders',
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: RiderApiService.adminRiders(),
+            builder: (context, snapshot) => AnimatedBuilder(
+              animation: BugReportService.instance,
+              builder: (context, _) => GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.35,
+                children: [
+                  _SummaryCard(icon: Icons.groups_rounded, value: snapshot.hasData ? '${snapshot.data!.length}' : '—', title: 'Total Riders'),
+                  _SummaryCard(icon: Icons.bug_report_rounded, value: '${BugReportService.instance.reports.length}', title: 'Bug Reports'),
+                ],
               ),
-              _SummaryCard(
-                icon: Icons.bug_report_rounded,
-                value: '5',
-                title: 'Bug Reports',
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 26),
           Row(

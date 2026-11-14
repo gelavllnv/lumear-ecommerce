@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+
+import '../services/rider_api_service.dart';
 
 class ParcelData {
   final String parcelNumber;
@@ -11,16 +15,21 @@ class ParcelData {
   final String paymentMethod;
   final double codAmount;
   final double riderFee;
+  final double shippingFee;
   final String distance;
   final double customerLatitude;
   final double customerLongitude;
   final String qrValue;
   final String status;
+  final int? remoteShipmentId;
 
-  // Local demo timestamps used for daily dashboard/report calculations.
-  // These become server timestamps when the app is connected to the real API.
+  // Timestamps returned by Laravel for shipment status updates.
   final DateTime? deliveredAt;
   final DateTime? statusUpdatedAt;
+  final DateTime? pickedUpAt;
+  final int failedAttempts;
+  final String? proofImagePath;
+  final String? receivedBy;
 
   const ParcelData({
     required this.parcelNumber,
@@ -33,19 +42,30 @@ class ParcelData {
     required this.paymentMethod,
     required this.codAmount,
     required this.riderFee,
+    this.shippingFee = 0,
     required this.distance,
     required this.customerLatitude,
     required this.customerLongitude,
     required this.qrValue,
     required this.status,
+    this.remoteShipmentId,
     this.deliveredAt,
     this.statusUpdatedAt,
+    this.pickedUpAt,
+    this.failedAttempts = 0,
+    this.proofImagePath,
+    this.receivedBy,
   });
 
   ParcelData copyWith({
     String? status,
+    int? remoteShipmentId,
     DateTime? deliveredAt,
     DateTime? statusUpdatedAt,
+    DateTime? pickedUpAt,
+    int? failedAttempts,
+    String? proofImagePath,
+    String? receivedBy,
   }) => ParcelData(
     parcelNumber: parcelNumber,
     trackingNumber: trackingNumber,
@@ -57,13 +77,19 @@ class ParcelData {
     paymentMethod: paymentMethod,
     codAmount: codAmount,
     riderFee: riderFee,
+    shippingFee: shippingFee,
     distance: distance,
     customerLatitude: customerLatitude,
     customerLongitude: customerLongitude,
     qrValue: qrValue,
     status: status ?? this.status,
+    remoteShipmentId: remoteShipmentId ?? this.remoteShipmentId,
     deliveredAt: deliveredAt ?? this.deliveredAt,
     statusUpdatedAt: statusUpdatedAt ?? this.statusUpdatedAt,
+    pickedUpAt: pickedUpAt ?? this.pickedUpAt,
+    failedAttempts: failedAttempts ?? this.failedAttempts,
+    proofImagePath: proofImagePath ?? this.proofImagePath,
+    receivedBy: receivedBy ?? this.receivedBy,
   );
 }
 
@@ -211,61 +237,45 @@ class SellerPickupRequest {
 
 class ParcelStore {
   static final ValueNotifier<List<ParcelData>> parcels = ValueNotifier([]);
-  static final SellerPickupRequest demoSellerPickup = SellerPickupRequest(
-    requestId: 'PU-0001',
-    sellerName: 'Victoria Home Supplies',
-    pickupAddress: 'Lumear Seller Hub, Victoria, Laguna',
-    sellerPhone: '0912 345 6789',
-    pickupLatitude: 14.2277,
-    pickupLongitude: 121.3284,
-    expectedParcels: const [
-      ParcelData(
-        parcelNumber: '#SPX1234',
-        trackingNumber: 'SPX1234',
-        hub: 'Victoria Hub',
-        recipient: 'Awaiting sorting',
-        phone: '',
-        address: 'Lumear Seller Hub, Victoria, Laguna',
-        parcelType: 'Seller pickup parcel',
-        paymentMethod: 'Paid',
-        codAmount: 0,
-        riderFee: 0,
-        distance: '',
-        customerLatitude: 0,
-        customerLongitude: 0,
-        qrValue: 'SPX1234',
-        status: 'To Pick Up',
-      ),
-      ParcelData(
-        parcelNumber: '#SPX1235',
-        trackingNumber: 'SPX1235',
-        hub: 'Victoria Hub',
-        recipient: 'Awaiting sorting',
-        phone: '',
-        address: 'Lumear Seller Hub, Victoria, Laguna',
-        parcelType: 'Seller pickup parcel',
-        paymentMethod: 'Paid',
-        codAmount: 0,
-        riderFee: 0,
-        distance: '',
-        customerLatitude: 0,
-        customerLongitude: 0,
-        qrValue: 'SPX1235',
-        status: 'To Pick Up',
-      ),
-    ],
-  );
-
   static final ValueNotifier<List<SellerPickupRequest>> sellerPickups =
-      ValueNotifier([demoSellerPickup]);
+      ValueNotifier([]);
   static final ValueNotifier<ParcelData?> currentParcel = ValueNotifier(null);
-  // Each successful delivery is split: ₱40 to the rider, ₱10 to Logistics.
-  static const double earningPerDelivery = 40;
-  static const double logisticsSharePerDelivery = 10;
   static final ValueNotifier<double> totalEarnings = ValueNotifier(0);
   static final ValueNotifier<List<ParcelData>> earnedParcels = ValueNotifier(
     [],
   );
+
+  /// Replaces local shipment state with the rider's Laravel assignments.
+  static void replaceRemoteParcels(List<ParcelData> assignedParcels) {
+    connected = true;
+    final previousByTracking = {
+      for (final parcel in parcels.value) parcel.trackingNumber: parcel,
+    };
+    final refreshedParcels = assignedParcels
+        .map((parcel) {
+          final previous = previousByTracking[parcel.trackingNumber];
+          if (previous == null) return parcel;
+          return parcel.copyWith(
+            proofImagePath: parcel.proofImagePath ?? previous.proofImagePath,
+            receivedBy: parcel.receivedBy ?? previous.receivedBy,
+          );
+        })
+        .toList(growable: false);
+    parcels.value = refreshedParcels;
+
+    ParcelData? active;
+    for (final parcel in refreshedParcels) {
+      if (parcel.status != 'Delivered' &&
+          parcel.status != 'Returned' &&
+          parcel.status != 'Delivery Failed') {
+        active = parcel;
+        break;
+      }
+    }
+    currentParcel.value = active;
+  }
+
+  static bool connected = false;
 
   static SellerPickupRequest? findSellerPickup(String requestId) {
     for (final pickup in sellerPickups.value) {
@@ -327,16 +337,18 @@ class ParcelStore {
       }
     }
     if (expectedParcel == null) {
-      if (!pickup.acceptAnyWaybillQr)
+      if (!pickup.acceptAnyWaybillQr) {
         return SellerPickupScanResult.parcelNotExpected;
+      }
       for (final parcel in pickup.expectedParcels) {
         if (!pickup.scannedTrackingNumbers.contains(parcel.trackingNumber)) {
           expectedParcel = parcel;
           break;
         }
       }
-      if (expectedParcel == null)
+      if (expectedParcel == null) {
         return SellerPickupScanResult.noUnscannedParcels;
+      }
     }
 
     final targetTracking = expectedParcel.trackingNumber;
@@ -347,8 +359,9 @@ class ParcelStore {
             (parcel) => parcel.trackingNumber == targetTracking,
           ),
     );
-    if (assignedElsewhere)
+    if (assignedElsewhere) {
       return SellerPickupScanResult.parcelAssignedElsewhere;
+    }
     if (pickup.scannedTrackingNumbers.contains(targetTracking)) {
       return SellerPickupScanResult.duplicateScan;
     }
@@ -373,7 +386,7 @@ class ParcelStore {
   }
 
   /// Rider submits only the tracking numbers of parcels physically received.
-  /// This is local demo state until a Laravel API/database is connected.
+  /// Updates the server-synced rider task view after a status change.
   static SellerPickupSubmissionResult submitSellerPickupConfirmation(
     String requestId,
     Set<String> receivedTrackingNumbers,
@@ -445,8 +458,9 @@ class ParcelStore {
     }
     for (final tracking in pickup.receivedTrackingNumbers) {
       final expected = _expectedParcel(pickup, tracking);
-      if (expected != null)
+      if (expected != null) {
         _upsertParcel(expected.copyWith(status: 'Picked Up'));
+      }
     }
     _replaceSellerPickup(
       pickup.copyWith(
@@ -588,53 +602,122 @@ class ParcelStore {
   }
 
   static ParcelData createParcelFromQr(String qrValue) {
-    final cleanQr = qrValue.trim();
+    final cleanQr = _decodeWaybillPayload(qrValue);
     if (cleanQr.isEmpty) throw Exception('QR code is empty.');
+    final trackingCode = cleanQr
+        .replaceFirst(
+          RegExp(r'^LUMEAR-WAYBILL\s*:\s*', caseSensitive: false),
+          '',
+        )
+        .trim()
+        .toUpperCase();
 
     for (final parcel in parcels.value) {
-      if (parcel.qrValue == cleanQr) {
+      if (parcel.qrValue.toUpperCase() == trackingCode ||
+          parcel.trackingNumber.toUpperCase() == trackingCode) {
         currentParcel.value = parcel;
         debugPrint('PARCEL ALREADY EXISTS: ${parcel.trackingNumber}');
         return parcel;
       }
     }
 
-    final numberString = DateTime.now().microsecondsSinceEpoch.toString();
-    final shortId = numberString.substring(numberString.length - 7);
-    final newParcel = ParcelData(
-      parcelNumber: '#LUM$shortId',
-      trackingNumber: 'LUMEAR-$shortId',
-      hub: 'Lumear Seller Hub - Victoria',
-      recipient: 'Maricko Sheiy Villacorta',
-      phone: '0912 345 6789',
-      address: 'Masapang, Victoria, Laguna',
-      parcelType: 'Medium Parcel',
-      paymentMethod: 'Cash on Delivery',
-      codAmount: 150.00,
-      riderFee: 45.00,
-      distance: '3.2 km',
-      customerLatitude: 14.2277,
-      customerLongitude: 121.3284,
-      qrValue: cleanQr,
-      status: 'To Pick Up',
+    throw StateError(
+      'This QR code is not assigned to your account. Refresh your assignments and try again.',
     );
-    parcels.value = [newParcel, ...parcels.value];
-    currentParcel.value = newParcel;
-    debugPrint('PARCEL CREATED: ${newParcel.parcelNumber}');
-    debugPrint('Tracking: ${newParcel.trackingNumber}');
-    debugPrint('QR: ${newParcel.qrValue}');
-    return newParcel;
   }
 
-  static void updateStatus(String status) {
-    final current = currentParcel.value;
+  static Future<ParcelData> confirmPickupFromWaybill(String rawQr) async {
+    final parcel = createParcelFromQr(rawQr);
+    if (parcel.status != 'Pending') {
+      throw StateError('This parcel is no longer waiting for pickup.');
+    }
+    final shipmentId = parcel.remoteShipmentId;
+    if (shipmentId == null) {
+      throw StateError('This parcel is not connected to a server assignment.');
+    }
+
+    await RiderApiService.confirmShipmentPickupScan(
+      shipmentId,
+      _decodeWaybillPayload(rawQr),
+    );
+
+    final updated = parcel.copyWith(
+      status: 'Parcel Picked Up',
+      statusUpdatedAt: DateTime.now(),
+    );
+    currentParcel.value = updated;
+    parcels.value = parcels.value
+        .map(
+          (item) =>
+              item.trackingNumber == updated.trackingNumber ? updated : item,
+        )
+        .toList(growable: false);
+
+    return updated;
+  }
+
+  static String _decodeWaybillPayload(String qrValue) {
+    final trimmedQr = qrValue.trim();
+    try {
+      final decodedQr = jsonDecode(trimmedQr);
+      if (decodedQr is String) {
+        return decodedQr.trim();
+      }
+    } on FormatException {
+      // Older waybills may contain a plain-text QR instead of a JSON string.
+    }
+
+    return trimmedQr;
+  }
+
+  static Future<void> updateStatus(
+    String status, {
+    String? trackingNumber,
+    String? proofImagePath,
+    String? receivedBy,
+    String? note,
+  }) async {
+    final current = trackingNumber == null
+        ? currentParcel.value
+        : parcels.value
+              .where((p) => p.trackingNumber == trackingNumber)
+              .firstOrNull;
     if (current == null) return;
+
+    final apiStatus = switch (status) {
+      'Heading to Pickup' => 'out_for_delivery',
+      'In Transit' => 'in_transit',
+      'Out for Delivery' => 'out_for_delivery',
+      'Awaiting Buyer Confirmation' => 'delivered',
+      'Delivered' => 'delivered',
+      'Delivery Failed' || 'Returned' => 'failed',
+      _ => null,
+    };
+    if (current.remoteShipmentId != null && apiStatus != null) {
+      if (proofImagePath != null && receivedBy?.trim().isNotEmpty == true) {
+        await RiderApiService.uploadShipmentProof(
+          shipmentId: current.remoteShipmentId!,
+          imagePath: proofImagePath,
+          receivedBy: receivedBy!.trim(),
+        );
+      }
+      await RiderApiService.updateShipmentStatus(
+        current.remoteShipmentId!,
+        apiStatus,
+        note: note,
+      );
+    }
 
     final now = DateTime.now();
     final updated = current.copyWith(
       status: status,
       statusUpdatedAt: now,
-      deliveredAt: status == 'Delivered' ? (current.deliveredAt ?? now) : null,
+      deliveredAt:
+          status == 'Delivered' || status == 'Awaiting Buyer Confirmation'
+          ? (current.deliveredAt ?? now)
+          : null,
+      proofImagePath: proofImagePath,
+      receivedBy: receivedBy,
     );
 
     currentParcel.value = updated;
@@ -644,13 +727,68 @@ class ParcelStore {
               ? p.copyWith(
                   status: status,
                   statusUpdatedAt: now,
-                  deliveredAt: status == 'Delivered'
+                  deliveredAt:
+                      status == 'Delivered' ||
+                          status == 'Awaiting Buyer Confirmation'
                       ? (p.deliveredAt ?? now)
                       : null,
+                  proofImagePath: proofImagePath,
+                  receivedBy: receivedBy,
                 )
               : p,
         )
         .toList(growable: false);
+  }
+
+  static Future<Map<String, dynamic>> reportFailedAttempt(
+    String reason,
+    String note, {
+    required String trackingNumber,
+  }) async {
+    final parcel = parcels.value
+        .where((item) => item.trackingNumber == trackingNumber)
+        .firstOrNull;
+    final shipmentId = parcel?.remoteShipmentId;
+    if (shipmentId == null) {
+      throw StateError('This parcel is not connected to a server assignment.');
+    }
+    final result = await RiderApiService.updateShipmentStatus(
+      shipmentId,
+      'failed',
+      note: [reason, if (note.trim().isNotEmpty) note.trim()].join(' — '),
+    );
+    final attempts = int.tryParse(result['attempt']?.toString() ?? '') ?? 0;
+    if (parcel != null) {
+      final updated = parcel.copyWith(failedAttempts: attempts);
+      parcels.value = parcels.value
+          .map((item) => item.trackingNumber == trackingNumber ? updated : item)
+          .toList(growable: false);
+      if (currentParcel.value?.trackingNumber == trackingNumber) {
+        currentParcel.value = updated;
+      }
+    }
+    return result;
+  }
+
+  static Future<void> reportDeliveryDelay(
+    String reason,
+    DateTime proposedFor, {
+    required String trackingNumber,
+  }) async {
+    final parcel = parcels.value
+        .where((item) => item.trackingNumber == trackingNumber)
+        .firstOrNull;
+    final shipmentId = parcel?.remoteShipmentId;
+
+    if (shipmentId == null) {
+      throw StateError('This parcel is not connected to a server assignment.');
+    }
+
+    await RiderApiService.reportShipmentDelay(
+      shipmentId,
+      reason: reason,
+      proposedFor: proposedFor,
+    );
   }
 
   static bool awardSuccessfulDelivery(ParcelData completedParcel) {
@@ -665,8 +803,9 @@ class ParcelStore {
     if (stored != null && stored.status != 'Delivered') return false;
     if (earnedParcels.value.any(
       (p) => p.trackingNumber == completedParcel.trackingNumber,
-    ))
+    )) {
       return false;
+    }
 
     final earned = (stored ?? completedParcel).copyWith(
       deliveredAt: (stored ?? completedParcel).deliveredAt ?? DateTime.now(),
@@ -675,7 +814,7 @@ class ParcelStore {
     );
     if (stored == null) parcels.value = [earned, ...parcels.value];
     earnedParcels.value = [earned, ...earnedParcels.value];
-    totalEarnings.value += earningPerDelivery;
+    totalEarnings.value += earned.riderFee;
     return true;
   }
 

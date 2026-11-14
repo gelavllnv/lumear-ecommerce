@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/rider_profile.dart';
+import '../services/rider_api_service.dart';
 
 class PersonalInformationScreen extends StatefulWidget {
   const PersonalInformationScreen({super.key});
@@ -19,8 +20,6 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
   static const Color brownBeige = Color(0xFF9E7161);
   static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFE0CFC2);
-
-  static const String _baseUrl = 'http://10.102.177.127:8000';
 
   // Same options as the Sex selector on the sign-up screen.
   static const List<String> _sexOptions = ['Male', 'Female', 'Other'];
@@ -887,70 +886,35 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final response = await http
-          .patch(
-            Uri.parse('$_baseUrl/api/riders/$riderId/personal-information'),
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'full_name': _nameController.text.trim(),
-              'email': _emailController.text.trim(),
-              'phone': _phoneController.text.trim(),
-              'sex': sexToSave,
-              'birthday': birthdayToSave,
-              'age': age,
-              'region': _regionController.text.trim(),
-              'province': _provinceController.text.trim(),
-              'municipality': _municipalityController.text.trim(),
-              'barangay': _barangayController.text.trim(),
-              'street': _streetController.text.trim(),
-              'house_unit': _houseUnitController.text.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      final dynamic decoded = response.body.isNotEmpty
-          ? jsonDecode(response.body)
-          : <String, dynamic>{};
-      final Map<String, dynamic> data = decoded is Map<String, dynamic>
-          ? decoded
-          : <String, dynamic>{};
+      await RiderApiService.updateProfile({
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'sex': sexToSave,
+        'birthday': birthdayToSave,
+        'region': _regionController.text.trim(),
+        'province': _provinceController.text.trim(),
+        'municipality': _municipalityController.text.trim(),
+        'barangay': _barangayController.text.trim(),
+        'street': _streetController.text.trim(),
+        'house_unit': _houseUnitController.text.trim(),
+      });
 
       if (!mounted) return;
-
-      if (response.statusCode == 200 && data['success'] == true) {
-        final dynamic rider = data['rider'];
-        if (rider is Map) {
-          RiderProfile.setFromJson(Map<String, dynamic>.from(rider));
-        }
-
-        // Keep the saved sex even if the server response does not include it.
-        RiderProfile.sex = sexToSave;
-
-        setState(() {
-          _sexController.text = sexToSave;
-          _fillBirthdayFields(
-            _parseBirthday(RiderProfile.birthday) ?? birthday,
-          );
-          _updateAge();
-          _isEditing = false;
-          _isSaving = false;
-        });
-
-        _showMessage('Personal information updated.', success: true);
-        return;
-      }
-
-      setState(() => _isSaving = false);
-      _showMessage(
-        data['message']?.toString() ?? 'Unable to update information.',
-      );
+      RiderProfile.age = age;
+      RiderProfile.sex = sexToSave;
+      setState(() {
+        _sexController.text = sexToSave;
+        _fillBirthdayFields(_parseBirthday(RiderProfile.birthday) ?? birthday);
+        _updateAge();
+        _isEditing = false;
+        _isSaving = false;
+      });
+      _showMessage('Personal information saved to Laravel.', success: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      _showMessage('Unable to connect to the server.');
+      _showMessage('Unable to save rider information: $e');
     }
   }
 

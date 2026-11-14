@@ -3,6 +3,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 import 'package:flutter_application_1/models/parcel_store.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
+import 'package:flutter_application_1/services/rider_delivery_sync.dart';
 
 class QrScannerScreen extends StatefulWidget {
   final Future<void> Function(String qrValue)? onParcelScanned;
@@ -182,6 +184,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       IconData successIcon;
 
       if (widget.createParcel) {
+        await RiderDeliverySync.refresh();
         final ParcelData parcel = ParcelStore.createParcelFromQr(qrValue);
         debugPrint('QR Scanner created ${parcel.trackingNumber}');
         await _playScanSuccessSound();
@@ -190,7 +193,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           await widget.onParcelScanned!(qrValue);
         }
 
-        successMessage = '${parcel.parcelNumber} added to Pickups.';
+        successMessage =
+            '${parcel.parcelNumber} pickup confirmed; it is now in your care.';
         successIcon = Icons.inventory_2_rounded;
       } else {
         final callback = widget.onQrScanned;
@@ -236,30 +240,30 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       // ========================================================
 
       _showTopMessage(
-        'Unable to process this parcel QR code.',
+        error is RiderApiException
+            ? error.message
+            : error is StateError
+            ? error.message
+            : 'QR not recognized. Scan the seller waybill for a parcel assigned to your account.',
         icon: Icons.error_outline_rounded,
         color: Colors.red,
       );
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
       }
-
-      setState(() {
-        _processing = false;
-      });
 
       // Small delay before scanner becomes active again.
       await Future.delayed(const Duration(milliseconds: 700));
 
-      if (!mounted) {
-        return;
-      }
-
-      try {
-        await _scannerController.start();
-      } catch (error) {
-        debugPrint('Scanner restart ignored: $error');
+      if (mounted) {
+        try {
+          await _scannerController.start();
+        } catch (error) {
+          debugPrint('Scanner restart ignored: $error');
+        }
       }
     }
   }
@@ -618,7 +622,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     Expanded(
                       child: Text(
                         widget.createParcel
-                            ? 'After scanning, the parcel will be processed and added to your Pickups.'
+                            ? 'Scan the waybill for a parcel already assigned to you. A successful scan confirms it is in your care.'
                             : widget.scanPurpose == 'payout'
                             ? 'Scanning does not mark a payout as paid. Verify the claim details before confirming payment.'
                             : 'The QR contents are checked by the current workflow. Scanning does not create or mark a parcel as collected.',

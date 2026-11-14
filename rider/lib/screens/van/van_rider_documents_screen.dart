@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/models/rider_profile.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 import 'package:open_filex/open_filex.dart';
 
 class VanRiderDocumentsScreen extends StatefulWidget {
@@ -62,13 +63,40 @@ class _VanRiderDocumentsScreenState extends State<VanRiderDocumentsScreen> {
         widget.driverLicensePath ?? RiderProfile.localDriverLicenseFile?.path;
     _vehicleOrPath = widget.vehicleOrPath ?? RiderProfile.localOrFile?.path;
     _vehicleCrPath = widget.vehicleCrPath ?? RiderProfile.localCrFile?.path;
-    _licenseExpiry = widget.initialLicenseExpiry;
+    _licenseExpiry = widget.initialLicenseExpiry ?? RiderProfile.licenseExpiry;
 
     // These documents were already submitted at signup.
     if (_has(_driverLicensePath) &&
         _has(_vehicleOrPath) &&
         _has(_vehicleCrPath)) {
-      _approvalStatus = 'Pending';
+      _approvalStatus = 'Approved';
+    }
+
+    _loadSubmittedDocuments();
+  }
+
+  Future<void> _loadSubmittedDocuments() async {
+    try {
+      final documents = await Future.wait([
+        RiderApiService.downloadDocument('driver_license'),
+        RiderApiService.downloadDocument('or_document'),
+        RiderApiService.downloadDocument('cr_document'),
+      ]);
+      if (!mounted) return;
+
+      setState(() {
+        _driverLicensePath ??= documents[0]?.path;
+        _vehicleOrPath ??= documents[1]?.path;
+        _vehicleCrPath ??= documents[2]?.path;
+        _licenseExpiry ??= RiderProfile.licenseExpiry;
+        if (_has(_driverLicensePath) &&
+            _has(_vehicleOrPath) &&
+            _has(_vehicleCrPath)) {
+          _approvalStatus = 'Approved';
+        }
+      });
+    } catch (error) {
+      debugPrint('Unable to load rider documents: $error');
     }
   }
 
@@ -432,6 +460,13 @@ class _VanRiderDocumentsScreenState extends State<VanRiderDocumentsScreen> {
           _vehicleCrPath,
           _licenseExpiry,
         );
+      } else {
+        await RiderApiService.updateDocuments(
+          driverLicense: File(_driverLicensePath!),
+          orDocument: File(_vehicleOrPath!),
+          crDocument: File(_vehicleCrPath!),
+          licenseExpiry: _licenseExpiry,
+        );
       }
 
       // Keep the in-memory profile in sync with the latest files.
@@ -442,15 +477,11 @@ class _VanRiderDocumentsScreenState extends State<VanRiderDocumentsScreen> {
       if (!mounted) return;
 
       setState(() {
-        _approvalStatus = 'Pending';
+        _approvalStatus = 'Saved';
         _hasUnsavedChanges = false;
       });
 
-      _showMessage(
-        widget.onSave == null
-            ? 'Update marked as pending in this screen only. Permanent saving is not connected yet.'
-            : 'Documents updated successfully.',
-      );
+      _showMessage('Documents uploaded and saved to your rider account.');
     } catch (e) {
       if (mounted) {
         _showMessage('Unable to save documents: $e');
@@ -712,11 +743,10 @@ class _VanRiderDocumentsScreenState extends State<VanRiderDocumentsScreen> {
     late final String message;
 
     switch (_approvalStatus) {
-      case 'Pending':
-        color = warningAmber;
-        icon = Icons.hourglass_top_rounded;
-        message =
-            'Your documents have been submitted and are waiting for review.';
+      case 'Saved':
+        color = successGreen;
+        icon = Icons.cloud_done_outlined;
+        message = 'Your latest documents are saved to your rider account.';
         break;
       case 'Approved':
         color = successGreen;

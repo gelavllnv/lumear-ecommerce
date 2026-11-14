@@ -18,7 +18,7 @@
     $portalUrl = $currentUser?->isAdmin()
         ? route('admin.dashboard')
         : ($currentUser?->isLogistics()
-            ? route('logistics.status')
+            ? route('logistics.dashboard')
             : ($currentUser?->isSeller() ? route('seller.status') : route('register')));
     $portalLabel = $currentUser?->isAdmin()
         ? 'Admin Centre'

@@ -8,7 +8,9 @@ import 'package:flutter_application_1/models/rider_profile.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-import 'login_screen.dart' hide RiderProfile;
+import '../services/rider_api_service.dart';
+
+import 'login_screen.dart';
 import 'terms_conditions_screen.dart';
 
 class _PhLocalNumberFormatter extends TextInputFormatter {
@@ -77,7 +79,16 @@ class _NameInputFormatter extends TextInputFormatter {
 }
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+  const SignUpScreen({
+    super.key,
+    this.googleName,
+    this.googleEmail,
+    this.googleIdToken,
+  });
+
+  final String? googleName;
+  final String? googleEmail;
+  final String? googleIdToken;
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -104,6 +115,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   final TextEditingController _streetController = TextEditingController();
   final TextEditingController _houseUnitController = TextEditingController();
+  final TextEditingController _postalCodeController = TextEditingController();
 
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
@@ -184,6 +196,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // Preferred logistics hub selected during rider registration.
   String? _selectedLogisticsCenter;
+  List<Map<String, dynamic>> _logisticsCenters = [];
+  bool _isLoadingLogisticsCenters = false;
+  bool _logisticsCentersLoadFailed = false;
 
   // PSGC codes are kept internally for API requests.
   String? _selectedRegionCode;
@@ -206,6 +221,40 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _barangayLoadFailed = false;
 
   static const String _psgcBaseUrl = 'https://psgc.cloud/api/v2';
+
+  static const Map<String, String> _lagunaPostalCodes = {
+    'alaminos': '4001', 'bay': '4033', 'binan': '4024', 'biñan': '4024',
+    'cabuyao': '4025',
+    'calamba': '4027', 'calauan': '4012', 'cavinti': '4013', 'famy': '4021',
+    'kalayaan': '4015', 'liliw': '4004', 'los banos': '4030', 'lumban': '4014',
+    'luisiana': '4032', 'magdalena': '4007', 'mahayhay': '4005', 'majayjay': '4005',
+    'nagcarlan': '4002', 'paete': '4016', 'pagsanjan': '4008', 'pakil': '4017',
+    'pangil': '4018', 'pila': '4010', 'rizal': '4003', 'san pablo': '4000',
+    'san pedro': '4023', 'santa cruz': '4009', 'sta cruz': '4009',
+    'santa maria': '4022', 'santa rosa': '4026', 'sta rosa': '4026',
+    'siniloan': '4019', 'victoria': '4011',
+  };
+
+  String _normalizeLocationName(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r' city$'), '')
+      .replaceAll(RegExp(r'^city of '), '')
+      .replaceAll(RegExp(r'^municipality of '), '')
+      .trim();
+
+  void _updatePostalCode() {
+    final String province = _normalizeLocationName(_selectedProvince ?? '');
+    final String municipality =
+        _normalizeLocationName(_selectedMunicipality ?? '');
+    final String postalCode = province == 'laguna'
+        ? (_lagunaPostalCodes[municipality] ?? '')
+        : '';
+
+    _postalCodeController.value = TextEditingValue(
+      text: postalCode,
+      selection: TextSelection.collapsed(offset: postalCode.length),
+    );
+  }
 
   String? _selectedVehicleType;
 
@@ -306,7 +355,124 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   void initState() {
     super.initState();
+    final nameParts = (widget.googleName ?? '').trim().split(RegExp(r'\s+'));
+    if (nameParts.isNotEmpty && nameParts.first.isNotEmpty) {
+      _firstNameController.text = nameParts.first;
+      if (nameParts.length > 1) {
+        _lastNameController.text = nameParts.sublist(1).join(' ');
+      }
+    }
+    _emailController.text = widget.googleEmail ?? '';
     _fetchRegions();
+    _fetchLogisticsCenters();
+  }
+
+  Future<void> _fetchLogisticsCenters() async {
+    if (_isLoadingLogisticsCenters) return;
+
+    setState(() {
+      _isLoadingLogisticsCenters = true;
+      _logisticsCentersLoadFailed = false;
+    });
+
+    try {
+      final List<Map<String, dynamic>> centers =
+          await RiderApiService.logisticsHubs();
+      if (!mounted) return;
+
+      setState(() {
+        _logisticsCenters = centers;
+        _isLoadingLogisticsCenters = false;
+        _logisticsCentersLoadFailed = false;
+        if (!_logisticsCenters.any(
+          (center) => center['id'].toString() == _selectedLogisticsCenter,
+        )) {
+          _selectedLogisticsCenter = null;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingLogisticsCenters = false;
+        _logisticsCentersLoadFailed = true;
+      });
+      debugPrint('Unable to load approved logistics hubs: $error');
+    }
+  }
+
+  String _logisticsCenterLabel(Map<String, dynamic> center) {
+    final List<String> location = [
+      center['municipality_name']?.toString() ?? '',
+      center['province_name']?.toString() ?? '',
+    ].where((part) => part.trim().isNotEmpty).toList();
+    final String name = center['name']?.toString() ?? 'Logistics Hub';
+
+    return location.isEmpty ? name : '$name · ${location.join(', ')}';
+  }
+
+  Widget _logisticsCenterDropdown() {
+    return SizedBox(
+      width: double.infinity,
+      child: DropdownButtonFormField<String>(
+        initialValue: _selectedLogisticsCenter,
+        isExpanded: true,
+        isDense: true,
+        menuMaxHeight: 360,
+        borderRadius: BorderRadius.circular(18),
+        alignment: AlignmentDirectional.centerStart,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: _flatDecoration('Preferred Logistics Hub*').copyWith(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+        ),
+        icon: const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: maroon,
+            size: 24,
+          ),
+        ),
+        dropdownColor: cream,
+        style: const TextStyle(
+          color: darkMaroon,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        items: _logisticsCenters.map((center) {
+          final String id = center['id'].toString();
+          final String label = _logisticsCenterLabel(center);
+
+          return DropdownMenuItem<String>(
+            value: id,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: darkMaroon,
+                  fontSize: 13,
+                  height: 1.25,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+        onChanged: _logisticsCenters.isEmpty
+            ? null
+            : (value) {
+                setState(() {
+                  _selectedLogisticsCenter = value;
+                });
+              },
+      ),
+    );
   }
 
   List<String> get _regions =>
@@ -604,6 +770,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _ageController.dispose();
     _streetController.dispose();
     _houseUnitController.dispose();
+    _postalCodeController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _licenseNumberController.dispose();
@@ -1013,6 +1180,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return false;
     }
 
+    if (!RegExp(r'^\d{4}$').hasMatch(_postalCodeController.text.trim())) {
+      _showMessage(
+        'Please enter a valid 4-digit postal code for your municipality.',
+        icon: Icons.markunread_mailbox_outlined,
+      );
+
+      return false;
+    }
+
     if (_selectedBarangay == null) {
       _showMessage('Please select your barangay.', icon: Icons.place_outlined);
 
@@ -1336,9 +1512,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   // ============================================================
-  // SIGN UP (local only)
-  // The Node.js signup API was removed. The rider profile is now
-  // saved locally and no data is sent to any server.
+  // SIGN UP
+  // Applications are stored in Laravel and reviewed by the logistics provider
+  // assigned to the rider's municipality.
   // ============================================================
   Future<void> _signUp() async {
     if (_isLoading) return;
@@ -1377,15 +1553,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
     FocusScope.of(context).unfocus();
 
     try {
-      // No server request: the rider profile is saved locally only.
-      _saveLocalRiderProfile();
-      RiderProfile.status = 'Pending verification';
+      setState(() => _isLoading = true);
+      await RiderApiService.register(
+        values: {
+          'name': _fullName,
+          'email': _emailController.text.trim().toLowerCase(),
+          if (widget.googleIdToken != null)
+            'google_id_token': widget.googleIdToken!,
+          'password': _passwordController.text,
+          'password_confirmation': _confirmPasswordController.text,
+          'phone': '+63${_phoneController.text.trim()}',
+          'sex': _selectedSex!,
+          'birthday': _selectedBirthday!.toIso8601String().substring(0, 10),
+          'region': _selectedRegion!,
+          'province': _selectedProvince!,
+          'municipality': _selectedMunicipality!,
+          'municipality_psgc_code': _selectedMunicipalityCode!,
+          'postal_code': _postalCodeController.text.trim(),
+          'logistics_provider_id': _selectedLogisticsCenter!,
+          'barangay': _selectedBarangay!,
+          'street': _streetController.text.trim(),
+          'house_unit': _houseUnitController.text.trim(),
+          'vehicle_type': _selectedVehicleType!,
+          'job_type': _selectedJobType!,
+          'license_number': _licenseNumberController.text.trim(),
+          'plate_number': _plateNumberController.text.trim(),
+        },
+        driverLicense: File(_licenseImage!.path),
+        orDocument: _orFile!,
+        crDocument: _crFile!,
+      );
 
       if (!mounted) return;
 
+      setState(() => _isLoading = false);
       _showPendingVerificationDialog();
+    } on RiderApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showMessage(error.message, icon: Icons.error_outline_rounded);
     } catch (e) {
       if (!mounted) return;
+
+      setState(() => _isLoading = false);
 
       _showMessage(
         'Something went wrong while saving your registration. Please try again.',
@@ -1394,31 +1604,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       debugPrint('Rider signup error: $e');
     }
-  }
-
-  void _saveLocalRiderProfile() {
-    // The three name fields are combined into one full name, so the rest
-    // of the app (which reads RiderProfile.name) keeps working unchanged.
-    RiderProfile.name = _fullName;
-    RiderProfile.email = _emailController.text.trim();
-    RiderProfile.phone = '+63 ${_phoneController.text.trim()}';
-    RiderProfile.sex = _selectedSex!;
-    RiderProfile.birthday = _formatBirthday(_selectedBirthday!);
-    RiderProfile.age = int.tryParse(_ageController.text.trim());
-    RiderProfile.region = _selectedRegion!;
-    RiderProfile.province = _selectedProvince!;
-    RiderProfile.municipality = _selectedMunicipality!;
-    RiderProfile.barangay = _selectedBarangay!;
-    RiderProfile.street = _streetController.text.trim();
-    RiderProfile.houseUnit = _houseUnitController.text.trim();
-    RiderProfile.vehicleType = _selectedVehicleType!;
-    RiderProfile.jobType = _selectedJobType!;
-    RiderProfile.licenseNumber = _licenseNumberController.text.trim();
-    RiderProfile.plateNumber = _plateNumberController.text.trim();
-    RiderProfile.localDriverLicenseFile = File(_licenseImage!.path);
-    RiderProfile.localOrFile = _orFile!;
-    RiderProfile.localCrFile = _crFile!;
-    RiderProfile.status = 'Local demo profile';
   }
 
   void _showMessage(String message, {IconData? icon}) {
@@ -1630,14 +1815,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
     required TextEditingController controller,
     required String hint,
     TextCapitalization textCapitalization = TextCapitalization.none,
+    TextInputType? keyboardType,
+    int? maxLength,
   }) {
     return SizedBox(
       height: 60,
       child: TextField(
         controller: controller,
         textCapitalization: textCapitalization,
+        keyboardType: keyboardType,
+        maxLength: maxLength,
         style: const TextStyle(color: darkMaroon, fontSize: 13),
-        decoration: _flatDecoration(hint),
+        decoration: _flatDecoration(hint).copyWith(
+          counterText: maxLength == null ? null : '',
+        ),
       ),
     );
   }
@@ -1729,6 +1920,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return const Text(
       'Create your account',
       style: TextStyle(
+        fontFamily: 'Georgia',
         color: darkMaroon,
         fontSize: 25,
         fontWeight: FontWeight.bold,
@@ -2084,6 +2276,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 _selectedMunicipality = null;
                 _selectedMunicipalityCode = null;
+                _postalCodeController.clear();
 
                 _selectedBarangay = null;
 
@@ -2123,6 +2316,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 _selectedMunicipality = null;
                 _selectedMunicipalityCode = null;
+                _postalCodeController.clear();
 
                 _selectedBarangay = null;
 
@@ -2170,6 +2364,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   _municipalityItems,
                   value,
                 );
+                _updatePostalCode();
 
                 _selectedBarangay = null;
                 _barangayItems = [];
@@ -2180,6 +2375,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
               }
             },
           ),
+
+        const SizedBox(height: 10),
+
+        _flatTextField(
+          controller: _postalCodeController,
+          hint: 'Postal code* (auto-filled when available)',
+          keyboardType: TextInputType.number,
+          maxLength: 4,
+        ),
 
         const SizedBox(height: 10),
 
@@ -2222,20 +2426,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
         const SizedBox(height: 10),
 
-        _flatDropdownField(
-          hint: 'Preferred Logistics Hub*',
-          value: _selectedLogisticsCenter,
-          items: const [
-            'Victoria Hub',
-            'Calamba Logistics Hub',
-            'No preference — assign me later',
-          ],
-          onChanged: (value) {
-            setState(() {
-              _selectedLogisticsCenter = value;
-            });
-          },
-        ),
+        if (_isLoadingLogisticsCenters)
+          _locationLoadingField('Loading approved logistics hubs...')
+        else if (_logisticsCentersLoadFailed)
+          _locationRetryField(
+            text: 'Unable to load logistics hubs. Tap to retry.',
+            onTap: _fetchLogisticsCenters,
+          )
+        else if (_logisticsCenters.isEmpty)
+          _locationRetryField(
+            text: 'No approved logistics hubs found. Tap to check again.',
+            onTap: _fetchLogisticsCenters,
+          )
+        else
+          _logisticsCenterDropdown(),
 
         const SizedBox(height: 5),
         const Padding(
@@ -3210,7 +3414,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Your rider registration form is complete on this device.',
+                'Your application was sent to your selected Logistics provider for approval.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: brownBeige, fontSize: 12, height: 1.5),
               ),
@@ -3236,7 +3440,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Local Demo Registration',
+                            'Sent to Logistics',
                             style: TextStyle(
                               color: darkMaroon,
                               fontSize: 13,
@@ -3245,7 +3449,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           SizedBox(height: 5),
                           Text(
-                            'Laravel submission is disabled for this screen. No rider data is being sent to the server.',
+                            'You can sign in after Logistics approves your rider account.',
                             style: TextStyle(
                               color: maroon,
                               fontSize: 11,

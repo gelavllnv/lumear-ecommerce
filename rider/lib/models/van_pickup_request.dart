@@ -89,15 +89,6 @@ class VanPickupRequest {
     status = VanPickupStatus.collected;
   }
 
-  // Demo-only acknowledgement by the van driver that the seller confirmed.
-  // This is not actual validation by the seller.
-  void acknowledgeSellerConfirmation() {
-    if (status == VanPickupStatus.collected) {
-      status = VanPickupStatus.sellerConfirmed;
-      sellerConfirmedAt = DateTime.now();
-    }
-  }
-
   // Older one-step flow: collection + seller confirmation together.
   // Kept so other screens that call it still compile.
   void confirmCollection() {

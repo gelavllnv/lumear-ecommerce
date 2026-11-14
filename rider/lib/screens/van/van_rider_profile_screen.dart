@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_application_1/models/rider_profile.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
 
 import '../login_screen.dart';
 import 'van_personal_information_screen.dart';
@@ -60,12 +62,27 @@ class _VanRiderProfileScreenState extends State<VanRiderProfileScreen> {
   String? _photoPath;
   bool _photoLoading = false;
   DateTime? _deletionScheduledFor;
+  bool _profileLoading = false;
 
   @override
   void initState() {
     super.initState();
     _photoPath = widget.photoPath;
     _deletionScheduledFor = widget.deletionScheduledFor;
+    _refreshProfile();
+  }
+
+  Future<void> _refreshProfile() async {
+    if (_profileLoading) return;
+    _profileLoading = true;
+    try {
+      await RiderApiService.refreshProfile();
+      if (mounted) setState(() {});
+    } catch (_) {
+      // Keep the cached profile visible when the rider is temporarily offline.
+    } finally {
+      _profileLoading = false;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -558,15 +575,26 @@ class _VanRiderProfileScreenState extends State<VanRiderProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 5),
-                const Text(
-                  'Lumear Logistics',
-                  style: TextStyle(color: vanLightBeige, fontSize: 13),
+                Text(
+                  RiderProfile.name.isEmpty
+                      ? 'Lumear Logistics'
+                      : RiderProfile.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: vanLightBeige, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Van Rider Account',
+                Text(
+                  'Rider ID: ${RiderProfile.displayId.isEmpty ? '—' : RiderProfile.displayId}',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
+                if (RiderProfile.licenseNumber.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Driver license: ${RiderProfile.licenseNumber}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: _photoLoading ? null : _showPhotoOptions,
@@ -611,6 +639,36 @@ class _VanRiderProfileScreenState extends State<VanRiderProfileScreen> {
         children: [
           _buildProfileHeader(),
 
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: _profileStat(
+                  '★',
+                  RiderProfile.rating?.toStringAsFixed(1) ?? '—',
+                  'Rating',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _profileStat(
+                  '✓',
+                  '${RiderProfile.deliveredCount}',
+                  'Deliveries',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _profileStat(
+                  '⌂',
+                  '${RiderProfile.memberDays}',
+                  'Hub days',
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 28),
 
           const Text(
@@ -646,7 +704,7 @@ class _VanRiderProfileScreenState extends State<VanRiderProfileScreen> {
 
           _menuItem(
             context,
-            icon: Icons.local_shipping_outlined,
+            icon: Icons.airport_shuttle_outlined,
             title: 'Vehicle Information',
             subtitle: 'View your vehicle details',
             onTap: () =>
@@ -716,6 +774,34 @@ class _VanRiderProfileScreenState extends State<VanRiderProfileScreen> {
               'Lumear Logistics \u2022 Van Rider',
               style: TextStyle(color: Colors.black45, fontSize: 12),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileStat(String icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(icon, style: const TextStyle(color: vanMaroon, fontSize: 18)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: vanDarkMaroon,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: vanBrownBeige, fontSize: 10),
           ),
         ],
       ),

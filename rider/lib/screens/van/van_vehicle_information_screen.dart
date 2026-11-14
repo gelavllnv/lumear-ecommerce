@@ -23,11 +23,11 @@ class _VanVehicleInformationScreenState
   // Prefilled with what the rider entered during signup.
   late final TextEditingController _plateNumberController =
       TextEditingController(
-        text: (RiderProfile.plateNumber ?? '').toUpperCase(),
+        text: RiderProfile.plateNumber.toUpperCase(),
       );
   late final TextEditingController _licenseNumberController =
       TextEditingController(
-        text: (RiderProfile.licenseNumber ?? '').toUpperCase(),
+        text: RiderProfile.licenseNumber.toUpperCase(),
       );
 
   final FocusNode _plateFocus = FocusNode();
@@ -178,7 +178,7 @@ class _VanVehicleInformationScreenState
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.local_shipping_rounded,
+              Icons.airport_shuttle_rounded,
               color: Colors.white,
               size: 30,
             ),

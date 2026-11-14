@@ -124,7 +124,7 @@ class _TruckPersonalInformationScreenState
 
   void _loadProfile() {
     final p = _profile;
-    final Object? age = p.age;
+    final Object age = p.age;
 
     _nameController.text = p.fullName;
     _emailController.text = p.email;
@@ -142,7 +142,7 @@ class _TruckPersonalInformationScreenState
     _birthdayController.text = _formatDate(_birthday);
     _ageController.text = _birthday != null
         ? calcAge(_birthday!).toString()
-        : (age?.toString() ?? '');
+        : age.toString();
   }
 
   String _formatDate(DateTime? date) {

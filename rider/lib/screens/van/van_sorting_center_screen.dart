@@ -62,42 +62,6 @@ class _VanSortingCenterScreenState extends State<VanSortingCenterScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _showHandoverDialog(VanPickupRequest pickup) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirm Handover'),
-        content: Text(
-          'Confirm that ${pickup.parcelCount} parcels from '
-          '${pickup.sellerName} have been handed over to the sorting center?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: vanDarkMaroon,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      setState(pickup.confirmHandover);
-      widget.onChanged();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sorting center handover confirmed.')),
-      );
-    }
-  }
-
   // ============================================================
   // Build
   // ============================================================
@@ -160,7 +124,7 @@ class _VanSortingCenterScreenState extends State<VanSortingCenterScreen> {
                           heading: 'Awaiting Handover',
                           emptyIcon: Icons.local_shipping_outlined,
                           emptyMessage: 'No seller-approved pickups\nare awaiting handover.',
-                          onTap: _showHandoverDialog,
+                          onTap: _openPickupDetails,
                         ),
                         _SortingTab.handedOver => _buildTab(
                           list: handedOver,

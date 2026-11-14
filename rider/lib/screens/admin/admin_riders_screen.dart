@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/rider_api_service.dart';
 
 class AdminRidersScreen extends StatefulWidget {
   const AdminRidersScreen({super.key});
@@ -21,38 +22,25 @@ class _AdminRidersScreenState extends State<AdminRidersScreen> {
   static const double _navClearance = 130;
 
   String _searchText = '';
+  List<Map<String, dynamic>> riders = [];
+  bool _loading = true;
+  String? _loadError;
 
-  // Demo rider profiles. Account status is managed by Logistics.
-  final List<Map<String, dynamic>> riders = [
-    {
-      'name': 'Earl Chumacera',
-      'id': 'RID-001',
-      'email': 'earl@lumear.com',
-      'phone': '0912 345 6789',
-      'status': 'Active',
-    },
-    {
-      'name': 'Juan Dela Cruz',
-      'id': 'RID-002',
-      'email': 'juan@lumear.com',
-      'phone': '0917 555 2011',
-      'status': 'Active',
-    },
-    {
-      'name': 'Pedro Santos',
-      'id': 'RID-003',
-      'email': 'pedro@lumear.com',
-      'phone': '0998 332 2211',
-      'status': 'Suspended',
-    },
-    {
-      'name': 'Mark Reyes',
-      'id': 'RID-004',
-      'email': 'mark@lumear.com',
-      'phone': '0922 111 2233',
-      'status': 'Terminated',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadRiders();
+  }
+
+  Future<void> _loadRiders() async {
+    setState(() { _loading = true; _loadError = null; });
+    try {
+      final result = await RiderApiService.adminRiders();
+      if (mounted) setState(() { riders = result; _loading = false; });
+    } catch (error) {
+      if (mounted) setState(() { _loadError = error.toString(); _loading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,20 +103,26 @@ class _AdminRidersScreenState extends State<AdminRidersScreen> {
           const SizedBox(height: 10),
 
           Expanded(
-            child: filteredRiders.isEmpty
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: darkMaroon))
+                : _loadError != null
+                ? Center(child: Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: danger)))
+                : filteredRiders.isEmpty
                 ? const Center(
                     child: Text(
                       'No riders found.',
                       style: TextStyle(color: brownBeige),
                     ),
                   )
-                : ListView.builder(
+                : RefreshIndicator(
+                    onRefresh: _loadRiders,
+                    child: ListView.builder(
                     padding: EdgeInsets.fromLTRB(16, 4, 16, _navClearance),
                     itemCount: filteredRiders.length,
                     itemBuilder: (context, index) {
                       return _riderCard(filteredRiders[index]);
                     },
-                  ),
+                  )),
           ),
         ],
       ),
@@ -334,6 +328,22 @@ class _AdminRidersScreenState extends State<AdminRidersScreen> {
                           'Account status',
                           rider['status'],
                         ),
+                        _divider(),
+                        _infoRow(Icons.two_wheeler_outlined, 'Vehicle / job', '${rider['vehicle']} / ${rider['jobType']}'),
+                        _divider(),
+                        _infoRow(Icons.home_work_outlined, 'Assigned hub', rider['hub']?.toString() ?? ''),
+                        _divider(),
+                        _infoRow(Icons.location_on_outlined, 'Address', rider['address']?.toString().isNotEmpty == true ? rider['address'] : 'Not provided'),
+                        _divider(),
+                        _infoRow(Icons.confirmation_number_outlined, 'Plate number', rider['plate']?.toString() ?? ''),
+                        _divider(),
+                        _infoRow(Icons.badge_outlined, 'License number', rider['licenseNumber']?.toString() ?? ''),
+                        _divider(),
+                        _infoRow(Icons.cake_outlined, 'Birthday', rider['birthday']?.toString() ?? ''),
+                        _divider(),
+                        _infoRow(Icons.person_pin_outlined, 'Sex', rider['sex']?.toString() ?? ''),
+                        _divider(),
+                        _infoRow(Icons.calendar_month_outlined, 'Joined', rider['joined']?.toString() ?? ''),
                       ],
                     ),
 

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+import 'van/van_rider_dashboard_screen.dart';
+import 'truck/truck_dashboard_screen.dart';
 
 import 'dashboard_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
-import 'admin/admin_dashboard_screen.dart';
-import 'truck/truck_dashboard_screen.dart';
-import 'van/van_rider_dashboard_screen.dart';
+import 'admin/admin_login_screen.dart';
 
 import 'package:flutter_application_1/models/rider_profile.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
+import 'package:flutter_application_1/services/rider_delivery_sync.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -108,6 +112,14 @@ class _LoginScreenState extends State<LoginScreen>
       );
   }
 
+  void _openAdminLogin() {
+    if (_isLoggingIn || _loginSuccess) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
+    );
+  }
+
   // ============================================================
   // LOGIN
   // ============================================================
@@ -125,67 +137,30 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    // ============================================================
-    // ADMIN LOGIN (DEMO ONLY)
-    // ============================================================
-
-    if (email == 'lumear@gmail.com' && password == 'adminOne') {
-      setState(() => _isLoggingIn = true);
-
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-
-      setState(() {
-        _isLoggingIn = false;
-        _loginSuccess = true;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-      );
-      return;
-    }
-
-    // ============================================================
-    // RIDER LOGIN (LOCAL ONLY)
-    // The server API was removed. The rider is matched against the
-    // profile saved on this device during sign up (RiderProfile).
-    // ============================================================
-
     setState(() {
       _isLoggingIn = true;
       _loginSuccess = false;
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-
-    final String savedEmail = RiderProfile.email
-        .toString()
-        .trim()
-        .toLowerCase();
-
-    if (savedEmail.isEmpty || savedEmail != email) {
+    try {
+      await RiderApiService.login(email: email, password: password);
+      await RiderDeliverySync.refresh();
+    } catch (error) {
+      if (!mounted) return;
       setState(() => _isLoggingIn = false);
-      _showLoginMessage(
-        'No rider account found on this device. Please sign up first.',
-      );
+      _showLoginMessage(error.toString());
       return;
     }
 
-    final String? vehicleType = _canonicalVehicleType(
-      RiderProfile.vehicleType.toString(),
-    );
+    final String? vehicleType = _canonicalVehicleType(RiderProfile.vehicleType);
 
     final String jobType = RiderProfile.jobType.toString().trim().toLowerCase();
 
     if (vehicleType == null) {
       setState(() => _isLoggingIn = false);
-      _showLoginMessage('Unsupported vehicle type for this account.');
+      _showLoginMessage(
+        'Your approved rider account has an unsupported vehicle type.',
+      );
       return;
     }
 
@@ -216,6 +191,89 @@ class _LoginScreenState extends State<LoginScreen>
       context,
       MaterialPageRoute(builder: (_) => destination),
     );
+  }
+
+  Future<void> _loginWithGoogle() async {
+    FocusScope.of(context).unfocus();
+    if (_isLoggingIn || _loginSuccess) return;
+
+    setState(() => _isLoggingIn = true);
+    try {
+      final google = GoogleSignIn.instance;
+      await google.initialize(
+        serverClientId:
+            '283451557966-65afnq0eh6gvnace1sladhp8lqsl9d04.apps.googleusercontent.com',
+      );
+      final account = await google.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const RiderApiException(
+          'Google could not verify your account. Please try again.',
+        );
+      }
+
+      final result = await RiderApiService.loginWithGoogle(idToken: idToken);
+      if (!mounted) return;
+      if (result['action'] == 'pending') {
+        _showLoginMessage(
+          'Your rider application is still waiting for Logistics approval.',
+        );
+        return;
+      }
+      if (result['action'] == 'signup') {
+        setState(() => _loginSuccess = true);
+        await Future.delayed(const Duration(milliseconds: 250));
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SignUpScreen(
+              googleName: result['name']?.toString(),
+              googleEmail: result['email']?.toString(),
+              googleIdToken: idToken,
+            ),
+          ),
+        );
+        return;
+      }
+      await RiderDeliverySync.refresh();
+      if (!mounted) return;
+
+      final vehicleType = _canonicalVehicleType(RiderProfile.vehicleType);
+      final jobType = RiderProfile.jobType.toString().trim().toLowerCase();
+      if (vehicleType == null) {
+        throw const RiderApiException(
+          'Your approved rider account has an unsupported vehicle type.',
+        );
+      }
+
+      setState(() => _loginSuccess = true);
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
+      final Widget destination = switch (vehicleType) {
+        'Motorcycle' || 'Tricycle' => const DashboardScreen(),
+        'Van' when jobType == 'delivery' => const DashboardScreen(),
+        'Van' => const VanRiderDashboardScreen(),
+        'Truck' when jobType == 'delivery' => const DashboardScreen(),
+        'Truck' => const TruckDashboardScreen(),
+        _ => const DashboardScreen(),
+      };
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+      );
+    } on GoogleSignInException catch (error) {
+      if (!mounted) return;
+      if (error.code != GoogleSignInExceptionCode.canceled) {
+        _showLoginMessage(
+          'Google sign-in setup needs checking. Confirm the Rider SHA-1 is added in Firebase, then retry.',
+        );
+      }
+    } catch (error) {
+      if (mounted) _showLoginMessage(error.toString());
+    } finally {
+      if (mounted && !_loginSuccess) setState(() => _isLoggingIn = false);
+    }
   }
 
   // ============================================================
@@ -304,12 +362,7 @@ class _LoginScreenState extends State<LoginScreen>
       child: OutlinedButton(
         onPressed: _isLoggingIn || _loginSuccess
             ? null
-            : () {
-                FocusScope.of(context).unfocus();
-                _showLoginMessage(
-                  'Google Sign-In is not connected yet. Firebase setup is required.',
-                );
-              },
+            : _loginWithGoogle,
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white.withValues(alpha: 0.90),
           foregroundColor: const Color(0xFF333333),
@@ -421,7 +474,9 @@ class _LoginScreenState extends State<LoginScreen>
 
                   // LUMEAR BRANDING
                   Center(
-                    child: Column(
+                    child: GestureDetector(
+                      onLongPress: _openAdminLogin,
+                      child: Column(
                       children: [
                         const Text(
                           'LUMEAR',
@@ -461,6 +516,7 @@ class _LoginScreenState extends State<LoginScreen>
                           ],
                         ),
                       ],
+                    ),
                     ),
                   ),
 
@@ -551,6 +607,7 @@ class _LoginScreenState extends State<LoginScreen>
                     child: Text(
                       'Welcome Back!',
                       style: TextStyle(
+                        fontFamily: 'Georgia',
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
                         color: darkMaroon,

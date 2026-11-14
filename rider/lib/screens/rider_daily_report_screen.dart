@@ -66,10 +66,11 @@ class _DayReport {
       delivered: List.unmodifiable(delivered),
       failed: List.unmodifiable(failed),
       codCollected: cod,
-      riderEarnings:
-          delivered.length * ParcelStore.earningPerDelivery.toDouble(),
-      logisticsShare:
-          delivered.length * ParcelStore.logisticsSharePerDelivery.toDouble(),
+      riderEarnings: delivered.fold<double>(0, (sum, p) => sum + p.riderFee),
+      logisticsShare: delivered.fold<double>(
+        0,
+        (sum, p) => sum + (p.shippingFee - p.riderFee).clamp(0, double.infinity),
+      ),
     );
   }
 }
@@ -336,11 +337,11 @@ class _RiderDailyReportScreenState extends State<RiderDailyReportScreen> {
                 money(report.codCollected),
               ),
               _pdfRow(
-                'Rider earnings (${money(ParcelStore.earningPerDelivery)} per delivery)',
+                'Rider earnings',
                 money(report.riderEarnings),
               ),
               _pdfRow(
-                'Logistics share (${money(ParcelStore.logisticsSharePerDelivery)} per delivery)',
+                'Logistics share',
                 money(report.logisticsShare),
               ),
               _pdfRow(
@@ -381,7 +382,7 @@ class _RiderDailyReportScreenState extends State<RiderDailyReportScreen> {
                       p.recipient,
                       p.paymentMethod,
                       money(p.codAmount),
-                      money(ParcelStore.earningPerDelivery),
+                      money(p.riderFee),
                     ],
                   )
                   .toList(),
@@ -684,7 +685,7 @@ class _RiderDailyReportScreenState extends State<RiderDailyReportScreen> {
                   (p) => _parcelTile(
                     parcel: p,
                     time: p.deliveredAt,
-                    trailingTop: _money(ParcelStore.earningPerDelivery),
+                    trailingTop: _money(p.riderFee),
                     trailingBottom: p.codAmount > 0
                         ? 'COD ${_money(p.codAmount)}'
                         : p.paymentMethod,

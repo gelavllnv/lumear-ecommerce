@@ -111,72 +111,6 @@ String _formatStamp(DateTime t) {
   return '${months[t.month - 1]} ${t.day} • ${_formatClock(t)}';
 }
 
-List<DriverAlert> _sampleAlerts() {
-  final n = DateTime.now();
-  DateTime at(int daysAgo, int hour, int minute) =>
-      DateTime(n.year, n.month, n.day - daysAgo, hour, minute);
-
-  return [
-    DriverAlert(
-      id: 1,
-      title: 'Pre-Trip Inspection',
-      message: 'Complete your vehicle inspection before starting your assigned trip.',
-      category: AlertCategory.inspection,
-      timestamp: at(0, 7, 0),
-    ),
-    DriverAlert(
-      id: 2,
-      title: 'Check Fuel Level',
-      message: 'Make sure your truck has enough fuel before travelling to the Logistics Hub.',
-      category: AlertCategory.fuel,
-      timestamp: at(0, 7, 15),
-    ),
-    DriverAlert(
-      id: 3,
-      title: 'Assigned Trip Reminder',
-      message: 'Trip TRP-2301 is assigned to you. Review the trip details before departure.',
-      category: AlertCategory.trip,
-      timestamp: at(0, 7, 30),
-    ),
-    DriverAlert(
-      id: 4,
-      title: 'Tire Inspection',
-      message:
-          'Remember to inspect tire pressure and check for visible damage.',
-      category: AlertCategory.maintenance,
-      timestamp: at(1, 16, 0),
-      isRead: true,
-    ),
-    DriverAlert(
-      id: 5,
-      title: 'Brake System Reminder',
-      message:
-          'Check the braking system before operating the assigned vehicle.',
-      category: AlertCategory.maintenance,
-      timestamp: at(1, 15, 30),
-      isRead: true,
-    ),
-    DriverAlert(
-      id: 6,
-      title: 'Handover Update',
-      message:
-          'Review the handover instructions for your assigned Logistics Hub.',
-      category: AlertCategory.handover,
-      timestamp: at(9, 10, 0),
-      isRead: true,
-    ),
-    DriverAlert(
-      id: 7,
-      title: 'Regular Maintenance',
-      message:
-          'Check whether your vehicle is due for its scheduled maintenance.',
-      category: AlertCategory.maintenance,
-      timestamp: at(10, 8, 0),
-      isRead: true,
-    ),
-  ];
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -189,7 +123,7 @@ class AlertsScreen extends StatefulWidget {
 }
 
 class _AlertsScreenState extends State<AlertsScreen> {
-  List<DriverAlert> _alerts = _sampleAlerts();
+  List<DriverAlert> _alerts = [];
   AlertFilter _filter = AlertFilter.all;
   AlertCategory? _category; // null = all categories
 

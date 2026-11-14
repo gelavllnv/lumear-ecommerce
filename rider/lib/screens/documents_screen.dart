@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 
 import '../models/rider_document_store.dart';
 import '../models/rider_profile.dart';
+import '../services/rider_api_service.dart';
 
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
@@ -70,13 +71,26 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   // Loads the documents saved during sign up so they appear here.
   Future<void> _loadSignupDocuments() async {
     final String email = RiderProfile.email;
-
-    final license = await RiderDocumentStore.load(
-      email,
-      RiderDocumentStore.license,
-    );
-    final or = await RiderDocumentStore.load(email, RiderDocumentStore.or);
-    final cr = await RiderDocumentStore.load(email, RiderDocumentStore.cr);
+    File? license;
+    File? or;
+    File? cr;
+    try {
+      final files = await Future.wait([
+        RiderApiService.downloadDocument('driver_license'),
+        RiderApiService.downloadDocument('or_document'),
+        RiderApiService.downloadDocument('cr_document'),
+      ]);
+      license = files[0];
+      or = files[1];
+      cr = files[2];
+    } catch (_) {
+      license = await RiderDocumentStore.load(
+        email,
+        RiderDocumentStore.license,
+      );
+      or = await RiderDocumentStore.load(email, RiderDocumentStore.or);
+      cr = await RiderDocumentStore.load(email, RiderDocumentStore.cr);
+    }
 
     if (!mounted) return;
 
@@ -391,7 +405,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   Future<void> _pickCr() => _pickDocumentFile(isOr: false);
 
   // ---------------------------------------------------------------------------
-  // SAVE DRAFT / SUBMIT (local only, no API)
+  // SAVE DRAFT / SUBMIT
   // ---------------------------------------------------------------------------
   Future<void> _saveDrafts() async {
     if (_draftLicense == null && _draftOr == null && _draftCr == null) {
@@ -435,8 +449,20 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     setState(() => _isSubmittingUpdate = true);
 
-    // No server request. The request is kept on this device only.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    try {
+      await RiderApiService.updateDocuments(
+        driverLicense: _draftLicense,
+        orDocument: _draftOr,
+        crDocument: _draftCr,
+        licenseExpiry: _licenseExpiryChanged ? _licenseExpiryDate : null,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isSubmittingUpdate = false);
+        _showMessage('Could not upload documents: $error');
+      }
+      return;
+    }
     if (!mounted) return;
 
     setState(() {
@@ -456,6 +482,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _licensePendingApproval = true;
         _licenseExpiryChanged = false;
       }
+      if (_draftLicense != null) {
+        RiderProfile.localDriverLicenseFile = _draftLicense;
+      }
+      if (_draftOr != null) RiderProfile.localOrFile = _draftOr;
+      if (_draftCr != null) RiderProfile.localCrFile = _draftCr;
 
       // Keep the currently approved documents.
       // Clear only the local replacement drafts after submission.
@@ -469,7 +500,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     });
 
     _showMessage(
-      'Update request submitted. Waiting for Logistics approval.',
+      'Documents uploaded and saved to your rider account.',
       success: true,
     );
   }
@@ -671,7 +702,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                         ),
                         SizedBox(height: 6),
                         Text(
-                          'View your current documents or prepare updates for Logistics approval.',
+                          'View your saved rider documents or upload updated copies.',
                           style: TextStyle(
                             color: lightBeige,
                             fontSize: 12,
@@ -804,7 +835,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Save New Document keeps your selected file as a draft in this screen. Update Documents sends the saved draft to Logistics for review.',
+              'Save New Document keeps your selected file as a draft. Update Documents uploads it to your rider account.',
               style: TextStyle(color: brownBeige, fontSize: 12, height: 1.4),
               textAlign: TextAlign.center,
             ),
@@ -837,7 +868,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final String statusText = draftFile != null
         ? (draftSaved ? 'Draft Saved' : 'Draft Not Saved')
         : pendingApproval
-        ? 'Pending Logistics Approval'
+        ? 'Saved to Rider Account'
         : hasCurrentDocument
         ? 'Current Document'
         : 'No Document Uploaded';
@@ -947,7 +978,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           const SizedBox(height: 8),
           Text(
             draftFile != null
-                ? 'New file selected. Save it before submitting for approval.'
+                ? 'New file selected. Save it before uploading to your rider account.'
                 : formatHint,
             style: const TextStyle(color: brownBeige, fontSize: 11),
           ),

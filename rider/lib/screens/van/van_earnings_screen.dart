@@ -221,7 +221,7 @@ class VanEarningsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
-                  'Demo Mode',
+                  'Logistics credits',
                   style: TextStyle(color: Colors.white, fontSize: 10),
                 ),
               ),

@@ -21,7 +21,9 @@
             <div class="buyer-conversation-list" role="list">
                 @forelse ($conversations as $conversation)
                     @php
-                        $otherParty = $conversation->seller->name;
+                        $otherParty = $conversation->rider_id
+                            ? (($conversation->rider?->user?->name ?? 'Delivery rider') . ' · ' . ($conversation->shipment?->tracking_code ?? 'Parcel'))
+                            : ($conversation->seller?->name ?? 'Shop');
                         $latestMessage = $conversation->messages->first();
                         $unreadCount = $conversation->messages->filter(
                             fn ($message) => $message->sender_id !== auth()->id() && is_null($message->read_at)

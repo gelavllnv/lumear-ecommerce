@@ -1,8 +1,11 @@
 // file: van_rider_dashboard_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../../data/van_pickup_demo_data.dart';
 import '../../models/van_pickup_request.dart';
+import '../../models/rider_profile.dart';
+import '../../services/rider_api_service.dart';
 import 'van_pickup_widgets.dart';
 import 'van_seller_pickups_screen.dart';
 import 'van_sorting_center_screen.dart';
@@ -48,8 +51,30 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
   int _selectedIndex = 0;
   bool _pageVisible = true;
   bool _isNavigating = false;
+  bool _isLoading = true;
+  bool _isFetching = false;
+  bool _isUpdatingAvailability = false;
+  String? _loadError;
+  List<VanPickupRequest> _assignedPickups = [];
+  Timer? _assignmentRefreshTimer;
 
-  List<VanPickupRequest> get _pickups => vanPickupDemoData;
+  List<VanPickupRequest> get _pickups => _assignedPickups;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshDashboard();
+    _assignmentRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshDashboard(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _assignmentRefreshTimer?.cancel();
+    super.dispose();
+  }
 
   int get _assignedCount =>
       _pickups.where((p) => p.status == VanPickupStatus.assigned).length;
@@ -66,11 +91,88 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
   int get _handedOverCount =>
       _pickups.where((p) => p.status == VanPickupStatus.handedOver).length;
 
-  int get _totalParcels =>
-      _pickups.fold<int>(0, (total, pickup) => total + pickup.parcelCount);
+  int get _totalParcels => _pickups
+      .where(
+        (pickup) =>
+            pickup.status != VanPickupStatus.handedOver &&
+            pickup.status != VanPickupStatus.failed,
+      )
+      .length;
 
-  void _refreshDashboard() {
-    if (mounted) setState(() {});
+  Future<void> _refreshDashboard() async {
+    if (_isFetching) return;
+    _isFetching = true;
+    if (mounted) {
+      setState(() {
+        _isLoading = _assignedPickups.isEmpty;
+        _loadError = null;
+      });
+    }
+    try {
+      final tasks = await RiderApiService.tasks();
+      final pickups = tasks.map(_pickupFromTask).toList();
+      if (mounted) {
+        setState(() {
+          _assignedPickups = pickups;
+          _isLoading = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _loadError = error.toString();
+          _isLoading = false;
+        });
+      }
+    } finally {
+      _isFetching = false;
+    }
+  }
+
+  VanPickupRequest _pickupFromTask(Map<String, dynamic> task) {
+    final status = switch (task['status']?.toString()) {
+      'heading' => VanPickupStatus.inProgress,
+      'arrived' => VanPickupStatus.arrived,
+      'collected' => VanPickupStatus.collected,
+      'seller_confirmed' => VanPickupStatus.sellerConfirmed,
+      'completed' => VanPickupStatus.handedOver,
+      'failed' => VanPickupStatus.failed,
+      _ => VanPickupStatus.assigned,
+    };
+    final id = task['id']?.toString() ?? '';
+    final handedOverAt = status == VanPickupStatus.handedOver
+        ? DateTime.tryParse(task['updated_at']?.toString() ?? '')?.toLocal()
+        : null;
+    return VanPickupRequest(
+      id: id,
+      sellerName: task['seller_name']?.toString() ?? 'Seller',
+      sellerPhone: task['seller_phone']?.toString() ?? '',
+      sellerEmail: '',
+      address: task['pickup_address']?.toString() ?? '',
+      barangay: '',
+      municipality: task['pickup_city']?.toString() ?? '',
+      province: task['pickup_province']?.toString() ?? '',
+      parcelCount: 1,
+      totalAmount: 0,
+      status: status,
+      handedOverAt: handedOverAt,
+    );
+  }
+
+  Future<void> _toggleAvailability(bool value) async {
+    if (_isUpdatingAvailability) return;
+    setState(() => _isUpdatingAvailability = true);
+    try {
+      await RiderApiService.updateAvailability(value);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update availability: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdatingAvailability = false);
+    }
   }
 
   // Fade out -> switch tab -> fade in (same as the parcel rider dashboard).
@@ -278,8 +380,8 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
                         ),
                       ),
                       const SizedBox(height: 5),
-                      const Text(
-                        'Van Rider Dashboard',
+                      Text(
+                        '${RiderProfile.name.isEmpty ? 'Van Rider' : RiderProfile.name} · Van',
                         style: TextStyle(
                           fontSize: 23,
                           color: vanDarkMaroon,
@@ -288,7 +390,9 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        _greeting(),
+                        RiderProfile.isAvailable == true
+                            ? 'Your account is active. Waiting for Logistics to assign seller pickups.'
+                            : 'Your account is active. Turn availability on to receive assignments.',
                         style: const TextStyle(
                           fontSize: 13,
                           color: Colors.black54,
@@ -305,7 +409,7 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: const Icon(
-                    Icons.local_shipping,
+                    Icons.airport_shuttle_rounded,
                     color: Colors.white,
                     size: 27,
                   ),
@@ -336,38 +440,19 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
                           style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: Color(0xFF8FE3A0),
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Demo Mode',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
+                      Switch(
+                        value: RiderProfile.isAvailable ?? false,
+                        onChanged: _isUpdatingAvailability
+                            ? null
+                            : _toggleAvailability,
+                        activeThumbColor: Colors.white,
+                        activeTrackColor: const Color(0xFF8FE3A0),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Van Delivery',
+                    'Van · Seller Pickup',
                     style: TextStyle(
                       fontSize: 25,
                       color: Colors.white,
@@ -392,7 +477,7 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
                       const SizedBox(width: 10),
                       const Expanded(
                         child: Text(
-                          'Total parcels assigned',
+                          'Assigned pickup tasks',
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
@@ -420,7 +505,35 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _buildOverviewSection(),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_loadError != null)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.cloud_off),
+                  title: const Text('Could not load assignments'),
+                  subtitle: Text(_loadError!),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _refreshDashboard,
+                  ),
+                ),
+              )
+            else if (_pickups.isEmpty)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.hourglass_empty),
+                  title: const Text('No pickups assigned yet'),
+                  subtitle: const Text(
+                    'Your account is ready. Logistics will assign seller pickups here.',
+                  ),
+                ),
+              )
+            else
+              _buildOverviewSection(),
 
             const SizedBox(height: 24),
             const Text(
@@ -433,35 +546,6 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
             ),
             const SizedBox(height: 12),
             _buildQuickActions(),
-
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: const Color(0xFFE8D6C3)),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline, color: vanBrownBeige),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Demo mode: sample pickup information is stored '
-                      'in memory. Real seller assignments will require '
-                      'backend integration.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -488,7 +572,7 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
               child: _buildStatCard(
                 title: 'In Progress',
                 count: _inProgressCount,
-                icon: Icons.local_shipping_outlined,
+                icon: Icons.airport_shuttle_outlined,
                 color: const Color(0xFF245CA6),
               ),
             ),
@@ -790,14 +874,6 @@ class _VanRiderDashboardScreenState extends State<VanRiderDashboardScreen> {
         ),
       ),
     );
-  }
-
-  String _greeting() {
-    final hour = DateTime.now().hour;
-
-    if (hour < 12) return 'Good morning, Rider!';
-    if (hour < 17) return 'Good afternoon, Rider!';
-    return 'Good evening, Rider!';
   }
 
   // PICKUP HISTORY (pushed screen opened from Quick Actions)

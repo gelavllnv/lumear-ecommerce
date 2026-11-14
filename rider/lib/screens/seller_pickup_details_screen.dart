@@ -40,12 +40,13 @@ class _SellerPickupDetailsScreenState extends State<SellerPickupDetailsScreen> {
   // MAP / RIDER LOCATION / ROUTE
   // ============================================================
 
-  // TODO: replace with the real seller coordinates once your
-  // SellerPickupRequest model has them, e.g.
-  //   LatLng(pickup.latitude, pickup.longitude)
-  static const LatLng _sampleSellerLocation = LatLng(14.0648, 121.3310);
-
-  LatLng get _sellerLocation => _sampleSellerLocation;
+  LatLng? get _sellerLocation {
+    final pickup = ParcelStore.findSellerPickup(widget.requestId);
+    final latitude = pickup?.pickupLatitude;
+    final longitude = pickup?.pickupLongitude;
+    if (latitude == null || longitude == null) return null;
+    return LatLng(latitude, longitude);
+  }
 
   final MapController _mapController = MapController();
 
@@ -125,17 +126,17 @@ class _SellerPickupDetailsScreenState extends State<SellerPickupDetailsScreen> {
             });
 
             // Fit rider + seller in view only on the first GPS fix.
-            if (!_didFitInitialView) {
+            if (!_didFitInitialView && _sellerLocation != null) {
               _didFitInitialView = true;
 
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted || _riderLocation == null) return;
+                  if (!mounted || _riderLocation == null || _sellerLocation == null) return;
                 try {
                   _mapController.fitCamera(
                     CameraFit.bounds(
                       bounds: LatLngBounds.fromPoints([
                         _riderLocation!,
-                        _sellerLocation,
+                        _sellerLocation!,
                       ]),
                       padding: const EdgeInsets.all(48),
                     ),
@@ -206,7 +207,11 @@ class _SellerPickupDetailsScreenState extends State<SellerPickupDetailsScreen> {
       return;
     }
 
-    final LatLng destination = _sellerLocation;
+    final LatLng? destination = _sellerLocation;
+    if (destination == null) {
+      _showMessage('Seller location has not been provided by Logistics.');
+      return;
+    }
 
     setState(() => _isLoadingRoute = true);
 
@@ -753,12 +758,21 @@ class _SellerPickupDetailsScreenState extends State<SellerPickupDetailsScreen> {
   // ============================================================
 
   Widget _buildMap() {
+    final LatLng? sellerLocation = _sellerLocation;
+    if (sellerLocation == null) {
+      return Container(
+        height: 220,
+        alignment: Alignment.center,
+        color: Colors.white,
+        child: const Text('Seller location is not available yet.'),
+      );
+    }
     return SizedBox(
       height: 220,
       width: double.infinity,
       child: FlutterMap(
         mapController: _mapController,
-        options: MapOptions(initialCenter: _sellerLocation, initialZoom: 15),
+        options: MapOptions(initialCenter: sellerLocation, initialZoom: 15),
         children: [
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -782,7 +796,7 @@ class _SellerPickupDetailsScreenState extends State<SellerPickupDetailsScreen> {
           MarkerLayer(
             markers: [
               Marker(
-                point: _sellerLocation,
+                point: sellerLocation,
                 width: 55,
                 height: 55,
                 child: Container(

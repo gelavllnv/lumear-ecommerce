@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../models/van_pickup_request.dart';
+import '../../services/rider_api_service.dart';
 import 'van_earnings_screen.dart';
 
 /// Delivery report for the van rider.
@@ -12,7 +13,7 @@ import 'van_earnings_screen.dart';
 /// include the rider's wallet earnings (credited by Lumear Logistics after
 /// each successful hub handover):
 ///
-///   VanRiderDeliveryReportsScreen(pickups: vanPickupDemoData)
+///   VanRiderDeliveryReportsScreen(pickups: assignedLaravelTasks)
 class VanRiderDeliveryReportsScreen extends StatefulWidget {
   final List<VanPickupRequest> pickups;
 
@@ -54,49 +55,61 @@ class _VanRiderDeliveryReportsScreenState
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 6));
   DateTime _endDate = DateTime.now();
 
-  // Sample records for UI testing. Replace these with records from your API/database.
-  final List<_DeliveryRecord> _records = [
-    _DeliveryRecord(
-      parcelId: 'LMR-1001',
-      product: 'Household Items',
-      recipient: 'Juan Dela Cruz',
-      address: 'Los Baños, Laguna',
-      deliveredAt: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
-      status: 'Delivered',
-    ),
-    _DeliveryRecord(
-      parcelId: 'LMR-1002',
-      product: 'Clothing',
-      recipient: 'Maria Santos',
-      address: 'Calamba, Laguna',
-      deliveredAt: DateTime.now().subtract(const Duration(days: 2, hours: 1)),
-      status: 'Delivered',
-    ),
-    _DeliveryRecord(
-      parcelId: 'LMR-1003',
-      product: 'Electronics',
-      recipient: 'Pedro Reyes',
-      address: 'Bay, Laguna',
-      deliveredAt: DateTime.now().subtract(const Duration(days: 3)),
-      status: 'Failed',
-    ),
-    _DeliveryRecord(
-      parcelId: 'LMR-1004',
-      product: 'Personal Care',
-      recipient: 'Ana Garcia',
-      address: 'Victoria, Laguna',
-      deliveredAt: DateTime.now().subtract(const Duration(days: 4)),
-      status: 'Returned',
-    ),
-    _DeliveryRecord(
-      parcelId: 'LMR-1005',
-      product: 'Books',
-      recipient: 'Carlo Mendoza',
-      address: 'Los Baños, Laguna',
-      deliveredAt: DateTime.now(),
-      status: 'Pending',
-    ),
-  ];
+  List<_DeliveryRecord> _records = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    try {
+      final tasks = await RiderApiService.tasks();
+      final records = tasks
+          .map((task) {
+            final rawStatus = task['status']?.toString() ?? '';
+            final status = switch (rawStatus) {
+              'completed' => 'Delivered',
+              'failed' => 'Failed',
+              'returned' => 'Returned',
+              _ => 'Pending',
+            };
+            final address =
+                [
+                      task['pickup_address'],
+                      task['pickup_city'],
+                      task['pickup_province'],
+                    ]
+                    .where(
+                      (part) =>
+                          part != null && part.toString().trim().isNotEmpty,
+                    )
+                    .join(', ');
+            return _DeliveryRecord(
+              parcelId:
+                  task['tracking_code']?.toString() ?? task['id'].toString(),
+              product: task['job_type']?.toString() ?? 'Rider task',
+              recipient: task['seller_name']?.toString() ?? 'Seller',
+              address: address,
+              deliveredAt:
+                  DateTime.tryParse(task['updated_at']?.toString() ?? '') ??
+                  DateTime.fromMillisecondsSinceEpoch(0),
+              status: status,
+            );
+          })
+          .toList(growable: false);
+      if (mounted) setState(() => _records = records);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load Laravel task records: $error'),
+          ),
+        );
+      }
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // DATA
@@ -1269,8 +1282,7 @@ class _VanRiderDeliveryReportsScreenState
             ),
             const SizedBox(height: 6),
             const Text(
-              'Note: Parcel records are sample data. Connect your Laravel '
-              'API to show actual rider delivery records.',
+              'Records are loaded from your assigned Laravel tasks.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black45, fontSize: 11),
             ),

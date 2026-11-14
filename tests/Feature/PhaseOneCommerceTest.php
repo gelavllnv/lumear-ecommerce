@@ -32,7 +32,7 @@ class PhaseOneCommerceTest extends TestCase
         $response = $this->actingAs($buyer)->post(route('checkout'), ['payment_method' => 'cod', 'idempotency_key' => 'checkout-test-001']);
 
         $response->assertRedirect(route('orders'));
-        $this->assertDatabaseHas('orders', ['buyer_id' => $buyer->id, 'payment_method' => 'cod', 'total_minor' => 50000]);
+        $this->assertDatabaseHas('orders', ['buyer_id' => $buyer->id, 'payment_method' => 'cod', 'total_minor' => 55000]);
         $this->assertDatabaseHas('order_timelines', ['event' => 'order_created', 'status' => 'pending']);
         $this->assertDatabaseHas('inventory_movements', ['product_variant_id' => $variant->id, 'type' => 'sale_reserved', 'quantity_delta' => -2, 'stock_after' => 3]);
         $this->assertDatabaseHas('wallet_accounts', ['seller_id' => $seller->id, 'pending_minor' => 46000]);

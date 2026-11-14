@@ -27,13 +27,15 @@ class TruckHandoverPdfService {
     final countsMatch =
         handedOverParcels + failedParcels + remainingParcels == totalParcels;
 
-    final status = handoverConfirmed
-        ? (handedOverParcels == totalParcels &&
-                  failedParcels == 0 &&
-                  remainingParcels == 0
-              ? 'SUCCESSFUL'
-              : 'PARTIALLY SUCCESSFUL')
-        : 'PENDING CONFIRMATION';
+    final status = !handoverConfirmed
+        ? 'PENDING CONFIRMATION'
+        : handedOverParcels == totalParcels &&
+              failedParcels == 0 &&
+              remainingParcels == 0
+        ? 'SUCCESSFUL'
+        : failedParcels == totalParcels && handedOverParcels == 0
+        ? 'FAILED'
+        : 'PARTIALLY SUCCESSFUL';
 
     pdf.addPage(
       pw.MultiPage(

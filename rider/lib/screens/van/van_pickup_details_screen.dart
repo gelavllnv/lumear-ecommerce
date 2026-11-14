@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import '../../services/rider_api_service.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -46,6 +49,9 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
   // Rider location
   Position? _riderPosition;
   StreamSubscription<Position>? _positionSubscription;
+  Timer? _taskStatusRefreshTimer;
+  bool _isRefreshingTaskStatus = false;
+  bool _handoverSuccessShown = false;
   bool _locationLoading = true;
   bool _locationUnavailable = false;
   bool _mapReady = false;
@@ -71,7 +77,102 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
   void initState() {
     super.initState();
     _sellerLocation = widget.sellerLocation;
+    if (pickup.status == VanPickupStatus.collected ||
+        pickup.status == VanPickupStatus.sellerConfirmed) {
+      _taskStatusRefreshTimer = Timer.periodic(
+        const Duration(seconds: 10),
+        (_) => _refreshTaskStatus(),
+      );
+      unawaited(_refreshTaskStatus());
+    }
     _initializeLocation();
+  }
+
+  Future<void> _refreshTaskStatus() async {
+    if (_isRefreshingTaskStatus || !mounted) return;
+
+    final taskId = pickup.id;
+    if (taskId.isEmpty) return;
+
+    _isRefreshingTaskStatus = true;
+
+    try {
+      final tasks = await RiderApiService.tasks();
+      Map<String, dynamic>? task;
+      for (final candidate in tasks) {
+        if (candidate['id']?.toString() == taskId) {
+          task = candidate;
+          break;
+        }
+      }
+
+      if (!mounted || task == null) return;
+      final refreshedTask = task;
+
+      final nextStatus = switch (refreshedTask['status']?.toString()) {
+        'collected' => VanPickupStatus.collected,
+        'seller_confirmed' => VanPickupStatus.sellerConfirmed,
+        'completed' => VanPickupStatus.handedOver,
+        'failed' => VanPickupStatus.failed,
+        _ => pickup.status,
+      };
+
+      if (nextStatus == pickup.status) return;
+
+      setState(() {
+        pickup.status = nextStatus;
+        if (nextStatus == VanPickupStatus.handedOver) {
+          pickup.handedOverAt = DateTime.tryParse(
+            refreshedTask['updated_at']?.toString() ?? '',
+          )?.toLocal();
+        }
+        if (nextStatus == VanPickupStatus.sellerConfirmed) {
+          pickup.sellerConfirmedAt = DateTime.tryParse(
+            refreshedTask['updated_at']?.toString() ?? '',
+          )?.toLocal();
+        }
+      });
+
+      widget.onChanged();
+
+      if (nextStatus == VanPickupStatus.handedOver) {
+        _taskStatusRefreshTimer?.cancel();
+        await _showHandoverSuccess();
+      } else if (nextStatus == VanPickupStatus.failed) {
+        _taskStatusRefreshTimer?.cancel();
+      }
+    } catch (_) {
+      // Keep the current detail visible and retry on the next poll.
+    } finally {
+      _isRefreshingTaskStatus = false;
+    }
+  }
+
+  Future<void> _showHandoverSuccess() async {
+    if (_handoverSuccessShown || !mounted) return;
+    _handoverSuccessShown = true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.verified_rounded,
+          color: Color(0xFF287544),
+          size: 42,
+        ),
+        title: const Text('Pickup Successful'),
+        content: const Text(
+          'Victoria Hub confirmed that the parcel was received. '
+          'This pickup is now handed over.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _initializeLocation() async {
@@ -140,6 +241,7 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
 
   @override
   void dispose() {
+    _taskStatusRefreshTimer?.cancel();
     _positionSubscription?.cancel();
     _mapController.dispose();
     _scrollController.dispose();
@@ -510,9 +612,9 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
       case VanPickupStatus.arrived:
         return 'Report Parcels Collected';
       case VanPickupStatus.collected:
-        return 'Acknowledge Seller Confirmation';
+        return 'Waiting for Seller Confirmation';
       case VanPickupStatus.sellerConfirmed:
-        return 'Confirm Sorting Center Handover';
+        return 'Waiting for Logistics Handover';
       case VanPickupStatus.handedOver:
         return 'Pickup Completed';
       case VanPickupStatus.failed:
@@ -531,7 +633,7 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
       case VanPickupStatus.collected:
         return Icons.verified_rounded;
       case VanPickupStatus.sellerConfirmed:
-        return Icons.local_shipping_rounded;
+        return Icons.airport_shuttle_rounded;
       case VanPickupStatus.handedOver:
         return Icons.check_circle_rounded;
       case VanPickupStatus.failed:
@@ -549,11 +651,9 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
       case VanPickupStatus.arrived:
         return 'Collect all assigned parcels, then report the collection.';
       case VanPickupStatus.collected:
-        return 'Once the seller has confirmed the pickup, acknowledge it '
-            'below to proceed to the sorting center.';
+        return 'The seller must confirm the parcels in the seller portal.';
       case VanPickupStatus.sellerConfirmed:
-        return 'Bring the parcels to the sorting center and confirm the '
-            'handover.';
+        return 'Wait for the receiving Logistics hub to confirm the handover.';
       case VanPickupStatus.handedOver:
         return 'This pickup is complete. Great work!';
       case VanPickupStatus.failed:
@@ -581,7 +681,22 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
     }
   }
 
-  void _performAction() {
+  Future<void> _performAction() async {
+    final taskId = int.tryParse(pickup.id);
+    if (taskId == null) return;
+    final nextStatus = switch (pickup.status) {
+      VanPickupStatus.assigned => 'heading',
+      VanPickupStatus.inProgress => 'arrived',
+      VanPickupStatus.arrived => 'collected',
+      _ => null,
+    };
+    if (nextStatus == null) return;
+    try {
+      await RiderApiService.updateTask(taskId, nextStatus);
+    } catch (error) {
+      _showSnack('Could not update pickup: $error');
+      return;
+    }
     switch (pickup.status) {
       case VanPickupStatus.assigned:
         pickup.startPickup();
@@ -594,12 +709,7 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
         pickup.reportCollection();
         break;
       case VanPickupStatus.collected:
-        // Driver acknowledges that the seller confirmed the pickup.
-        pickup.acknowledgeSellerConfirmation();
-        break;
       case VanPickupStatus.sellerConfirmed:
-        pickup.confirmHandover();
-        break;
       case VanPickupStatus.handedOver:
       case VanPickupStatus.failed:
         return;
@@ -631,6 +741,14 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
 
     if (reason == null || !mounted) return;
 
+    final taskId = int.tryParse(pickup.id);
+    if (taskId == null) return;
+    try {
+      await RiderApiService.updateTask(taskId, 'failed', note: reason);
+    } catch (error) {
+      _showSnack('Could not report failed pickup: $error');
+      return;
+    }
     pickup.reportFailedPickup(reason);
 
     setState(() {});
@@ -788,7 +906,7 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
                             ],
                           ),
                           child: const Icon(
-                            Icons.local_shipping_rounded,
+                            Icons.airport_shuttle_rounded,
                             color: Colors.white,
                             size: 26,
                           ),
@@ -1905,7 +2023,13 @@ class _VanPickupDetailsScreenState extends State<VanPickupDetailsScreen> {
 
   Widget _buildBottomAction() {
     final failed = pickup.status == VanPickupStatus.failed;
-    final completed = pickup.status == VanPickupStatus.handedOver || failed;
+    final waitingForOtherParty =
+        pickup.status == VanPickupStatus.collected ||
+        pickup.status == VanPickupStatus.sellerConfirmed;
+    final completed =
+        pickup.status == VanPickupStatus.handedOver ||
+        failed ||
+        waitingForOtherParty;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),

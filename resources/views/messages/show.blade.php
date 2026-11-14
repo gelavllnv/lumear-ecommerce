@@ -12,18 +12,21 @@
 @section(auth()->user()->isSeller() ? 'seller-content' : 'content')
     @if (auth()->user()->isBuyer())
         @php($seller = $conversation->seller)
+        @php($riderName = $conversation->rider?->user?->name)
         <section class="buyer-messages buyer-message-thread" aria-labelledby="conversation-title">
             <a class="buyer-message-back" href="{{ route('messages.index') }}">← All messages</a>
 
             <div class="buyer-message-shell">
                 <header class="buyer-thread-header">
-                    <span class="buyer-conversation-avatar" aria-hidden="true">{{ strtoupper(substr($seller->name, 0, 1)) }}</span>
+                    <span class="buyer-conversation-avatar" aria-hidden="true">{{ strtoupper(substr($riderName ?: ($seller?->name ?? 'S'), 0, 1)) }}</span>
                     <div>
                         <p class="buyer-messages-eyebrow">Conversation with</p>
-                        <h1 id="conversation-title">{{ $seller->name }}</h1>
-                        <p>Replies are visible only to you and this seller.</p>
+                        <h1 id="conversation-title">{{ $riderName ?: ($seller?->name ?? 'Seller') }}</h1>
+                        <p>{{ $conversation->rider_id ? 'Delivery rider · ' . ($conversation->shipment?->tracking_code ?? 'Parcel') : 'Replies are visible only to you and this seller.' }}</p>
                     </div>
-                    <a class="buyer-thread-shop-link" href="{{ route('shops.show', $seller) }}">Visit shop</a>
+                    @if ($seller)
+                        <a class="buyer-thread-shop-link" href="{{ route('shops.show', $seller) }}">Visit shop</a>
+                    @endif
                 </header>
 
                 <div class="buyer-thread-messages" aria-live="polite">
@@ -66,7 +69,7 @@
                     @empty
                         <div class="buyer-thread-empty">
                             <span aria-hidden="true">✦</span>
-                            <p>Ask {{ $seller->name }} a question to begin.</p>
+                            <p>Send a message to {{ $riderName ?: ($seller?->name ?? 'your contact') }}.</p>
                         </div>
                     @endforelse
                 </div>

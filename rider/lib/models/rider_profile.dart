@@ -16,11 +16,15 @@ class RiderProfile {
   static String sex = '';
   static String birthday = '';
   static int? age;
+  static int deliveredCount = 0;
+  static int memberDays = 0;
+  static double? rating;
 
   // Rider address.
   static String region = '';
   static String province = '';
   static String municipality = '';
+  static String postalCode = '';
   static String barangay = '';
   static String street = '';
   static String houseUnit = '';
@@ -28,6 +32,9 @@ class RiderProfile {
   // Vehicle and work details.
   static String vehicleType = '';
   static String jobType = '';
+  static String logisticsProvider = '';
+  static String shiftStartTime = '';
+  static String shiftEndTime = '';
   static String licenseNumber = '';
   static String plateNumber = '';
 
@@ -147,14 +154,21 @@ class RiderProfile {
       json['phone'] ?? json['contact_number'] ?? json['contact'],
     );
 
-    birthday = _toString(json['birthday'] ?? json['birthdate']);
+    birthday = _toString(
+      json['birthday'] ?? json['birthdate'] ?? json['date_of_birth'],
+    );
+    sex = _toString(json['sex']);
 
-    age = _toInt(json['age']);
+    age = _toInt(json['age']) ?? _ageFromBirthday(birthday);
+    deliveredCount = _toInt(json['delivered_count']) ?? deliveredCount;
+    memberDays = _toInt(json['member_days']) ?? memberDays;
+    rating = json['rating'] is num ? (json['rating'] as num).toDouble() : null;
 
     region = _toString(json['region']);
     province = _toString(json['province']);
 
     municipality = _toString(json['municipality'] ?? json['city']);
+    postalCode = _toString(json['postal_code'] ?? json['postalCode']);
 
     barangay = _toString(json['barangay']);
     street = _toString(json['street']);
@@ -164,6 +178,11 @@ class RiderProfile {
     vehicleType = _toString(json['vehicle_type'] ?? json['vehicleType']);
 
     jobType = _toString(json['job_type'] ?? json['jobType']);
+    logisticsProvider = _toString(
+      json['provider'] ?? json['logistics_provider_name'],
+    );
+    shiftStartTime = _toString(json['shift_start_time'] ?? json['shiftStartTime']);
+    shiftEndTime = _toString(json['shift_end_time'] ?? json['shiftEndTime']);
 
     licenseNumber = _toString(json['license_number'] ?? json['licenseNumber']);
 
@@ -210,18 +229,26 @@ class RiderProfile {
     riderId = '';
     email = '';
     phone = '';
+    sex = '';
     birthday = '';
     age = null;
+    deliveredCount = 0;
+    memberDays = 0;
+    rating = null;
 
     region = '';
     province = '';
     municipality = '';
+    postalCode = '';
     barangay = '';
     street = '';
     houseUnit = '';
 
     vehicleType = '';
     jobType = '';
+    logisticsProvider = '';
+    shiftStartTime = '';
+    shiftEndTime = '';
     licenseNumber = '';
     plateNumber = '';
 
@@ -271,5 +298,19 @@ class RiderProfile {
     }
 
     return DateTime.tryParse(value.toString());
+  }
+
+  static int? _ageFromBirthday(String value) {
+    final birthday = DateTime.tryParse(value);
+    if (birthday == null) return null;
+
+    final today = DateTime.now();
+    var calculatedAge = today.year - birthday.year;
+    if (today.month < birthday.month ||
+        (today.month == birthday.month && today.day < birthday.day)) {
+      calculatedAge--;
+    }
+
+    return calculatedAge >= 0 ? calculatedAge : null;
   }
 }

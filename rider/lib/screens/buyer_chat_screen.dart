@@ -1,6 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/services/rider_api_service.dart';
+
+import 'dart:async';
 
 /// A single chat message between the rider and the buyer.
 class RiderChatMessage {
@@ -19,124 +20,62 @@ class RiderChatMessage {
 
 /// A buyer the rider can chat with (one per parcel / order).
 class BuyerChatContact {
+  final int? conversationId;
+  final int? buyerId;
   final String buyerName;
   final String trackingNumber;
   final String parcelStatus;
+  final String lastMessage;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
 
   const BuyerChatContact({
+    this.conversationId,
+    this.buyerId,
     required this.buyerName,
     required this.trackingNumber,
     required this.parcelStatus,
+    this.lastMessage = '',
+    this.lastMessageAt,
+    this.unreadCount = 0,
   });
-}
 
-/// In-memory chat storage shared by the buyer list and the chat screen.
-///
-/// Local prototype: everything resets when the app restarts. Replace this
-/// with your backend (Firebase, Supabase, API, etc.) later.
-class BuyerChatStore {
-  BuyerChatStore._();
-
-  static final Map<String, List<RiderChatMessage>> _threads = {};
-  static final Map<String, int> _unread = {};
-  static bool _seeded = false;
-
-  /// Sample buyers so the inbox is not empty while testing.
-  static const List<BuyerChatContact> demoContacts = [
-    BuyerChatContact(
-      buyerName: 'Maria Santos',
-      trackingNumber: 'LMR-DEMO-001',
-      parcelStatus: 'Out for Delivery',
-    ),
-    BuyerChatContact(
-      buyerName: 'Juan Dela Cruz',
-      trackingNumber: 'LMR-DEMO-002',
-      parcelStatus: 'Heading to Pickup',
-    ),
-    BuyerChatContact(
-      buyerName: 'Ana Reyes',
-      trackingNumber: 'LMR-DEMO-003',
-      parcelStatus: 'Pending',
-    ),
-  ];
-
-  static List<RiderChatMessage> threadFor(String trackingNumber) {
-    return _threads.putIfAbsent(trackingNumber, () => <RiderChatMessage>[]);
-  }
-
-  static int unreadFor(String trackingNumber) => _unread[trackingNumber] ?? 0;
-
-  static void markRead(String trackingNumber) {
-    _unread[trackingNumber] = 0;
-  }
-
-  static void seedDemo() {
-    if (_seeded) return;
-    _seeded = true;
-
-    final DateTime now = DateTime.now();
-
-    _threads['LMR-DEMO-001'] = [
-      RiderChatMessage(
-        text: 'Kuya, asan na po kayo?',
-        isRider: false,
-        sentAt: now.subtract(const Duration(minutes: 14)),
-      ),
-      RiderChatMessage(
-        text: 'Pwede po ba paki-text pag malapit na?',
-        isRider: false,
-        sentAt: now.subtract(const Duration(minutes: 12)),
-      ),
-    ];
-    _unread['LMR-DEMO-001'] = 2;
-
-    _threads['LMR-DEMO-002'] = [
-      RiderChatMessage(
-        text: "I'm on my way to your address.",
-        isRider: true,
-        sentAt: now.subtract(const Duration(hours: 1, minutes: 5)),
-      ),
-      RiderChatMessage(
-        text: 'Okay po, salamat!',
-        isRider: false,
-        sentAt: now.subtract(const Duration(hours: 1)),
-      ),
-    ];
-    _unread['LMR-DEMO-002'] = 0;
-
-    _threads['LMR-DEMO-003'] = [
-      RiderChatMessage(
-        text: 'Pwede po bang bukas na lang i-deliver?',
-        isRider: false,
-        sentAt: now.subtract(const Duration(hours: 3)),
-      ),
-    ];
-    _unread['LMR-DEMO-003'] = 1;
-  }
+  factory BuyerChatContact.fromJson(Map<String, dynamic> json) =>
+      BuyerChatContact(
+        conversationId: int.tryParse(json['id']?.toString() ?? ''),
+        buyerId: int.tryParse(json['buyer_id']?.toString() ?? ''),
+        buyerName: json['buyer_name']?.toString() ?? 'Buyer',
+        trackingNumber: json['tracking_code']?.toString() ?? '',
+        parcelStatus: json['status']?.toString() ?? 'assigned',
+        lastMessage: json['last_message']?.toString() ?? '',
+        lastMessageAt: DateTime.tryParse(
+          json['last_message_at']?.toString() ?? '',
+        ),
+        unreadCount: int.tryParse(json['unread_count']?.toString() ?? '') ?? 0,
+      );
 }
 
 /// Chat between the rider (the person using this app) and the buyer of the
-/// parcel being delivered.
+/// parcels assigned to this rider. Messages persist in Laravel and are shared
+/// with the buyer's Flutter app.
 ///
 /// Rider messages appear on the right, buyer messages on the left.
 ///
-/// Local prototype: messages are kept in memory (see [BuyerChatStore]) and
-/// reset when the app restarts. The buyer's replies are simulated when
-/// [enableDemoReplies] is true. To connect a real backend, replace
-/// [_sendMessage] and the demo reply logic with your API / realtime calls
-/// (Firebase, Supabase, websocket, etc.).
+/// Chat UI for buyers with active delivery assignments.
 class BuyerChatScreen extends StatefulWidget {
+  final int? conversationId;
   final String buyerName;
   final String trackingNumber;
   final String parcelStatus;
-  final bool enableDemoReplies;
+  final bool isLogisticsChat;
 
   const BuyerChatScreen({
     super.key,
+    this.conversationId,
     required this.buyerName,
     required this.trackingNumber,
     this.parcelStatus = 'Out for Delivery',
-    this.enableDemoReplies = true,
+    this.isLogisticsChat = false,
   });
 
   @override
@@ -145,7 +84,6 @@ class BuyerChatScreen extends StatefulWidget {
 
 class _BuyerChatScreenState extends State<BuyerChatScreen> {
   static const Color darkMaroon = Color(0xFF62191C);
-  static const Color maroon = Color(0xFF873632);
   static const Color brownBeige = Color(0xFF9E7161);
   static const Color lightBeige = Color(0xFFCAAE9F);
   static const Color cream = Color(0xFFF3E9E1);
@@ -153,26 +91,14 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
   static const Color textMuted = Color(0xFF8B6F63);
   static const Color success = Color(0xFF2E7D32);
 
-  // Messages a rider commonly needs to send.
-  static const List<String> _quickReplies = [
-    "I'm on my way to your address.",
-    "I've arrived. I'm outside your place.",
-    'Please prepare the payment (COD).',
-    'Can you share your exact location?',
-    'Please come out to receive the parcel.',
-    'Thank you!',
-  ];
-
-  final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final FocusNode _focusNode = FocusNode();
 
-  late final List<RiderChatMessage> _messages;
-
-  bool _buyerTyping = false;
-  Timer? _replyTimer;
-
-  String get _threadKey => widget.trackingNumber;
+  final List<RiderChatMessage> _messages = [];
+  final TextEditingController _messageController = TextEditingController();
+  Timer? _refreshTimer;
+  bool _loading = true;
+  bool _sending = false;
+  String? _error;
 
   String get _buyerInitial {
     final String name = widget.buyerName.trim();
@@ -182,97 +108,89 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
   @override
   void initState() {
     super.initState();
-
-    _messages = BuyerChatStore.threadFor(_threadKey);
-    BuyerChatStore.markRead(_threadKey);
-
-    _controller.addListener(() => setState(() {}));
-
+    _refreshMessages();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshMessages(),
+    );
     _scrollToBottom(animated: false);
   }
 
   @override
   void dispose() {
-    _replyTimer?.cancel();
-    _controller.dispose();
+    _refreshTimer?.cancel();
+    _messageController.dispose();
     _scrollController.dispose();
-    _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshMessages() async {
+    final int? conversationId = widget.conversationId;
+    if (!widget.isLogisticsChat && conversationId == null) return;
+    try {
+      final rows = widget.isLogisticsChat
+          ? await RiderApiService.logisticsChatMessages()
+          : await RiderApiService.riderChatMessages(conversationId!);
+      if (!mounted) return;
+      final messages = rows
+          .map(
+            (row) => RiderChatMessage(
+              text: row['text']?.toString() ?? '',
+              isRider: row['mine'] == true,
+              sentAt:
+                  DateTime.tryParse(row['date']?.toString() ?? '')?.toLocal() ??
+                  DateTime.now(),
+            ),
+          )
+          .toList();
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(messages);
+        _loading = false;
+        _error = null;
+      });
+      _scrollToBottom(animated: false);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = error.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    final int? conversationId = widget.conversationId;
+    if (text.isEmpty ||
+        (!widget.isLogisticsChat && conversationId == null) ||
+        _sending) {
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      if (widget.isLogisticsChat) {
+        await RiderApiService.sendLogisticsChatMessage(text);
+      } else {
+        await RiderApiService.sendRiderChatMessage(conversationId!, text);
+      }
+      _messageController.clear();
+      await _refreshMessages();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   // ============================================
   // SEND / RECEIVE
   // ============================================
-
-  void _sendMessage([String? preset]) {
-    final String text = (preset ?? _controller.text).trim();
-
-    if (text.isEmpty) return;
-
-    setState(() {
-      _messages.add(
-        RiderChatMessage(text: text, isRider: true, sentAt: DateTime.now()),
-      );
-    });
-
-    _controller.clear();
-    _scrollToBottom();
-
-    if (widget.enableDemoReplies) {
-      _simulateBuyerReply(text);
-    }
-  }
-
-  void _simulateBuyerReply(String riderText) {
-    _replyTimer?.cancel();
-
-    setState(() => _buyerTyping = true);
-    _scrollToBottom();
-
-    _replyTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (!mounted) return;
-
-      setState(() {
-        _buyerTyping = false;
-        _messages.add(
-          RiderChatMessage(
-            text: _demoReplyFor(riderText),
-            isRider: false,
-            sentAt: DateTime.now(),
-          ),
-        );
-      });
-
-      _scrollToBottom();
-    });
-  }
-
-  String _demoReplyFor(String text) {
-    final String t = text.toLowerCase();
-
-    if (t.contains('on my way') || t.contains('papunta')) {
-      return 'Okay po, thank you! Hihintayin ko po kayo.';
-    }
-    if (t.contains('arrived') ||
-        t.contains('outside') ||
-        t.contains('nandito')) {
-      return 'Sige po, lalabas na po ako.';
-    }
-    if (t.contains('payment') || t.contains('cod') || t.contains('bayad')) {
-      return 'Opo, ready na po ang payment.';
-    }
-    if (t.contains('location') || t.contains('address')) {
-      return 'Same po sa address sa order. May maroon na gate po.';
-    }
-    if (t.contains('come out') || t.contains('receive')) {
-      return 'Okay po, papunta na po ako sa labas.';
-    }
-    if (t.contains('thank') || t.contains('salamat')) {
-      return 'Salamat din po, kuya/ate!';
-    }
-
-    return 'Okay po, noted!';
-  }
 
   void _scrollToBottom({bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -335,10 +253,9 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          _buildParcelBanner(),
+          if (!widget.isLogisticsChat) _buildParcelBanner(),
           Expanded(child: _buildMessageList()),
-          _buildQuickReplies(),
-          _buildInputBar(),
+          _buildComposer(),
         ],
       ),
     );
@@ -380,7 +297,7 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  _buyerTyping ? 'typing...' : 'Buyer',
+                  widget.isLogisticsChat ? 'Logistics' : 'Buyer',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.white.withValues(alpha: 0.8),
@@ -464,21 +381,19 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
   }
 
   Widget _buildMessageList() {
-    if (_messages.isEmpty && !_buyerTyping) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null && _messages.isEmpty) {
+      return Center(child: Text(_error!, textAlign: TextAlign.center));
+    }
+    if (_messages.isEmpty) {
       return _buildEmptyState();
     }
-
-    final int extra = _buyerTyping ? 1 : 0;
 
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-      itemCount: _messages.length + extra,
+      itemCount: _messages.length,
       itemBuilder: (context, index) {
-        if (index >= _messages.length) {
-          return _buildTypingBubble();
-        }
-
         final RiderChatMessage message = _messages[index];
         final bool showDay =
             index == 0 ||
@@ -528,11 +443,69 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
               ),
             ),
             const SizedBox(height: 5),
-            const Text(
-              'Let the buyer know about your delivery. Tap a quick reply '
-              'below or type your own message.',
+            Text(
+              widget.isLogisticsChat
+                  ? 'Send a message to your Logistics hub. New messages refresh automatically.'
+                  : 'Send a message about this delivery. New messages refresh automatically.',
               textAlign: TextAlign.center,
               style: TextStyle(color: textMuted, fontSize: 12.5, height: 1.45),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComposer() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+        color: surface,
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                minLines: 1,
+                maxLines: 4,
+                maxLength: 1000,
+                decoration: InputDecoration(
+                  hintText: widget.isLogisticsChat
+                      ? 'Message Logistics…'
+                      : 'Message the buyer…',
+                  counterText: '',
+                  filled: true,
+                  fillColor: cream,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              onPressed: _sending ? null : _sendMessage,
+              style: IconButton.styleFrom(
+                backgroundColor: darkMaroon,
+                foregroundColor: Colors.white,
+              ),
+              icon: _sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded),
             ),
           ],
         ),
@@ -614,145 +587,6 @@ class _BuyerChatScreenState extends State<BuyerChatScreen> {
                     ? Colors.white.withValues(alpha: 0.65)
                     : textMuted,
                 fontSize: 9.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypingBubble() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: surface,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(18),
-            topRight: Radius.circular(18),
-            bottomLeft: Radius.circular(4),
-            bottomRight: Radius.circular(18),
-          ),
-          border: Border.all(color: darkMaroon.withValues(alpha: 0.06)),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _TypingDot(delay: 0),
-            SizedBox(width: 4),
-            _TypingDot(delay: 160),
-            SizedBox(width: 4),
-            _TypingDot(delay: 320),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickReplies() {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
-        itemCount: _quickReplies.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final String reply = _quickReplies[index];
-
-          return Material(
-            color: surface,
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => _sendMessage(reply),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 13),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: maroon.withValues(alpha: 0.25)),
-                ),
-                child: Text(
-                  reply,
-                  style: const TextStyle(
-                    color: maroon,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildInputBar() {
-    final bool canSend = _controller.text.trim().isNotEmpty;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      decoration: BoxDecoration(
-        color: cream,
-        border: Border(
-          top: BorderSide(color: darkMaroon.withValues(alpha: 0.06)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: darkMaroon.withValues(alpha: 0.08)),
-                ),
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  minLines: 1,
-                  maxLines: 4,
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendMessage(),
-                  style: const TextStyle(color: darkMaroon, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Message ${widget.buyerName}...',
-                    hintStyle: const TextStyle(
-                      color: textMuted,
-                      fontSize: 13.5,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Material(
-              color: canSend ? darkMaroon : darkMaroon.withValues(alpha: 0.35),
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: canSend ? _sendMessage : null,
-                child: const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Icon(
-                    Icons.send_rounded,
-                    color: Colors.white,
-                    size: 21,
-                  ),
-                ),
               ),
             ),
           ],

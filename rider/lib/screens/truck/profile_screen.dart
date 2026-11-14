@@ -19,11 +19,15 @@ import 'truck_vehicle_information_screen.dart';
 class ProfileScreen extends StatefulWidget {
   final TruckRiderProfile profile;
   final ValueChanged<TruckRiderProfile>? onProfileChanged;
+  final int totalTrips;
+  final int completedTrips;
 
   const ProfileScreen({
     super.key,
     required this.profile,
     this.onProfileChanged,
+    this.totalTrips = 0,
+    this.completedTrips = 0,
   });
 
   @override
@@ -35,7 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color maroon = Color(0xFF873632);
   static const Color brownBeige = Color(0xFF9E7161);
   static const Color lightBeige = Color(0xFFCAAE9F);
-  static const Color cream = Color(0xFFE0CFC2);
+  static const Color cream = Color(0xFFF3E9E1);
 
   String? _imagePath;
   bool _isPicking = false;
@@ -48,9 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   DateTime? get _deletionDeadline {
     final requestedAt = _deletionRequestedAt;
-    return requestedAt == null
-        ? null
-        : requestedAt.add(const Duration(days: 15));
+    return requestedAt?.add(const Duration(days: 15));
   }
 
   int get _deletionDaysRemaining {
@@ -530,189 +532,317 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final name = widget.profile.fullName.trim();
+  Widget _buildAvatar() {
+    const double size = 78;
+    final path = _imagePath;
+    const fallback = Icon(Icons.person, size: 43, color: darkMaroon);
 
-    return Scaffold(
-      backgroundColor: cream,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 130),
+    return GestureDetector(
+      onTap: _isPicking ? null : _showPhotoOptions,
+      child: SizedBox(
+        width: size + 6,
+        height: size + 6,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            const Text(
-              'Profile',
-              style: TextStyle(
-                color: darkMaroon,
-                fontSize: 25,
-                fontWeight: FontWeight.bold,
+            Container(
+              width: size,
+              height: size,
+              margin: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: lightBeige,
+                border: Border.all(color: Colors.white, width: 3),
               ),
-            ),
-            const SizedBox(height: 20),
-
-            // Profile picture and rider name.
-            Center(
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: _showPhotoOptions,
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 48,
-                          backgroundColor: maroon,
-                          backgroundImage: _imagePath != null
-                              ? FileImage(File(_imagePath!))
-                              : null,
-                          child: _imagePath == null
-                              ? const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 50,
-                                )
-                              : null,
-                        ),
-                        if (_isPicking)
-                          Positioned.fill(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black.withValues(alpha: 0.35),
-                              ),
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: darkMaroon,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: cream, width: 2),
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt_outlined,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    name.isEmpty ? 'Rider' : name,
-                    style: const TextStyle(
-                      color: darkMaroon,
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: _showPhotoOptions,
-                    child: const Text(
-                      'Change photo',
-                      style: TextStyle(
-                        color: maroon,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+              child: ClipOval(
+                child: path == null
+                    ? const Center(child: fallback)
+                    : Image.file(
+                        File(path),
+                        width: size,
+                        height: size,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Center(child: fallback),
                       ),
+              ),
+            ),
+            if (_isPicking)
+              const Positioned.fill(
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: darkMaroon,
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Personal information.
-            _menuButton(
-              context,
-              icon: Icons.person_outline_rounded,
-              title: 'Personal Information',
-              subtitle: 'Name, contact details, and address',
-              page: TruckPersonalInformationScreen(
-                profile: widget.profile,
-                onSaved: (updatedProfile) {
-                  widget.onProfileChanged?.call(updatedProfile);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Truck information and documents.
-            _menuButton(
-              context,
-              icon: Icons.local_shipping_outlined,
-              title: 'Truck Information',
-              subtitle: 'Vehicle details, license, and documents',
-              page: TruckVehicleInformationScreen(
-                profile: widget.profile,
-                onSaved: (updatedProfile) {
-                  widget.onProfileChanged?.call(updatedProfile);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // CHANGE PASSWORD - newly added.
-            _menuButton(
-              context,
-              icon: Icons.lock_reset_rounded,
-              title: 'Change Password',
-              subtitle: 'Update your account password',
-              page: const ChangePasswordScreen(),
-            ),
-
-            const SizedBox(height: 24),
-            const Text(
-              'ACCOUNT DELETION',
-              style: TextStyle(
-                color: brownBeige,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.1,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildAccountDeletionSection(),
-            const SizedBox(height: 24),
-
-            // Log out.
-            SizedBox(
-              height: 52,
-              child: OutlinedButton.icon(
-                onPressed: () => _confirmLogout(context),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text(
-                  'Log Out',
-                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: darkMaroon,
-                  side: const BorderSide(color: darkMaroon, width: 1.3),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+              ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: maroon,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(
+                  Icons.camera_alt_rounded,
+                  size: 14,
+                  color: Colors.white,
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    final name = widget.profile.fullName.trim();
+    final riderId = widget.profile.riderId.trim();
+    final licenseNumber = widget.profile.licenseNumber.trim();
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [darkMaroon, maroon],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(25),
+      ),
+      child: Row(
+        children: [
+          _buildAvatar(),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Truck Rider',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  name.isEmpty ? 'Lumear Logistics' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: lightBeige, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Rider ID: ${riderId.isEmpty ? '—' : riderId}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                if (licenseNumber.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Driver license: $licenseNumber',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _isPicking ? null : _showPhotoOptions,
+                  child: Text(
+                    _imagePath == null ? 'Add profile photo' : 'Change photo',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileStat(IconData icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: maroon, size: 19),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: darkMaroon,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: brownBeige, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: cream,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: cream,
+        foregroundColor: darkMaroon,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'My Profile',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 130),
+        children: [
+          _buildProfileHeader(),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _profileStat(
+                  Icons.route_outlined,
+                  '${widget.totalTrips}',
+                  'Trips',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _profileStat(
+                  Icons.task_alt_rounded,
+                  '${widget.completedTrips}',
+                  'Completed',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _profileStat(
+                  Icons.local_shipping_outlined,
+                  widget.profile.vehicleType.trim().isEmpty
+                      ? 'Truck'
+                      : widget.profile.vehicleType.trim(),
+                  'Vehicle',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          const Text(
+            'ACCOUNT SETTINGS',
+            style: TextStyle(
+              color: brownBeige,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _menuButton(
+            context,
+            icon: Icons.person_outline_rounded,
+            title: 'Personal Information',
+            subtitle: 'Manage your name, contact details, and address',
+            page: TruckPersonalInformationScreen(
+              profile: widget.profile,
+              onSaved: (updatedProfile) {
+                widget.onProfileChanged?.call(updatedProfile);
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          _menuButton(
+            context,
+            icon: Icons.local_shipping_outlined,
+            title: 'Truck Information & Documents',
+            subtitle: 'View truck details, license, OR, and CR',
+            page: TruckVehicleInformationScreen(
+              profile: widget.profile,
+              onSaved: (updatedProfile) {
+                widget.onProfileChanged?.call(updatedProfile);
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          _menuButton(
+            context,
+            icon: Icons.lock_outline_rounded,
+            title: 'Change Password',
+            subtitle: 'Update your account password securely',
+            page: const ChangePasswordScreen(),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'ACCOUNT',
+            style: TextStyle(
+              color: brownBeige,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildAccountDeletionSection(),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmLogout(context),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text(
+                'Log Out',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: darkMaroon,
+                side: const BorderSide(color: darkMaroon, width: 1.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Center(
+            child: Text(
+              'Lumear Logistics • Truck Rider',
+              style: TextStyle(color: Colors.black45, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

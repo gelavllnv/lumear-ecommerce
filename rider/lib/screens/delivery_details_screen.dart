@@ -13,8 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 // ============================================================
 // DELIVERY STAGE (enum instead of raw strings)
 //
-// Flow: Pick Up from Sorting Center -> In Transit ->
-//       Arrived at Customer -> Delivered
+// Flow: Parcel Picked Up -> In Transit ->
+//       Arrived at Customer -> POD Submitted (buyer confirmation pending)
 // Failure branch: Delivery Failed (from In Transit / Arrived)
 // ============================================================
 
@@ -31,13 +31,13 @@ extension DeliveryStageX on DeliveryStage {
   String get label {
     switch (this) {
       case DeliveryStage.pickUpFromSorting:
-        return 'Pick Up from Sorting Center';
+        return 'Parcel Picked Up';
       case DeliveryStage.inTransit:
         return 'In Transit';
       case DeliveryStage.arrivedAtCustomer:
         return 'Arrived at Customer';
       case DeliveryStage.delivered:
-        return 'Delivered';
+        return 'POD Submitted';
       case DeliveryStage.deliveryFailed:
         return 'Delivery Failed';
     }
@@ -47,13 +47,13 @@ extension DeliveryStageX on DeliveryStage {
   String get shortLabel {
     switch (this) {
       case DeliveryStage.pickUpFromSorting:
-        return 'Pick Up';
+        return 'Picked Up';
       case DeliveryStage.inTransit:
         return 'Transit';
       case DeliveryStage.arrivedAtCustomer:
         return 'Arrived';
       case DeliveryStage.delivered:
-        return 'Delivered';
+        return 'POD';
       case DeliveryStage.deliveryFailed:
         return 'Failed';
     }
@@ -68,6 +68,20 @@ class DeliveryDetailsScreen extends StatefulWidget {
   final String distance;
   final String fee;
   final String customerPhone;
+  final String paymentMethod;
+  final double codAmount;
+  final double shippingFee;
+  final double riderFee;
+  final double customerLatitude;
+  final double customerLongitude;
+  final String initialStatus;
+  final DateTime? pickedUpAt;
+  final int initialFailedAttempts;
+  final Future<bool> Function(String status)? onStatusChange;
+  final Future<Map<String, dynamic>?> Function(String reason, String note)?
+  onFailedAttempt;
+  final Future<bool> Function(String reason, DateTime proposedFor)?
+  onDelayReport;
 
   const DeliveryDetailsScreen({
     super.key,
@@ -78,6 +92,18 @@ class DeliveryDetailsScreen extends StatefulWidget {
     required this.distance,
     required this.fee,
     this.customerPhone = '',
+    this.paymentMethod = 'Paid Online',
+    this.codAmount = 0,
+    this.shippingFee = 0,
+    this.riderFee = 0,
+    this.customerLatitude = 0,
+    this.customerLongitude = 0,
+    this.initialStatus = 'Pending',
+    this.pickedUpAt,
+    this.initialFailedAttempts = 0,
+    this.onStatusChange,
+    this.onFailedAttempt,
+    this.onDelayReport,
   });
 
   @override
@@ -100,6 +126,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   // ============================================================
 
   DeliveryStage _status = DeliveryStage.pickUpFromSorting;
+  bool _buyerConfirmedReceipt = false;
 
   // Successful path shown by the compact stage indicator.
   static const List<DeliveryStage> _progressStages = [
@@ -114,6 +141,8 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   String _failedNote = '';
   DateTime? _failedAt;
   DeliveryStage? _stageBeforeFailure;
+  bool _isReportingDelay = false;
+  bool _delayReported = false;
 
   // ============================================================
   // PROOF OF DELIVERY
@@ -127,31 +156,22 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
   // ============================================================
   // CASH ON DELIVERY (COD)
-  // Demo/hardcoded collection state for the current prototype.
   // ============================================================
-  static const String _paymentMethod = 'Cash on Delivery';
-  static const String _codAmount = '₱450.00';
   bool _codCollected = false;
   bool _isShowingConfirmation = false;
   bool _completionSubmitted = false;
+  late int _failedAttempts = widget.initialFailedAttempts;
 
   // ============================================================
-  // SHIPPING FEE SPLIT
-  // Shipping fee is ₱50. Logistics gets 20% (₱10), the rider gets
-  // the remaining 80% (₱40). Credited only after a successful delivery.
-  // ============================================================
-  static const double _shippingFee = 50.0;
-  static const double _logisticsRate = 0.20;
-  static const double _logisticsShare = _shippingFee * _logisticsRate; // 10
-  static const double _riderShare = _shippingFee - _logisticsShare; // 40
-
-  // ============================================================
-  // SAMPLE LOCATIONS
-  // ============================================================
-
-  final LatLng _pickupLocation = const LatLng(14.0700, 121.3265);
-
-  final LatLng _customerLocation = const LatLng(14.0648, 121.3310);
+  String get _paymentMethod => widget.paymentMethod;
+  String get _codAmount => '₱${widget.codAmount.toStringAsFixed(2)}';
+  double get _shippingFee => widget.shippingFee;
+  double get _riderShare => widget.riderFee;
+  double get _logisticsShare => _shippingFee - _riderShare;
+  LatLng? get _customerLocation =>
+      widget.customerLatitude != 0 && widget.customerLongitude != 0
+      ? LatLng(widget.customerLatitude, widget.customerLongitude)
+      : null;
 
   // ============================================================
   // RIDER LIVE GPS LOCATION
@@ -175,7 +195,28 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    _stageTimes[DeliveryStage.pickUpFromSorting] = DateTime.now();
+    _buyerConfirmedReceipt = widget.initialStatus == 'Delivered';
+    if ({'Returned', 'Delivery Failed'}.contains(widget.initialStatus)) {
+      _status = DeliveryStage.deliveryFailed;
+    } else if ({
+      'Awaiting Buyer Confirmation',
+      'Delivered',
+    }.contains(widget.initialStatus)) {
+      _status = DeliveryStage.delivered;
+    } else if ({
+      'Heading to Pickup',
+      'In Transit',
+      'Out for Delivery',
+      'Arrived at Destination',
+    }.contains(widget.initialStatus)) {
+      _status = DeliveryStage.inTransit;
+    }
+    _codCollected = widget.codAmount <= 0;
+    if (_status != DeliveryStage.pickUpFromSorting) {
+      _stageTimes[DeliveryStage.pickUpFromSorting] =
+          widget.pickedUpAt ?? DateTime.now();
+    }
+    _stageTimes[_status] = DateTime.now();
     _startRiderLocationTracking();
   }
 
@@ -265,13 +306,12 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   // ============================================================
 
   /// Where the rider should be heading right now.
-  LatLng get _currentDestination => _status == DeliveryStage.pickUpFromSorting
-      ? _pickupLocation
-      : _customerLocation;
+  LatLng? get _currentDestination =>
+      _status == DeliveryStage.pickUpFromSorting ? null : _customerLocation;
 
   String get _currentDestinationName =>
       _status == DeliveryStage.pickUpFromSorting
-      ? 'the sorting center'
+      ? 'the assigned sorting center'
       : 'the customer';
 
   Future<List<LatLng>?> _fetchRoadRoute(LatLng from, LatLng to) async {
@@ -322,6 +362,14 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
     if (_isLoadingRoute) return;
 
+    final destination = _currentDestination;
+    if (destination == null) {
+      _showErrorMessage(
+        'This shipment has no destination coordinates from Laravel yet.',
+      );
+      return;
+    }
+
     final LatLng? rider = _riderLocation;
 
     if (rider == null) {
@@ -332,7 +380,6 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
       return;
     }
 
-    final LatLng destination = _currentDestination;
     final String destinationName = _currentDestinationName;
 
     setState(() {
@@ -414,7 +461,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   String _customerStatusMessage() {
     switch (_status) {
       case DeliveryStage.pickUpFromSorting:
-        return 'Your rider is heading to the sorting center to collect your parcel.';
+        return 'The rider has picked up your parcel. Delivery has not started yet.';
 
       case DeliveryStage.inTransit:
         return 'Your parcel is on the way to you.';
@@ -423,7 +470,9 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
         return 'Rider has arrived at your delivery location.';
 
       case DeliveryStage.delivered:
-        return 'Your parcel has been delivered successfully.';
+        return _buyerConfirmedReceipt
+            ? 'The buyer confirmed receipt. The order is complete.'
+            : 'Delivery proof was submitted. The order will be complete after the buyer confirms receipt.';
 
       case DeliveryStage.deliveryFailed:
         return 'The delivery attempt was unsuccessful. The parcel is waiting to be returned.';
@@ -437,7 +486,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   String _riderDescription() {
     switch (_status) {
       case DeliveryStage.pickUpFromSorting:
-        return 'Proceed to the assigned sorting center, verify the parcel, then confirm pickup.';
+        return 'The parcel is in your care. Start delivery when you are ready to travel to the customer.';
 
       case DeliveryStage.inTransit:
         return 'Parcel collected. Proceed to the customer delivery address.';
@@ -446,7 +495,9 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
         return 'You have arrived. Collect the COD payment, then complete the Proof of Delivery before confirming.';
 
       case DeliveryStage.delivered:
-        return 'The parcel has been successfully delivered.';
+        return _buyerConfirmedReceipt
+            ? 'The buyer confirmed receipt. This order is complete.'
+            : 'Proof of delivery is saved. Waiting for the buyer to confirm receipt.';
 
       case DeliveryStage.deliveryFailed:
         return 'This delivery attempt was marked as failed. Tap Return Parcel to begin the return process.';
@@ -460,7 +511,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   String _buttonText() {
     switch (_status) {
       case DeliveryStage.pickUpFromSorting:
-        return 'Confirm Parcel Pickup';
+        return 'Start Delivery';
 
       case DeliveryStage.inTransit:
         return 'Arrived at Customer';
@@ -469,7 +520,9 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
         return 'Confirm Delivery';
 
       case DeliveryStage.delivered:
-        return 'Delivery Completed';
+        return _buyerConfirmedReceipt
+            ? 'Order Complete'
+            : 'Awaiting Buyer Confirmation';
 
       case DeliveryStage.deliveryFailed:
         return 'Return Parcel';
@@ -483,7 +536,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
   IconData _buttonIcon() {
     switch (_status) {
       case DeliveryStage.pickUpFromSorting:
-        return Icons.inventory_2_outlined;
+        return Icons.delivery_dining_outlined;
 
       case DeliveryStage.inTransit:
         return Icons.location_on_outlined;
@@ -570,19 +623,24 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
     }
 
     // ==========================================================
-    // PICK UP FROM SORTING CENTER -> IN TRANSIT
+    // PARCEL IN RIDER CUSTODY -> START DELIVERY
     // ==========================================================
 
     if (_status == DeliveryStage.pickUpFromSorting) {
       final bool confirm = await _showConfirmation(
-        title: 'Confirm Parcel Pickup',
+        title: 'Start Delivery',
         message:
-            'Have you collected order ${widget.orderNumber} from ${widget.store}?',
-        confirmText: 'Confirm Pickup',
-        icon: Icons.inventory_2_outlined,
+            'You have custody of order ${widget.orderNumber}. Start traveling to ${widget.customer}?',
+        confirmText: 'Start Delivery',
+        icon: Icons.delivery_dining_outlined,
       );
 
       if (!confirm) return;
+
+      if (widget.onStatusChange != null) {
+        final bool saved = await widget.onStatusChange!('Out for Delivery');
+        if (!saved) return;
+      }
 
       setState(() {
         _status = DeliveryStage.inTransit;
@@ -594,7 +652,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
       });
 
       _showTopNotification(
-        'Parcel picked up. You are now in transit to the customer.',
+        'Delivery started. You are now in transit.',
         icon: Icons.delivery_dining,
       );
       return;
@@ -605,7 +663,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
     // ==========================================================
 
     if (_status == DeliveryStage.arrivedAtCustomer) {
-      if (!_codCollected) {
+      if (widget.codAmount > 0 && !_codCollected) {
         _showErrorMessage(
           'Please confirm the COD payment before completing the delivery.',
         );
@@ -639,6 +697,11 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
     // ==========================================================
     // CHANGE STATUS
     // ==========================================================
+
+    if (_status == DeliveryStage.inTransit && widget.onStatusChange != null) {
+      final bool saved = await widget.onStatusChange!('Out for Delivery');
+      if (!saved) return;
+    }
 
     setState(() {
       switch (_status) {
@@ -821,23 +884,222 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
     final DateTime now = DateTime.now();
 
+    Map<String, dynamic>? attemptResult;
+    if (widget.onFailedAttempt != null) {
+      try {
+        attemptResult = await widget.onFailedAttempt!(
+          selectedReason,
+          noteController.text.trim(),
+        );
+      } catch (error) {
+        if (mounted) {
+          _showErrorMessage('Failed attempt was not saved: $error');
+        }
+        noteController.dispose();
+        return;
+      }
+      if (attemptResult == null) {
+        noteController.dispose();
+        return;
+      }
+    }
+
+    final int attempt =
+        int.tryParse(attemptResult?['attempt']?.toString() ?? '') ??
+        (_failedAttempts + 1);
+    final bool returnReady =
+        attemptResult?['return_ready'] == true || attempt >= 4;
+
     setState(() {
       _stageBeforeFailure = _status;
-      _status = DeliveryStage.deliveryFailed;
+      _failedAttempts = attempt;
+      _status = returnReady
+          ? DeliveryStage.deliveryFailed
+          : (_stageBeforeFailure ?? DeliveryStage.inTransit);
       _failedReason = selectedReason;
       _failedNote = noteController.text.trim();
       _failedAt = now;
-      _stageTimes[DeliveryStage.deliveryFailed] = now;
+      if (returnReady) {
+        _stageTimes[DeliveryStage.deliveryFailed] = now;
+      } else {
+        _stageTimes.remove(DeliveryStage.deliveryFailed);
+      }
       _routePoints = [];
     });
 
     noteController.dispose();
 
     _showTopNotification(
-      'Delivery attempt recorded as failed. Tap Return Parcel to move it to Returns.',
+      returnReady
+          ? 'Four delivery attempts failed. Parcel is now ready to return to the seller.'
+          : 'Failed attempt $attempt of 4 recorded. The parcel can be attempted again.',
       color: maroon,
       icon: Icons.error_outline,
     );
+  }
+
+  Future<void> _showDelayReportDialog() async {
+    if (_isReportingDelay || _delayReported || widget.onDelayReport == null) {
+      return;
+    }
+
+    const reasons = [
+      'Heavy traffic',
+      'Bad weather',
+      'Vehicle problem',
+      'Accident or safety issue',
+      'Customer requested a later delivery',
+      'Other',
+    ];
+
+    final now = DateTime.now();
+    String selectedReason = reasons.first;
+    DateTime proposedFor = DateTime(now.year, now.month, now.day + 1, 10);
+    final noteController = TextEditingController();
+
+    final report = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: cream,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Text(
+            'Report a delivery delay',
+            style: TextStyle(color: darkMaroon, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Logistics will review your report and proposed schedule. The buyer will be notified after Logistics confirms the reschedule.',
+                  style: TextStyle(color: brownBeige, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  value: selectedReason,
+                  decoration: InputDecoration(
+                    labelText: 'Reason for delay',
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.72),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: lightBeige),
+                    ),
+                  ),
+                  items: reasons
+                      .map(
+                        (reason) => DropdownMenuItem(
+                          value: reason,
+                          child: Text(reason),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => selectedReason = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final date = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: proposedFor,
+                      firstDate: DateTime(now.year, now.month, now.day),
+                      lastDate: DateTime(now.year + 1),
+                    );
+                    if (date == null || !dialogContext.mounted) return;
+                    final time = await showTimePicker(
+                      context: dialogContext,
+                      initialTime: TimeOfDay.fromDateTime(proposedFor),
+                    );
+                    if (time == null || !dialogContext.mounted) return;
+                    setDialogState(() {
+                      proposedFor = DateTime(
+                        date.year,
+                        date.month,
+                        date.day,
+                        time.hour,
+                        time.minute,
+                      );
+                    });
+                  },
+                  icon: const Icon(Icons.event_outlined),
+                  label: Text(
+                    '${_formatDate(proposedFor)} · ${_formatTime(proposedFor)}',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: noteController,
+                  maxLines: 2,
+                  maxLength: 300,
+                  decoration: InputDecoration(
+                    hintText: 'Additional details (optional)',
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.72),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel', style: TextStyle(color: brownBeige)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final details = noteController.text.trim();
+                final reason = details.isEmpty
+                    ? selectedReason
+                    : '$selectedReason: $details';
+                Navigator.pop(dialogContext, {
+                  'reason': reason,
+                  'proposedFor': proposedFor,
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: darkMaroon,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Send to Logistics'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    noteController.dispose();
+    if (report == null || !mounted) return;
+
+    setState(() => _isReportingDelay = true);
+    try {
+      final saved = await widget.onDelayReport!(
+        report['reason'] as String,
+        report['proposedFor'] as DateTime,
+      );
+      if (!saved || !mounted) return;
+
+      setState(() => _delayReported = true);
+      _showTopNotification(
+        'Delay report sent to Logistics. They will review the new schedule.',
+        icon: Icons.schedule_outlined,
+      );
+    } catch (error) {
+      _showErrorMessage('Could not send the delay report: $error');
+    } finally {
+      if (mounted) setState(() => _isReportingDelay = false);
+    }
   }
 
   String _formatTime(DateTime time) {
@@ -916,7 +1178,9 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                 index < timelineStages.length - 1 || _failedAt != null;
 
             return _timelineEntry(
-              title: stage.label,
+              title: stage == DeliveryStage.delivered && _buyerConfirmedReceipt
+                  ? 'Buyer Confirmed'
+                  : stage.label,
               time: recordedAt,
               isReached: reached,
               showConnector: showConnector,
@@ -1311,7 +1575,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
               const SizedBox(height: 20),
 
               const Text(
-                'Delivery Completed!',
+                'Awaiting Buyer Confirmation',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: darkMaroon,
@@ -1351,7 +1615,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
               const SizedBox(height: 10),
 
               Text(
-                'Order ${widget.orderNumber} has been successfully delivered.',
+                'Proof of delivery is saved. This order will be successful after the buyer confirms receipt.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: brownBeige, height: 1.5),
               ),
@@ -1392,7 +1656,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
                     const SizedBox(height: 4),
 
-                    const Text(
+                    Text(
                       _codAmount,
                       style: TextStyle(
                         color: darkMaroon,
@@ -1410,7 +1674,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
                     const SizedBox(height: 4),
 
-                    const Text(
+                    Text(
                       _paymentMethod,
                       style: TextStyle(
                         color: darkMaroon,
@@ -1625,129 +1889,117 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
         child: Column(
           children: [
             // ==================================================
-            // MAP (fixed — always visible, never scrolls away)
-            // Fits both the pickup and customer markers in view
-            // with padding. Draws the route when Navigate is tapped.
+            // MAP (only shown when Laravel supplies customer coordinates)
             // ==================================================
 
             SizedBox(
               height: 200,
               width: double.infinity,
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCameraFit: CameraFit.bounds(
-                    bounds: LatLngBounds.fromPoints([
-                      _pickupLocation,
-                      _customerLocation,
-                    ]),
-                    padding: const EdgeInsets.all(48),
-                  ),
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.flutter_application_1',
-                  ),
+              child: _customerLocation == null
+                  ? Container(
+                      color: lightBeige.withValues(alpha: 0.25),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Map coordinates are not available for this shipment.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: brownBeige, fontSize: 12),
+                      ),
+                    )
+                  : FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: _customerLocation!,
+                        initialZoom: 13,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName:
+                              'com.example.flutter_application_1',
+                        ),
 
-                  // Route line (drawn under the markers).
-                  if (_routePoints.length >= 2)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: _routePoints,
-                          strokeWidth: 5,
-                          color: darkMaroon,
-                          borderStrokeWidth: 2,
-                          borderColor: Colors.white,
+                        // Route line (drawn under the markers).
+                        if (_routePoints.length >= 2)
+                          PolylineLayer(
+                            polylines: [
+                              Polyline(
+                                points: _routePoints,
+                                strokeWidth: 5,
+                                color: darkMaroon,
+                                borderStrokeWidth: 2,
+                                borderColor: Colors.white,
+                              ),
+                            ],
+                          ),
+
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _customerLocation!,
+                              width: 55,
+                              height: 55,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.location_on,
+                                  color: Colors.red,
+                                  size: 37,
+                                ),
+                              ),
+                            ),
+
+                            if (_riderLocation != null)
+                              Marker(
+                                point: _riderLocation!,
+                                width: 62,
+                                height: 62,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: darkMaroon,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 3,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.25,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.delivery_dining,
+                                    color: Colors.white,
+                                    size: 34,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        RichAttributionWidget(
+                          attributions: [
+                            TextSourceAttribution('OpenStreetMap contributors'),
+                          ],
                         ),
                       ],
                     ),
-
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _pickupLocation,
-                        width: 55,
-                        height: 55,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.warehouse_outlined,
-                            color: darkMaroon,
-                            size: 32,
-                          ),
-                        ),
-                      ),
-
-                      Marker(
-                        point: _customerLocation,
-                        width: 55,
-                        height: 55,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Colors.red,
-                            size: 37,
-                          ),
-                        ),
-                      ),
-
-                      if (_riderLocation != null)
-                        Marker(
-                          point: _riderLocation!,
-                          width: 62,
-                          height: 62,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: darkMaroon,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.delivery_dining,
-                              color: Colors.white,
-                              size: 34,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  RichAttributionWidget(
-                    attributions: [
-                      TextSourceAttribution('OpenStreetMap contributors'),
-                    ],
-                  ),
-                ],
-              ),
             ),
 
             // ==================================================
@@ -1888,6 +2140,40 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                   ),
 
                   if (_canMarkFailed) ...[
+                    if (widget.onDelayReport != null) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: _isReportingDelay || _delayReported
+                              ? null
+                              : _showDelayReportDialog,
+                          icon: _isReportingDelay
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.schedule_outlined),
+                          label: Text(
+                            _delayReported
+                                ? 'Delay Report Sent'
+                                : 'Report Delay to Logistics',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: darkMaroon,
+                            side: const BorderSide(color: darkMaroon),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
@@ -2007,7 +2293,10 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
 
         FittedBox(
           child: Text(
-            _progressStages[index].shortLabel,
+            _progressStages[index] == DeliveryStage.delivered &&
+                    _buyerConfirmedReceipt
+                ? 'Confirmed'
+                : _progressStages[index].shortLabel,
             style: TextStyle(
               color: current || completed ? darkMaroon : brownBeige,
               fontSize: 8,
@@ -2161,7 +2450,9 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                 const SizedBox(height: 4),
 
                 Text(
-                  _status.label,
+                  _status == DeliveryStage.delivered && _buyerConfirmedReceipt
+                      ? 'Order Complete'
+                      : _status.label,
                   style: const TextStyle(
                     color: darkMaroon,
                     fontSize: 18,
@@ -2302,7 +2593,7 @@ class _DeliveryDetailsScreenState extends State<DeliveryDetailsScreen> {
                   ],
                 ),
               ),
-              const Text(
+              Text(
                 _codAmount,
                 style: TextStyle(
                   color: darkMaroon,
