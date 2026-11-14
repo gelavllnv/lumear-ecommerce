@@ -42,7 +42,7 @@ class _LumearState extends State<Lumear> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lumear',
+      title: 'Rider',
 
       debugShowCheckedModeBanner: false,
 
