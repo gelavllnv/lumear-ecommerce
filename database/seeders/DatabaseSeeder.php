@@ -15,6 +15,6 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Every default seeder is idempotent: existing records are retained.
-        $this->call([RoleSeeder::class, PermissionSeeder::class, CatalogCategorySeeder::class]);
+        $this->call([RoleSeeder::class, PermissionSeeder::class, CatalogCategorySeeder::class, LogisticsHeadAdminRoleSeeder::class]);
     }
 }

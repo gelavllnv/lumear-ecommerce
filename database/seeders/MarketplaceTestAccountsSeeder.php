@@ -9,13 +9,13 @@ use App\Models\Seller;
 use App\Models\SellerAgreementAcceptance;
 use App\Models\SellerKycSubmission;
 use App\Models\SellerOnboardingStep;
-use App\Models\SellerPayoutAccount;
 use App\Models\SellerProfile;
 use App\Models\User;
 use App\Models\WalletAccount;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Crypt;
 
 /**
  * Creates four complete local demonstration accounts without changing
@@ -133,13 +133,15 @@ class MarketplaceTestAccountsSeeder extends Seeder
                     ],
                 );
 
-                SellerPayoutAccount::updateOrCreate(
+                DB::table('seller_payout_accounts')->updateOrInsert(
                     ['seller_id' => $seller->id, 'is_default' => true],
                     [
                         'type' => 'e_wallet',
                         'account_name' => $details['owner_name'],
-                        'account_number' => $details['payout_number'],
+                        'account_number' => Crypt::encryptString($details['payout_number']),
                         'verified_at' => now(),
+                        'updated_at' => now(),
+                        'created_at' => now(),
                     ],
                 );
 

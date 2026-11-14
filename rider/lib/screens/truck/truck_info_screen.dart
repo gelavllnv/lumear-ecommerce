@@ -395,3 +395,4 @@ class _TruckInfoScreenState extends State<TruckInfoScreen> {
   }
 
 }
+

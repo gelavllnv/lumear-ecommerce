@@ -574,3 +574,4 @@
 
     <script src="{{ asset('js/buyer/home-product-navigation.js') }}?v=1" defer></script>
 @endpush
+
